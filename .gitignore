@@ -1,1 +1,11 @@
 doc\环境变量.txt
+__pycache__/
+*.pyc
+.pytest_cache/
+build/
+experiments/
+logs/
+eval_results/
+optimized_lora.best.cu
+optimized_lora.last_good.cu
+optimized_lora.tmp

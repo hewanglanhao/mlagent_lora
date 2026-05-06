@@ -1,3 +1,3 @@
-$env:API_KEY="sk-ba00e9a32288bef1fbfc9e4b3b89483a9bfc2d0edeefcd20b15573aceec7316a"
-$env:BASE_MODEL="gpt-5.4"
-$env:BASE_URL="http://123.57.128.178:8080"
+export OPENAI_API_KEY="sk-277737d97533daa862ea4baf68cf93ccf1560e16ab0a80ffdfcec81f14f079dc"
+export LLM_MODEL="gpt-5.4"
+export OPENAI_BASE_URL="http://123.57.128.178:8080/v1"
