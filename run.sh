@@ -1,10 +1,64 @@
 #!/usr/bin/env bash
 set -u
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$ROOT_DIR" || exit 1
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_DIR="${MLAGENT_PROJECT_DIR:-$SCRIPT_DIR/mlagent_lora}"
+OUTPUT_DIR="${MLAGENT_OUTPUT_DIR:-/workspace}"
+FINAL_FILE="optimized_lora.cu"
 
-ENV_FILE="$ROOT_DIR/doc/环境变量.txt"
+if [ ! -d "$PROJECT_DIR/agent" ]; then
+    if [ -d "$SCRIPT_DIR/agent" ]; then
+        PROJECT_DIR="$SCRIPT_DIR"
+    else
+        echo "project directory not found: $PROJECT_DIR" >&2
+        exit 1
+    fi
+fi
+
+sync_final_file() {
+    if [ -s "$PROJECT_DIR/$FINAL_FILE" ]; then
+        mkdir -p "$OUTPUT_DIR" || return 1
+        tmp_file="$(mktemp "$OUTPUT_DIR/.${FINAL_FILE}.tmp.XXXXXX")" || return 1
+        if cp -f "$PROJECT_DIR/$FINAL_FILE" "$tmp_file"; then
+            mv -f "$tmp_file" "$OUTPUT_DIR/$FINAL_FILE"
+        else
+            rm -f "$tmp_file"
+            return 1
+        fi
+    fi
+}
+
+SYNC_PID=""
+cleanup() {
+    if [ -n "${SYNC_PID:-}" ]; then
+        kill "$SYNC_PID" 2>/dev/null || true
+        wait "$SYNC_PID" 2>/dev/null || true
+        SYNC_PID=""
+    fi
+    sync_final_file || true
+}
+on_exit() {
+    status=$?
+    cleanup
+    exit "$status"
+}
+on_signal() {
+    cleanup
+    exit 143
+}
+trap on_exit EXIT
+trap on_signal INT TERM HUP
+
+sync_final_file || true
+while true; do
+    sync_final_file || true
+    sleep 5
+done &
+SYNC_PID=$!
+
+cd "$PROJECT_DIR" || exit 1
+
+ENV_FILE="$PROJECT_DIR/doc/环境变量.txt"
 # if [ -f "$ENV_FILE" ]; then
 #     set +u
 #     # shellcheck disable=SC1090
@@ -37,8 +91,10 @@ if [ "$status" -ne 0 ]; then
     python3 -m agent.agent_framework --bootstrap-only || true
 fi
 
-if [ ! -s "$ROOT_DIR/optimized_lora.cu" ]; then
-    echo "optimized_lora.cu was not produced" >&2
+sync_final_file || true
+
+if [ ! -s "$OUTPUT_DIR/$FINAL_FILE" ]; then
+    echo "$FINAL_FILE was not produced in $OUTPUT_DIR" >&2
     exit 1
 fi
 
