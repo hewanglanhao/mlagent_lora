@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,9 @@ class LLMCallLogger:
         self.include_full = os.getenv("LLM_LOG_FULL_TEXT", "0") == "1"
         self._counter = 0
         self._paths: dict[str, Path] = {}
+        self._counter_lock = threading.Lock()
+        self._manifest_lock = threading.Lock()
+        self._complete_lock = threading.Lock()
 
     def complete(
         self,
@@ -35,8 +39,9 @@ class LLMCallLogger:
         user: str,
         metadata: dict[str, Any] | None = None,
     ) -> LLMResponse | None:
-        self._counter += 1
-        call_id = f"{self._counter:04d}_{self._safe_name(agent_name)}_{int(time.time() * 1000)}"
+        with self._counter_lock:
+            self._counter += 1
+            call_id = f"{self._counter:04d}_{self._safe_name(agent_name)}_{int(time.time() * 1000)}"
         path = self.call_dir / f"{call_id}.json"
         self._paths[call_id] = path
         started = time.time()
@@ -65,14 +70,16 @@ class LLMCallLogger:
         self._append_manifest(record)
         self.logger.info("llm_call_start id=%s agent=%s model=%s", call_id, agent_name, llm.model)
 
-        response = llm.complete(system=system, user=user)
+        with self._complete_lock:
+            response = llm.complete(system=system, user=user)
+            request_error = llm.last_request_error
         finished = time.time()
         record["finished_ts"] = finished
         record["duration_sec"] = finished - started
 
         if response is None:
             record["status"] = "error_or_empty"
-            record["error"] = llm.last_request_error or "LLM returned no response."
+            record["error"] = request_error or "LLM returned no response."
             self._write_record(path, record)
             self._append_manifest(self._manifest_event(record))
             self.logger.warning(
@@ -133,8 +140,9 @@ class LLMCallLogger:
         atomic_write_text(path, json.dumps(record, indent=2, sort_keys=True) + "\n")
 
     def _append_manifest(self, event: dict[str, Any]) -> None:
-        with self.manifest_path.open("a", encoding="utf-8") as out:
-            out.write(json.dumps(event, sort_keys=True) + "\n")
+        with self._manifest_lock:
+            with self.manifest_path.open("a", encoding="utf-8") as out:
+                out.write(json.dumps(event, sort_keys=True) + "\n")
 
     def _manifest_event(self, record: dict[str, Any]) -> dict[str, Any]:
         return {

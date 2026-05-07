@@ -27,6 +27,8 @@ def load_env_file(path: Path) -> None:
         "LLM_MODEL",
         "MODEL",
         "LLM_MODE",
+        "BASE_MODEL",
+        "OPENAI_MODEL",
     ]:
         match = re.search(rf"^\s*(?:export\s+)?{re.escape(name)}\s*=\s*([\"']?)(.*?)\1\s*$", text, re.M)
         if match and not os.getenv(name):
@@ -134,7 +136,14 @@ def main() -> int:
 
     api_key = os.getenv("OPENAI_API_KEY") or os.getenv("API_KEY")
     base_url = normalize_base_url(os.getenv("OPENAI_BASE_URL") or os.getenv("BASE_URL") or "")
-    model = os.getenv("LLM_MODEL") or os.getenv("LLM_MODE") or os.getenv("MODEL") or "gpt-4o-mini"
+    model = (
+        os.getenv("LLM_MODEL")
+        or os.getenv("LLM_MODE")
+        or os.getenv("MODEL")
+        or os.getenv("BASE_MODEL")
+        or os.getenv("OPENAI_MODEL")
+        or "gpt-4o-mini"
+    )
 
     print(f"api_key_set: {bool(api_key)}")
     print(f"api_key_length: {len(api_key) if api_key else 0}")

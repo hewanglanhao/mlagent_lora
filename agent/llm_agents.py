@@ -270,6 +270,24 @@ class PerformanceDiagnosisAgent:
         parsed["fallback_diagnosis"] = fallback
         return parsed
 
+    def fallback_diagnosis(
+        self,
+        candidate: CandidateSpec,
+        static_review: dict[str, Any] | None,
+        compile_result: dict[str, Any] | None,
+        correctness_result: dict[str, Any] | None,
+        benchmark_result: dict[str, Any] | None,
+        profile_result: dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        return self._fallback_diagnosis(
+            candidate,
+            static_review,
+            compile_result,
+            correctness_result,
+            benchmark_result,
+            profile_result,
+        )
+
     def _complete(self, system: str, user: str, agent_name: str, metadata: dict[str, Any]):
         if self.llm_calls:
             return self.llm_calls.complete(self.llm, agent_name, system, user, metadata)
@@ -356,29 +374,51 @@ class OptimizationMutationAgent:
         diagnosis: dict[str, Any] | None,
         time_remaining: float,
     ) -> CandidateSpec | None:
-        if self.enabled and self.llm.enabled:
-            mutation = self._ask_llm(best_record, history, diagnosis, time_remaining)
-            if mutation:
-                parent = best_record.get("id") if best_record else 0
-                try:
-                    candidate = self.generator.from_mutation(experiment_id, mutation, parent=parent)
-                    tried = {
-                        (
-                            item.get("family"),
-                            item.get("block_size"),
-                            item.get("vector_width"),
-                            item.get("use_fast_math"),
-                            item.get("shape_dispatch"),
-                        )
-                        for item in history
-                    }
-                    if self.generator.candidate_key(candidate) not in tried:
-                        return candidate
-                except Exception:
-                    pass
+        mutation = self.ask_llm_mutation(best_record, history, diagnosis, time_remaining)
+        if mutation:
+            candidate = self.candidate_from_mutation(experiment_id, mutation, best_record, history)
+            if candidate:
+                return candidate
 
         parent = best_record.get("id") if best_record else 0
         return self.generator.next_untried(experiment_id, history, parent=parent)
+
+    def ask_llm_mutation(
+        self,
+        best_record: dict[str, Any] | None,
+        history: list[dict[str, Any]],
+        diagnosis: dict[str, Any] | None,
+        time_remaining: float,
+    ) -> dict[str, Any] | None:
+        if not self.enabled or not self.llm.enabled:
+            return None
+        return self._ask_llm(best_record, history, diagnosis, time_remaining)
+
+    def candidate_from_mutation(
+        self,
+        experiment_id: int,
+        mutation: dict[str, Any],
+        best_record: dict[str, Any] | None,
+        history: list[dict[str, Any]],
+    ) -> CandidateSpec | None:
+        parent = best_record.get("id") if best_record else 0
+        try:
+            candidate = self.generator.from_mutation(experiment_id, mutation, parent=parent)
+        except Exception:
+            return None
+        tried = {
+            (
+                item.get("family"),
+                item.get("block_size"),
+                item.get("vector_width"),
+                item.get("use_fast_math"),
+                item.get("shape_dispatch"),
+            )
+            for item in history
+        }
+        if self.generator.candidate_key(candidate) in tried:
+            return None
+        return candidate
 
     def _ask_llm(
         self,

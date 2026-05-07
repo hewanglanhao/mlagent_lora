@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .background_tasks import BackgroundTask, start_background_task
 from .cuda_candidates import CUDACandidateGenerator, CandidateSpec
 from .llm_adapter import LLMClient
 from .llm_call_logger import LLMCallLogger
@@ -160,12 +161,17 @@ class BestCandidateManager:
         self.last_good_path = root / "optimized_lora.last_good.cu"
         self.best_record: CandidateRecord | None = None
 
-    def bootstrap(self, source: Path, record: CandidateRecord) -> None:
+    def bootstrap(self, source: Path, record: CandidateRecord, overwrite_existing: bool = True) -> bool:
+        if not overwrite_existing and self._has_existing_artifact():
+            self.ensure_final_exists()
+            record.decision = "bootstrap_preserved_existing_best"
+            return False
         atomic_copy(source, self.final_path)
         atomic_copy(source, self.backup_path)
         atomic_copy(source, self.last_good_path)
         record.decision = "bootstrapped_as_initial_best"
         self.best_record = record
+        return True
 
     def consider(self, source: Path, record: CandidateRecord) -> bool:
         if not record.compiled or not record.correct:
@@ -197,6 +203,12 @@ class BestCandidateManager:
             return
         if self.backup_path.exists() and self.backup_path.stat().st_size > 0:
             atomic_copy(self.backup_path, self.final_path)
+
+    def _has_existing_artifact(self) -> bool:
+        return any(
+            path.exists() and path.stat().st_size > 0
+            for path in (self.final_path, self.backup_path, self.last_good_path)
+        )
 
 
 class Supervisor:
@@ -245,6 +257,12 @@ class Supervisor:
         )
         self.best_manager = BestCandidateManager(self.root, self.spec)
         self.history: list[CandidateRecord] = []
+        self.async_llm = bool(args.async_llm and self.llm.enabled)
+        self.async_llm_advisory = bool(self.async_llm and args.async_llm_advisory)
+        self.pending_plan: BackgroundTask[dict[str, Any]] | None = None
+        self.pending_mutation: BackgroundTask[dict[str, Any] | None] | None = None
+        self.pending_static_reviews: list[tuple[CandidateRecord, BackgroundTask[dict[str, Any] | None]]] = []
+        self.pending_diagnoses: list[tuple[CandidateRecord, BackgroundTask[dict[str, Any]]]] = []
 
     def run(self) -> int:
         self.logger.info(
@@ -254,21 +272,33 @@ class Supervisor:
             self.args.max_iters,
         )
         self.logger.info("llm status: %s", self.llm.status)
+        self.logger.info(
+            "async llm pipeline: enabled=%s advisory=%s idle_wait_sec=%s",
+            self.async_llm,
+            self.async_llm_advisory,
+            self.args.async_llm_idle_wait,
+        )
         self.memory.append_trace(
             {
                 "event": "supervisor_start",
                 "run_id": self.run_id,
                 "constraints": self.constraints.checklist(),
                 "llm": self.llm.status,
+                "async_llm": self.async_llm,
+                "async_llm_advisory": self.async_llm_advisory,
                 "max_time_sec": self.args.max_time,
             }
         )
 
-        baseline_record = self._generate_baseline()
+        baseline_record = self._generate_baseline(install_initial_best=not self.args.bootstrap_only)
         if self.args.bootstrap_only:
             self.best_manager.ensure_final_exists()
             self._flush_leaderboard()
-            self.logger.info("bootstrap-only run complete; final file is %s", self.best_manager.final_path)
+            self.logger.info(
+                "bootstrap-only run complete; baseline_decision=%s final file is %s",
+                baseline_record.decision,
+                self.best_manager.final_path,
+            )
             return 0
 
         env = self.env_agent.inspect()
@@ -286,6 +316,8 @@ class Supervisor:
         self._evaluate_candidate(baseline_record)
         if baseline_record.compiled and baseline_record.correct:
             promoted = self.best_manager.consider(baseline_record.source_path, baseline_record)
+            if promoted:
+                self._warn_if_promoted_with_failed_llm_review(baseline_record)
             self.logger.info("baseline validation complete; promoted=%s", promoted)
 
         if self.args.max_iters == 0:
@@ -294,32 +326,45 @@ class Supervisor:
             self.logger.info("max_iters=0; stopping after baseline validation")
             return 0
 
-        plan = self.planner.plan(self.history)
+        if self.async_llm:
+            plan = self._base_search_plan()
+            self._start_async_plan()
+        else:
+            plan = self.planner.plan(self.history)
         self.memory.write_json(self.memory.experiments_dir / "search_plan.json", plan)
         self.logger.info("search plan selected: %s", plan.get("strategy"))
 
         latest_diagnosis: dict[str, Any] | None = baseline_record.diagnosis_result or None
         next_experiment_id = 1
+        if self.async_llm:
+            self._start_async_mutation(latest_diagnosis)
         while len([r for r in self.history if r.spec.experiment_id > 0]) < self.args.max_iters:
+            self._poll_async_llm_results()
+            latest_diagnosis = self._latest_diagnosis(latest_diagnosis)
             if len([r for r in self.history if r.spec.experiment_id > 0]) >= self.args.max_iters:
                 break
             if self._time_remaining() < self.args.stop_margin:
                 self.memory.append_trace({"event": "stop_before_timeout", "remaining_sec": self._time_remaining()})
                 self.logger.warning("stopping before timeout; remaining_sec=%.2f", self._time_remaining())
                 break
-            spec = self.mutation_agent.propose(
-                experiment_id=next_experiment_id,
-                best_record=self.best_manager.best_record.to_dict() if self.best_manager.best_record else None,
-                history=[item.to_dict() for item in self.history],
-                diagnosis=latest_diagnosis,
-                time_remaining=self._time_remaining(),
-            )
+            if self.async_llm:
+                spec = self._next_async_pipeline_spec(next_experiment_id, latest_diagnosis)
+            else:
+                spec = self.mutation_agent.propose(
+                    experiment_id=next_experiment_id,
+                    best_record=self.best_manager.best_record.to_dict() if self.best_manager.best_record else None,
+                    history=[item.to_dict() for item in self.history],
+                    diagnosis=latest_diagnosis,
+                    time_remaining=self._time_remaining(),
+                )
             if spec is None:
                 self.logger.info("mutation agent found no untried candidates; stopping")
                 break
             record = self._generate_candidate(spec)
             self._evaluate_candidate(record)
             promoted = self.best_manager.consider(record.source_path, record)
+            if promoted:
+                self._warn_if_promoted_with_failed_llm_review(record)
             latest_diagnosis = record.diagnosis_result or latest_diagnosis
             self.logger.info(
                 "candidate %s decision=%s promoted=%s aggregate_speedup=%s",
@@ -330,7 +375,12 @@ class Supervisor:
             )
             self._flush_leaderboard()
             next_experiment_id += 1
+            if self.async_llm:
+                self._poll_async_llm_results()
+                latest_diagnosis = self._latest_diagnosis(latest_diagnosis)
+                self._start_async_mutation(latest_diagnosis)
 
+        self._drain_async_llm_results(self.args.async_llm_final_wait)
         self.best_manager.ensure_final_exists()
         self._flush_leaderboard()
         self.memory.append_trace(
@@ -346,29 +396,346 @@ class Supervisor:
         )
         return 0
 
-    def _generate_baseline(self) -> CandidateRecord:
+    def _base_search_plan(self) -> dict[str, Any]:
+        return {
+            "strategy": "deterministic_rank16_search",
+            "notes": [
+                "Use ATen/cuBLAS for the d x d GEMM.",
+                "Explore kernels that fuse Y += A @ T for rank 16.",
+                "Validate every candidate before promotion.",
+            ],
+            "llm_advice_status": "pending_async" if self.async_llm else "disabled",
+        }
+
+    def _start_async_plan(self) -> None:
+        if not self.async_llm or self.pending_plan is not None:
+            return
+        history_snapshot = list(self.history)
+        self.pending_plan = start_background_task(
+            "llm_search_plan",
+            lambda: self.planner.plan(history_snapshot),
+            {"history_count": len(history_snapshot)},
+        )
+        self.logger.info("async_llm_start task=search_space_planner history_count=%s", len(history_snapshot))
+
+    def _start_async_mutation(self, diagnosis: dict[str, Any] | None) -> None:
+        if not self.async_llm or self.pending_mutation is not None:
+            return
+        if self._time_remaining() < self.args.stop_margin:
+            return
+        best_snapshot = self._best_dict()
+        history_snapshot = self._history_dicts()
+        diagnosis_snapshot = dict(diagnosis) if isinstance(diagnosis, dict) else diagnosis
+        time_remaining = self._time_remaining()
+        self.pending_mutation = start_background_task(
+            "llm_mutation",
+            lambda: self.mutation_agent.ask_llm_mutation(
+                best_record=best_snapshot,
+                history=history_snapshot,
+                diagnosis=diagnosis_snapshot,
+                time_remaining=time_remaining,
+            ),
+            {"history_count": len(history_snapshot), "time_remaining": time_remaining},
+        )
+        self.logger.info(
+            "async_llm_start task=optimization_mutation history_count=%s time_remaining=%.2f",
+            len(history_snapshot),
+            time_remaining,
+        )
+
+    def _next_async_pipeline_spec(
+        self,
+        experiment_id: int,
+        latest_diagnosis: dict[str, Any] | None,
+    ) -> CandidateSpec | None:
+        spec = self._consume_async_mutation(experiment_id)
+        if spec is not None:
+            return spec
+        if self.pending_mutation is None:
+            self._start_async_mutation(latest_diagnosis)
+
+        parent = self.best_manager.best_record.spec.experiment_id if self.best_manager.best_record else 0
+        spec = self.generator.next_untried(experiment_id, self._history_dicts(), parent=parent)
+        if spec is not None:
+            if self.pending_mutation is not None and not self.pending_mutation.done():
+                self.logger.info(
+                    "async_llm_pending task=optimization_mutation; evaluating local candidate id=%s name=%s",
+                    spec.experiment_id,
+                    spec.name,
+                )
+            return spec
+
+        self._start_async_mutation(latest_diagnosis)
+        return self._wait_for_async_mutation(experiment_id)
+
+    def _consume_async_mutation(self, experiment_id: int) -> CandidateSpec | None:
+        task = self.pending_mutation
+        if task is None or not task.done():
+            return None
+        self.pending_mutation = None
+        if task.error:
+            self.logger.warning(
+                "async_llm_error task=optimization_mutation duration=%.2fs error=%s",
+                task.duration_sec(),
+                task.error,
+            )
+            return None
+        mutation = task.result
+        if not mutation:
+            self.logger.info(
+                "async_llm_empty task=optimization_mutation duration=%.2fs",
+                task.duration_sec(),
+            )
+            return None
+        candidate = self.mutation_agent.candidate_from_mutation(
+            experiment_id=experiment_id,
+            mutation=mutation,
+            best_record=self._best_dict(),
+            history=self._history_dicts(),
+        )
+        if candidate is None:
+            self.logger.info(
+                "async_llm_stale task=optimization_mutation duration=%.2fs reason=duplicate_or_invalid",
+                task.duration_sec(),
+            )
+            return None
+        self.memory.append_trace(
+            {
+                "event": "async_llm_mutation_selected",
+                "candidate": candidate.metadata(),
+                "duration_sec": task.duration_sec(),
+            }
+        )
+        self.logger.info(
+            "async_llm_ready task=optimization_mutation duration=%.2fs candidate=%s",
+            task.duration_sec(),
+            candidate.name,
+        )
+        return candidate
+
+    def _wait_for_async_mutation(self, experiment_id: int) -> CandidateSpec | None:
+        if self.pending_mutation is None:
+            return None
+        wait_sec = min(
+            self.args.async_llm_idle_wait,
+            max(0.0, self._time_remaining() - self.args.stop_margin),
+        )
+        if wait_sec <= 0:
+            return None
+        self.logger.info(
+            "no local candidate ready; waiting up to %.2fs for pending LLM mutation advice",
+            wait_sec,
+        )
+        deadline = time.monotonic() + wait_sec
+        while time.monotonic() < deadline:
+            spec = self._consume_async_mutation(experiment_id)
+            if spec is not None:
+                return spec
+            self._poll_async_llm_results()
+            time.sleep(min(0.25, max(0.0, deadline - time.monotonic())))
+        return self._consume_async_mutation(experiment_id)
+
+    def _start_async_static_review(self, record: CandidateRecord) -> None:
+        if not self.async_llm_advisory or not self.llm_static_review.enabled:
+            return
+        task = start_background_task(
+            "llm_static_review",
+            lambda: self.llm_static_review.review(record.spec, record.source_path),
+            {"candidate": record.spec.metadata(), "source_path": str(record.source_path)},
+        )
+        self.pending_static_reviews.append((record, task))
+        self.logger.info("async_llm_start task=static_code_review candidate=%s", record.spec.name)
+
+    def _start_async_diagnosis(self, record: CandidateRecord) -> None:
+        if not self.async_llm_advisory or not self.diagnosis_agent.enabled:
+            return
+        static_review = dict(record.static_review_result)
+        compile_result = dict(record.compile_result)
+        correctness_result = dict(record.correctness_result)
+        benchmark_result = dict(record.benchmark_result)
+        profile_result = dict(record.profile_result)
+        task = start_background_task(
+            "llm_diagnosis",
+            lambda: self.diagnosis_agent.diagnose(
+                candidate=record.spec,
+                static_review=static_review,
+                compile_result=compile_result,
+                correctness_result=correctness_result,
+                benchmark_result=benchmark_result,
+                profile_result=profile_result,
+            ),
+            {"candidate": record.spec.metadata()},
+        )
+        self.pending_diagnoses.append((record, task))
+        self.logger.info("async_llm_start task=performance_diagnosis candidate=%s", record.spec.name)
+
+    def _poll_async_llm_results(self) -> None:
+        if self.pending_plan is not None and self.pending_plan.done():
+            task = self.pending_plan
+            self.pending_plan = None
+            if task.error:
+                self.logger.warning(
+                    "async_llm_error task=search_space_planner duration=%.2fs error=%s",
+                    task.duration_sec(),
+                    task.error,
+                )
+            elif task.result:
+                self.memory.write_json(self.memory.experiments_dir / "search_plan.json", task.result)
+                self.memory.append_trace(
+                    {"event": "async_search_plan_ready", "duration_sec": task.duration_sec()}
+                )
+                self.logger.info(
+                    "async_llm_ready task=search_space_planner duration=%.2fs strategy=%s",
+                    task.duration_sec(),
+                    task.result.get("strategy"),
+                )
+
+        remaining_reviews: list[tuple[CandidateRecord, BackgroundTask[dict[str, Any] | None]]] = []
+        for record, task in self.pending_static_reviews:
+            if not task.done():
+                remaining_reviews.append((record, task))
+                continue
+            if task.error:
+                self.logger.warning(
+                    "async_llm_error task=static_code_review candidate=%s duration=%.2fs error=%s",
+                    record.spec.name,
+                    task.duration_sec(),
+                    task.error,
+                )
+                continue
+            if task.result is not None:
+                record.llm_static_review_result = task.result
+                exp_dir = self.memory.experiment_dir(record.spec.experiment_id)
+                self.memory.write_json(exp_dir / "llm_static_review.json", task.result)
+                self.logger.info(
+                    "async_llm_ready task=static_code_review candidate=%s duration=%.2fs",
+                    record.spec.name,
+                    task.duration_sec(),
+                )
+                self._warn_if_promoted_with_failed_llm_review(record)
+        self.pending_static_reviews = remaining_reviews
+
+        remaining_diagnoses: list[tuple[CandidateRecord, BackgroundTask[dict[str, Any]]]] = []
+        for record, task in self.pending_diagnoses:
+            if not task.done():
+                remaining_diagnoses.append((record, task))
+                continue
+            if task.error:
+                self.logger.warning(
+                    "async_llm_error task=performance_diagnosis candidate=%s duration=%.2fs error=%s",
+                    record.spec.name,
+                    task.duration_sec(),
+                    task.error,
+                )
+                continue
+            if task.result:
+                record.diagnosis_result = task.result
+                exp_dir = self.memory.experiment_dir(record.spec.experiment_id)
+                self.memory.write_json(exp_dir / "diagnosis.json", task.result)
+                self.memory.write_json(exp_dir / "diagnosis_llm.json", task.result)
+                self.logger.info(
+                    "async_llm_ready task=performance_diagnosis candidate=%s duration=%.2fs",
+                    record.spec.name,
+                    task.duration_sec(),
+                )
+        self.pending_diagnoses = remaining_diagnoses
+
+    def _drain_async_llm_results(self, wait_sec: float) -> None:
+        if not self.async_llm or wait_sec <= 0:
+            return
+        deadline = time.monotonic() + min(wait_sec, max(0.0, self._time_remaining()))
+        while time.monotonic() < deadline:
+            self._poll_async_llm_results()
+            if self.pending_mutation is not None and self.pending_mutation.done():
+                self.logger.info(
+                    "async_llm_ready task=optimization_mutation duration=%.2fs ignored=no_remaining_slot",
+                    self.pending_mutation.duration_sec(),
+                )
+                self.pending_mutation = None
+            if not self.pending_plan and not self.pending_static_reviews and not self.pending_diagnoses:
+                return
+            time.sleep(min(0.25, max(0.0, deadline - time.monotonic())))
+        self._poll_async_llm_results()
+
+    def _latest_diagnosis(self, fallback: dict[str, Any] | None) -> dict[str, Any] | None:
+        for record in reversed(self.history):
+            if record.diagnosis_result:
+                return record.diagnosis_result
+        return fallback
+
+    def _history_dicts(self) -> list[dict[str, Any]]:
+        return [record.to_dict() for record in self.history]
+
+    def _best_dict(self) -> dict[str, Any] | None:
+        return self.best_manager.best_record.to_dict() if self.best_manager.best_record else None
+
+    def _warn_if_promoted_with_failed_llm_review(self, record: CandidateRecord) -> None:
+        review = record.llm_static_review_result
+        if record.decision != "promoted_to_best" or not isinstance(review, dict):
+            return
+        if review.get("pass") is not False:
+            return
+        event = {
+            "event": "promoted_with_failed_llm_static_review",
+            "candidate": record.spec.metadata(),
+            "risk_level": review.get("risk_level"),
+            "errors": review.get("errors") or [],
+            "warnings": review.get("warnings") or [],
+            "suggested_fixes": review.get("suggested_fixes") or [],
+        }
+        self.memory.append_trace(event)
+        self.logger.warning(
+            "PROMOTED_WITH_FAILED_LLM_STATIC_REVIEW candidate=%s risk=%s errors=%s warnings=%s suggested_fixes=%s",
+            record.spec.name,
+            review.get("risk_level"),
+            review.get("errors") or [],
+            review.get("warnings") or [],
+            review.get("suggested_fixes") or [],
+        )
+
+    def _generate_baseline(self, install_initial_best: bool = True) -> CandidateRecord:
         spec = self.generator.baseline(experiment_id=0)
         exp_dir = self.memory.experiment_dir(spec.experiment_id)
         source = exp_dir / "candidate.cu"
         self.generator.write_candidate(spec, source)
         record = CandidateRecord(spec=spec, source_path=source)
         record.generation_result = {"origin": "deterministic_baseline", "candidate": spec.metadata()}
-        self.best_manager.bootstrap(source, record)
+        installed = self.best_manager.bootstrap(source, record, overwrite_existing=install_initial_best)
         self.history.append(record)
         self.memory.write_json(exp_dir / "candidate_metadata.json", spec.metadata())
-        self.memory.append_trace({"event": "baseline_bootstrapped", "source": str(source)})
-        self.logger.info("baseline bootstrapped from %s", source)
+        self.memory.append_trace(
+            {
+                "event": "baseline_bootstrapped",
+                "source": str(source),
+                "installed_as_initial_best": installed,
+                "decision": record.decision,
+            }
+        )
+        self.logger.info(
+            "baseline bootstrapped from %s installed_as_initial_best=%s decision=%s",
+            source,
+            installed,
+            record.decision,
+        )
         return record
 
     def _generate_candidate(self, spec: CandidateSpec) -> CandidateRecord:
         exp_dir = self.memory.experiment_dir(spec.experiment_id)
         source = exp_dir / "candidate.cu"
-        generation = self.candidate_generator_agent.write_candidate(
-            spec,
-            source,
-            history=[item.to_dict() for item in self.history],
-            best_code_summary=summarize_code(self.best_manager.final_path),
-        )
+        if self.async_llm:
+            self.generator.write_candidate(spec, source)
+            generation = {
+                "origin": "deterministic_async_pipeline",
+                "candidate": spec.metadata(),
+                "note": "LLM code generation skipped on the foreground path so compile/test work can continue.",
+            }
+        else:
+            generation = self.candidate_generator_agent.write_candidate(
+                spec,
+                source,
+                history=[item.to_dict() for item in self.history],
+                best_code_summary=summarize_code(self.best_manager.final_path),
+            )
         record = CandidateRecord(spec=spec, source_path=source)
         record.generation_result = generation
         self.history.append(record)
@@ -391,16 +758,19 @@ class Supervisor:
         review = self.static_review.review(record.source_path)
         record.static_review_result = review.to_dict()
         self.memory.write_json(exp_dir / "static_review.json", record.static_review_result)
-        llm_review = self.llm_static_review.review(record.spec, record.source_path)
-        record.llm_static_review_result = llm_review
-        if llm_review is not None:
-            self.memory.write_json(exp_dir / "llm_static_review.json", llm_review)
-        if self.llm_static_review.should_reject(llm_review):
-            record.decision = "rejected_llm_static_review"
-            record.diagnosis_result = self._diagnose(record)
-            self.memory.write_json(exp_dir / "diagnosis.json", record.diagnosis_result)
-            self.logger.warning("candidate %s rejected by LLM static review", record.spec.name)
-            return
+        if self.async_llm and not self.llm_static_review.can_reject:
+            self._start_async_static_review(record)
+        else:
+            llm_review = self.llm_static_review.review(record.spec, record.source_path)
+            record.llm_static_review_result = llm_review
+            if llm_review is not None:
+                self.memory.write_json(exp_dir / "llm_static_review.json", llm_review)
+            if self.llm_static_review.should_reject(llm_review):
+                record.decision = "rejected_llm_static_review"
+                record.diagnosis_result = self._diagnose(record)
+                self.memory.write_json(exp_dir / "diagnosis.json", record.diagnosis_result)
+                self.logger.warning("candidate %s rejected by LLM static review", record.spec.name)
+                return
         if not review.passed:
             record.decision = "rejected_static_review"
             record.diagnosis_result = self._diagnose(record)
@@ -505,6 +875,17 @@ class Supervisor:
         )
 
     def _diagnose(self, record: CandidateRecord) -> dict[str, Any]:
+        if self.async_llm:
+            fallback = self.diagnosis_agent.fallback_diagnosis(
+                candidate=record.spec,
+                static_review=record.static_review_result,
+                compile_result=record.compile_result,
+                correctness_result=record.correctness_result,
+                benchmark_result=record.benchmark_result,
+                profile_result=record.profile_result,
+            )
+            self._start_async_diagnosis(record)
+            return fallback
         return self.diagnosis_agent.diagnose(
             candidate=record.spec,
             static_review=record.static_review_result,
@@ -528,6 +909,13 @@ def _parse_sizes(text: str | None, default: tuple[int, ...]) -> tuple[int, ...]:
     return values or default
 
 
+def _env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
+
+
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agentic LoRA CUDA optimizer")
     parser.add_argument("--max-time", type=float, default=float(os.getenv("MAX_OPT_TIME", "1700")))
@@ -544,6 +932,34 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile-size", type=int, default=int(os.getenv("PROFILE_SIZE", "3584")))
     parser.add_argument("--bootstrap-only", action="store_true")
     parser.add_argument(
+        "--async-llm",
+        action="store_true",
+        default=_env_flag("ENABLE_ASYNC_LLM", True),
+        help="Run slow LLM advisory calls in the background while local validation continues.",
+    )
+    parser.add_argument(
+        "--disable-async-llm",
+        action="store_true",
+        default=_env_flag("DISABLE_ASYNC_LLM", False),
+        help="Force the older synchronous LLM pipeline.",
+    )
+    parser.add_argument(
+        "--async-llm-advisory",
+        action="store_true",
+        default=_env_flag("ASYNC_LLM_ADVISORY", False),
+        help="Also run non-gating LLM review/diagnosis in background.",
+    )
+    parser.add_argument(
+        "--async-llm-idle-wait",
+        type=float,
+        default=float(os.getenv("ASYNC_LLM_IDLE_WAIT_SEC", "3")),
+    )
+    parser.add_argument(
+        "--async-llm-final-wait",
+        type=float,
+        default=float(os.getenv("ASYNC_LLM_FINAL_WAIT_SEC", "2")),
+    )
+    parser.add_argument(
         "--correctness-sizes",
         type=lambda value: _parse_sizes(value, DEFAULT_SPEC.correctness_sizes),
         default=_parse_sizes(os.getenv("CORRECTNESS_SIZES"), DEFAULT_SPEC.correctness_sizes),
@@ -559,6 +975,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_arg_parser()
     args = parser.parse_args()
+    if args.disable_async_llm:
+        args.async_llm = False
     return Supervisor(args).run()
 
 

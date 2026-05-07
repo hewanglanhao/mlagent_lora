@@ -59,15 +59,20 @@ SYNC_PID=$!
 cd "$PROJECT_DIR" || exit 1
 
 ENV_FILE="$PROJECT_DIR/doc/环境变量.txt"
-# if [ -f "$ENV_FILE" ]; then
-#     set +u
-#     # shellcheck disable=SC1090
-#     source "$ENV_FILE"
-#     set -u
-# fi
+if [ -f "$ENV_FILE" ]; then
+    set +u
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set -u
+fi
 
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 export MAX_OPT_TIME="${MAX_OPT_TIME:-1700}"
+export LLM_TIMEOUT_SEC="${LLM_TIMEOUT_SEC:-180}"
+export ENABLE_ASYNC_LLM="${ENABLE_ASYNC_LLM:-1}"
+export ASYNC_LLM_ADVISORY="${ASYNC_LLM_ADVISORY:-0}"
+export ASYNC_LLM_IDLE_WAIT_SEC="${ASYNC_LLM_IDLE_WAIT_SEC:-3}"
+export ASYNC_LLM_FINAL_WAIT_SEC="${ASYNC_LLM_FINAL_WAIT_SEC:-2}"
 export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.6}"
 
 if [ -z "${CUDA_HOME:-}" ]; then

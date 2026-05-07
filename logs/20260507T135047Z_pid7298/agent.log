@@ -1,0 +1,43 @@
+2026-05-07 13:50:47 INFO [mlagent_lora.20260507T135047Z_pid7298] runtime logger initialized at /workspace/mlagent_lora/logs/20260507T135047Z_pid7298/agent.log
+2026-05-07 13:50:47 INFO [mlagent_lora.20260507T135047Z_pid7298] run_id=20260507T135047Z_pid7298
+2026-05-07 13:50:47 INFO [mlagent_lora.20260507T135047Z_pid7298] supervisor start: run_id=20260507T135047Z_pid7298 max_time=1700.0s max_iters=6
+2026-05-07 13:50:47 INFO [mlagent_lora.20260507T135047Z_pid7298] llm status: LLM enabled with model DeepSeek-V4-Pro from BASE_MODEL via OpenAI-compatible HTTP fallback.
+2026-05-07 13:50:47 INFO [mlagent_lora.20260507T135047Z_pid7298] baseline bootstrapped from /workspace/mlagent_lora/experiments/20260507T135047Z_pid7298/exp_0000/candidate.cu
+2026-05-07 13:50:49 INFO [mlagent_lora.20260507T135047Z_pid7298] environment checked: can_test=True reason=CUDA test environment is available
+2026-05-07 13:50:49 INFO [mlagent_lora.20260507T135047Z_pid7298] evaluating candidate id=0 name=baseline_aten
+2026-05-07 13:50:49 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_start id=0001_static_code_review_1778161849447 agent=static_code_review model=DeepSeek-V4-Pro
+2026-05-07 13:51:14 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_success id=0001_static_code_review_1778161849447 agent=static_code_review duration=24.62s response_chars=144
+2026-05-07 13:51:14 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_parse_ok id=0001_static_code_review_1778161849447 parser=json_object
+2026-05-07 13:51:14 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate baseline_aten passed static review with risk=low
+2026-05-07 13:51:14 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate baseline_aten compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-07 13:52:11 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate baseline_aten compiled in 57.07s
+2026-05-07 13:52:11 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate baseline_aten correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-07 13:52:12 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_start id=0002_performance_diagnosis_1778161932201 agent=performance_diagnosis model=DeepSeek-V4-Pro
+2026-05-07 13:52:43 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_success id=0002_performance_diagnosis_1778161932201 agent=performance_diagnosis duration=30.80s response_chars=1328
+2026-05-07 13:52:43 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_parse_ok id=0002_performance_diagnosis_1778161932201 parser=json_object
+2026-05-07 13:52:43 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate baseline_aten benchmark complete: aggregate_speedup=1.024250091652942 latency_ms={'3584': 3.9746559858322144, '4096': 6.17574405670166, '4608': 8.193023681640625}
+2026-05-07 13:52:43 INFO [mlagent_lora.20260507T135047Z_pid7298] baseline validation complete; promoted=False
+2026-05-07 13:52:43 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_start id=0003_search_space_planner_1778161963101 agent=search_space_planner model=DeepSeek-V4-Pro
+2026-05-07 13:53:26 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_success id=0003_search_space_planner_1778161963101 agent=search_space_planner duration=43.46s response_chars=856
+2026-05-07 13:53:26 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_parse_ok id=0003_search_space_planner_1778161963101 parser=json_object
+2026-05-07 13:53:26 INFO [mlagent_lora.20260507T135047Z_pid7298] search plan selected: fuse_rank16_update
+2026-05-07 13:53:26 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_start id=0004_optimization_mutation_1778162006604 agent=optimization_mutation model=DeepSeek-V4-Pro
+2026-05-07 13:54:11 WARNING [mlagent_lora.20260507T135047Z_pid7298] llm_call_empty id=0004_optimization_mutation_1778162006604 agent=optimization_mutation duration=45.15s error=LLM request failed: TimeoutError: The read operation timed out
+2026-05-07 13:54:11 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_start id=0005_cuda_candidate_generator_1778162051793 agent=cuda_candidate_generator model=DeepSeek-V4-Pro
+2026-05-07 13:54:56 WARNING [mlagent_lora.20260507T135047Z_pid7298] llm_call_empty id=0005_cuda_candidate_generator_1778162051793 agent=cuda_candidate_generator duration=45.12s error=LLM request failed: TimeoutError: The read operation timed out
+2026-05-07 13:54:56 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate generated: id=1 name=rank16_scalar_b128 family=cublas_plus_custom_rank16_update origin=deterministic_fallback
+2026-05-07 13:54:56 INFO [mlagent_lora.20260507T135047Z_pid7298] evaluating candidate id=1 name=rank16_scalar_b128
+2026-05-07 13:54:57 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_start id=0006_static_code_review_1778162097015 agent=static_code_review model=DeepSeek-V4-Pro
+2026-05-07 13:55:42 WARNING [mlagent_lora.20260507T135047Z_pid7298] llm_call_empty id=0006_static_code_review_1778162097015 agent=static_code_review duration=45.13s error=LLM request failed: TimeoutError: The read operation timed out
+2026-05-07 13:55:42 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate rank16_scalar_b128 passed static review with risk=low
+2026-05-07 13:55:42 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate rank16_scalar_b128 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-07 13:56:39 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate rank16_scalar_b128 compiled in 57.30s
+2026-05-07 13:56:39 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate rank16_scalar_b128 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-07 13:56:40 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_start id=0007_performance_diagnosis_1778162200177 agent=performance_diagnosis model=DeepSeek-V4-Pro
+2026-05-07 13:57:25 WARNING [mlagent_lora.20260507T135047Z_pid7298] llm_call_empty id=0007_performance_diagnosis_1778162200177 agent=performance_diagnosis duration=45.12s error=LLM request failed: TimeoutError: The read operation timed out
+2026-05-07 13:57:25 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate rank16_scalar_b128 benchmark complete: aggregate_speedup=1.0112677693372352 latency_ms={'3584': 3.9864320755004883, '4096': 6.233599901199341, '4608': 8.558080196380615}
+2026-05-07 13:57:25 INFO [mlagent_lora.20260507T135047Z_pid7298] candidate rank16_scalar_b128 decision=kept_existing_best promoted=False aggregate_speedup=1.0112677693372352
+2026-05-07 13:57:25 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_start id=0008_optimization_mutation_1778162245351 agent=optimization_mutation model=DeepSeek-V4-Pro
+2026-05-07 13:57:57 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_success id=0008_optimization_mutation_1778162245351 agent=optimization_mutation duration=31.68s response_chars=454
+2026-05-07 13:57:57 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_parse_ok id=0008_optimization_mutation_1778162245351 parser=json_object
+2026-05-07 13:57:57 INFO [mlagent_lora.20260507T135047Z_pid7298] llm_call_start id=0009_cuda_candidate_generator_1778162277110 agent=cuda_candidate_generator model=DeepSeek-V4-Pro

@@ -1,0 +1,7 @@
+2026-05-07 14:36:58 INFO [mlagent_lora.bootstrap_preserve_smoke] runtime logger initialized at /workspace/mlagent_lora/logs/bootstrap_preserve_smoke/agent.log
+2026-05-07 14:36:58 INFO [mlagent_lora.bootstrap_preserve_smoke] run_id=bootstrap_preserve_smoke
+2026-05-07 14:36:58 INFO [mlagent_lora.bootstrap_preserve_smoke] supervisor start: run_id=bootstrap_preserve_smoke max_time=1700.0s max_iters=0
+2026-05-07 14:36:58 INFO [mlagent_lora.bootstrap_preserve_smoke] llm status: LLM enabled with model DeepSeek-V4-Pro from BASE_MODEL via OpenAI-compatible HTTP fallback.
+2026-05-07 14:36:58 INFO [mlagent_lora.bootstrap_preserve_smoke] async llm pipeline: enabled=True advisory=False idle_wait_sec=3.0
+2026-05-07 14:36:58 INFO [mlagent_lora.bootstrap_preserve_smoke] baseline bootstrapped from /workspace/mlagent_lora/experiments/bootstrap_preserve_smoke/exp_0000/candidate.cu installed_as_initial_best=False decision=bootstrap_preserved_existing_best
+2026-05-07 14:36:58 INFO [mlagent_lora.bootstrap_preserve_smoke] bootstrap-only run complete; baseline_decision=bootstrap_preserved_existing_best final file is /workspace/mlagent_lora/optimized_lora.cu

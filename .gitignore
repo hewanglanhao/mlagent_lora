@@ -4,8 +4,6 @@ __pycache__/
 .pytest_cache/
 build/
 experiments/
-logs/
-eval_results/
 optimized_lora.best.cu
 optimized_lora.last_good.cu
 optimized_lora.tmp

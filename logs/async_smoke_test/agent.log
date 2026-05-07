@@ -1,0 +1,7 @@
+2026-05-07 14:10:58 INFO [mlagent_lora.async_smoke_test] runtime logger initialized at /workspace/mlagent_lora/logs/async_smoke_test/agent.log
+2026-05-07 14:10:58 INFO [mlagent_lora.async_smoke_test] run_id=async_smoke_test
+2026-05-07 14:10:58 INFO [mlagent_lora.async_smoke_test] supervisor start: run_id=async_smoke_test max_time=1700.0s max_iters=0
+2026-05-07 14:10:58 INFO [mlagent_lora.async_smoke_test] llm status: LLM disabled: no API key in OPENAI_API_KEY or API_KEY.
+2026-05-07 14:10:58 INFO [mlagent_lora.async_smoke_test] async llm pipeline: enabled=False advisory=False idle_wait_sec=3.0
+2026-05-07 14:10:58 INFO [mlagent_lora.async_smoke_test] baseline bootstrapped from /workspace/mlagent_lora/experiments/async_smoke_test/exp_0000/candidate.cu
+2026-05-07 14:10:58 INFO [mlagent_lora.async_smoke_test] bootstrap-only run complete; final file is /workspace/mlagent_lora/optimized_lora.cu

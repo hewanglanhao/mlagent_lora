@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from dataclasses import dataclass
 from urllib import error, request
 
@@ -24,12 +25,13 @@ class LLMClient:
     def __init__(self) -> None:
         self.api_key = os.getenv("OPENAI_API_KEY") or os.getenv("API_KEY") or ""
         self.base_url = self._normalize_base_url(os.getenv("OPENAI_BASE_URL") or os.getenv("BASE_URL") or "")
-        self.model = os.getenv("LLM_MODEL") or os.getenv("LLM_MODE") or os.getenv("MODEL") or "gpt-4o-mini"
-        self.timeout = float(os.getenv("LLM_TIMEOUT_SEC", "45"))
+        self.model, self._model_source = self._read_model()
+        self.timeout = float(os.getenv("LLM_TIMEOUT_SEC", "180"))
         self._client = None
         self._backend: str | None = None
         self._error: str | None = None
         self._last_request_error: str | None = None
+        self._lock = threading.Lock()
 
         if not self.api_key:
             self._error = "LLM disabled: no API key in OPENAI_API_KEY or API_KEY."
@@ -55,11 +57,12 @@ class LLMClient:
 
     @property
     def status(self) -> str:
+        model_detail = f"{self.model} from {self._model_source}"
         if self._client is not None:
-            return f"LLM enabled with model {self.model} via OpenAI SDK."
+            return f"LLM enabled with model {model_detail} via OpenAI SDK."
         if self._backend == "http":
             suffix = f" ({self._error})" if self._error else ""
-            return f"LLM enabled with model {self.model} via OpenAI-compatible HTTP fallback.{suffix}"
+            return f"LLM enabled with model {model_detail} via OpenAI-compatible HTTP fallback.{suffix}"
         return self._error or "LLM disabled."
 
     @property
@@ -67,6 +70,10 @@ class LLMClient:
         return self._last_request_error
 
     def complete(self, system: str, user: str) -> LLMResponse | None:
+        with self._lock:
+            return self._complete_locked(system, user)
+
+    def _complete_locked(self, system: str, user: str) -> LLMResponse | None:
         if not self.enabled:
             self._last_request_error = self._error or "LLM disabled."
             return None
@@ -136,3 +143,10 @@ class LLMClient:
         if base.endswith("/v1"):
             return base
         return f"{base}/v1"
+
+    def _read_model(self) -> tuple[str, str]:
+        for name in ("LLM_MODEL", "LLM_MODE", "MODEL", "BASE_MODEL", "OPENAI_MODEL"):
+            value = os.getenv(name)
+            if value:
+                return value, name
+        return "gpt-4o-mini", "default"

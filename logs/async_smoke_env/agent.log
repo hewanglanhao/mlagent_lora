@@ -1,0 +1,7 @@
+2026-05-07 14:11:13 INFO [mlagent_lora.async_smoke_env] runtime logger initialized at /workspace/mlagent_lora/logs/async_smoke_env/agent.log
+2026-05-07 14:11:13 INFO [mlagent_lora.async_smoke_env] run_id=async_smoke_env
+2026-05-07 14:11:13 INFO [mlagent_lora.async_smoke_env] supervisor start: run_id=async_smoke_env max_time=1700.0s max_iters=0
+2026-05-07 14:11:13 INFO [mlagent_lora.async_smoke_env] llm status: LLM enabled with model DeepSeek-V4-Pro from BASE_MODEL via OpenAI-compatible HTTP fallback.
+2026-05-07 14:11:13 INFO [mlagent_lora.async_smoke_env] async llm pipeline: enabled=True advisory=False idle_wait_sec=3.0
+2026-05-07 14:11:13 INFO [mlagent_lora.async_smoke_env] baseline bootstrapped from /workspace/mlagent_lora/experiments/async_smoke_env/exp_0000/candidate.cu
+2026-05-07 14:11:13 INFO [mlagent_lora.async_smoke_env] bootstrap-only run complete; final file is /workspace/mlagent_lora/optimized_lora.cu
