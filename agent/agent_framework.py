@@ -4,7 +4,7 @@ import argparse
 import json
 import os
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +27,7 @@ from .local_harness import (
     EnvironmentInspectorAgent,
     ProfilingAgent,
 )
-from .memory import ExperimentMemory, atomic_copy
+from .memory import ExperimentMemory, atomic_copy, atomic_write_text
 from .prompt_library import PromptLibrary
 from .runtime_logging import setup_runtime_logger
 from .run_context import make_run_id
@@ -261,8 +261,11 @@ class Supervisor:
         self.async_llm_advisory = bool(self.async_llm and args.async_llm_advisory)
         self.pending_plan: BackgroundTask[dict[str, Any]] | None = None
         self.pending_mutation: BackgroundTask[dict[str, Any] | None] | None = None
+        self.pending_codegen: BackgroundTask[dict[str, Any] | None] | None = None
+        self.ready_codegen: list[dict[str, Any]] = []
         self.pending_static_reviews: list[tuple[CandidateRecord, BackgroundTask[dict[str, Any] | None]]] = []
         self.pending_diagnoses: list[tuple[CandidateRecord, BackgroundTask[dict[str, Any]]]] = []
+        self._last_async_mutation_status: str | None = None
 
     def run(self) -> int:
         self.logger.info(
@@ -273,10 +276,13 @@ class Supervisor:
         )
         self.logger.info("llm status: %s", self.llm.status)
         self.logger.info(
-            "async llm pipeline: enabled=%s advisory=%s idle_wait_sec=%s",
+            "async llm pipeline: enabled=%s advisory=%s codegen=%s repair_attempts=%s idle_wait_sec=%s stale_retry_wait_sec=%s",
             self.async_llm,
             self.async_llm_advisory,
+            self.args.async_llm_codegen,
+            self.args.llm_codegen_repair_attempts,
             self.args.async_llm_idle_wait,
+            self.args.async_llm_stale_retry_wait,
         )
         self.memory.append_trace(
             {
@@ -348,8 +354,10 @@ class Supervisor:
                 self.logger.warning("stopping before timeout; remaining_sec=%.2f", self._time_remaining())
                 break
             if self.async_llm:
-                spec = self._next_async_pipeline_spec(next_experiment_id, latest_diagnosis)
+                record = self._consume_ready_codegen_candidate(next_experiment_id)
+                spec = None if record is not None else self._next_async_pipeline_spec(next_experiment_id, latest_diagnosis)
             else:
+                record = None
                 spec = self.mutation_agent.propose(
                     experiment_id=next_experiment_id,
                     best_record=self.best_manager.best_record.to_dict() if self.best_manager.best_record else None,
@@ -357,10 +365,13 @@ class Supervisor:
                     diagnosis=latest_diagnosis,
                     time_remaining=self._time_remaining(),
                 )
-            if spec is None:
+            if record is None and spec is None:
                 self.logger.info("mutation agent found no untried candidates; stopping")
                 break
-            record = self._generate_candidate(spec)
+            if record is None:
+                assert spec is not None
+                record = self._generate_candidate(spec)
+                self._start_async_codegen(spec)
             self._evaluate_candidate(record)
             promoted = self.best_manager.consider(record.source_path, record)
             if promoted:
@@ -374,7 +385,7 @@ class Supervisor:
                 record.aggregate_speedup,
             )
             self._flush_leaderboard()
-            next_experiment_id += 1
+            next_experiment_id = self._next_available_experiment_id(next_experiment_id + 1)
             if self.async_llm:
                 self._poll_async_llm_results()
                 latest_diagnosis = self._latest_diagnosis(latest_diagnosis)
@@ -443,6 +454,78 @@ class Supervisor:
             time_remaining,
         )
 
+    def _start_async_codegen(self, spec: CandidateSpec) -> None:
+        if not self.async_llm or not self.args.async_llm_codegen or self.pending_codegen is not None:
+            return
+        if spec.llm_generated:
+            return
+        history_snapshot = self._history_dicts()
+        best_code_summary = summarize_code(self.best_manager.final_path)
+        base_spec = spec
+
+        def generate() -> dict[str, Any] | None:
+            code = self.candidate_generator_agent.generate_code(
+                base_spec,
+                history=history_snapshot,
+                best_code_summary=best_code_summary,
+            )
+            if not code:
+                return None
+            return {
+                "base_spec": base_spec,
+                "base_metadata": base_spec.metadata(),
+                "code": code,
+                "code_bytes": len(code.encode("utf-8")),
+            }
+
+        self.pending_codegen = start_background_task(
+            "llm_cuda_codegen",
+            generate,
+            {"base_candidate": base_spec.metadata(), "history_count": len(history_snapshot)},
+        )
+        self.logger.info(
+            "async_llm_start task=cuda_candidate_generator base_candidate=%s",
+            base_spec.name,
+        )
+
+    def _consume_ready_codegen_candidate(self, experiment_id: int) -> CandidateRecord | None:
+        if not self.ready_codegen:
+            return None
+        payload = self.ready_codegen.pop(0)
+        base_spec = payload.get("base_spec")
+        if not isinstance(base_spec, CandidateSpec):
+            self.logger.warning("async_llm_codegen_drop reason=missing_base_spec")
+            return None
+        code = payload.get("code")
+        if not isinstance(code, str) or not code.strip():
+            self.logger.warning("async_llm_codegen_drop base_candidate=%s reason=empty_code", base_spec.name)
+            return None
+        spec = replace(
+            base_spec,
+            experiment_id=experiment_id,
+            name=f"{base_spec.name}_llm_codegen",
+            llm_generated=True,
+            strategy=f"llm_cuda_codegen_from:{base_spec.name}",
+            parent=base_spec.experiment_id,
+        )
+        tried = {self.generator.candidate_key(item.spec) for item in self.history if item.spec.llm_generated}
+        if self.generator.candidate_key(spec) in tried:
+            self.logger.info(
+                "async_llm_codegen_drop base_candidate=%s reason=duplicate_llm_codegen_key",
+                base_spec.name,
+            )
+            return None
+        return self._generate_candidate_from_code(
+            spec,
+            code,
+            generation={
+                "origin": "llm_async_codegen",
+                "candidate": spec.metadata(),
+                "base_candidate": payload.get("base_metadata") or base_spec.metadata(),
+                "bytes": payload.get("code_bytes"),
+            },
+        )
+
     def _next_async_pipeline_spec(
         self,
         experiment_id: int,
@@ -451,6 +534,21 @@ class Supervisor:
         spec = self._consume_async_mutation(experiment_id)
         if spec is not None:
             return spec
+        if self._last_async_mutation_status in {"stale", "empty", "error"}:
+            status = self._last_async_mutation_status
+            self._start_async_mutation(latest_diagnosis)
+            if self.pending_mutation is not None:
+                self.logger.info(
+                    "async_llm_retry task=optimization_mutation reason=%s wait_sec=%.2f",
+                    status,
+                    self.args.async_llm_stale_retry_wait,
+                )
+                spec = self._wait_for_async_mutation(
+                    experiment_id,
+                    wait_override=self.args.async_llm_stale_retry_wait,
+                )
+                if spec is not None:
+                    return spec
         if self.pending_mutation is None:
             self._start_async_mutation(latest_diagnosis)
 
@@ -469,11 +567,13 @@ class Supervisor:
         return self._wait_for_async_mutation(experiment_id)
 
     def _consume_async_mutation(self, experiment_id: int) -> CandidateSpec | None:
+        self._last_async_mutation_status = None
         task = self.pending_mutation
         if task is None or not task.done():
             return None
         self.pending_mutation = None
         if task.error:
+            self._last_async_mutation_status = "error"
             self.logger.warning(
                 "async_llm_error task=optimization_mutation duration=%.2fs error=%s",
                 task.duration_sec(),
@@ -482,6 +582,7 @@ class Supervisor:
             return None
         mutation = task.result
         if not mutation:
+            self._last_async_mutation_status = "empty"
             self.logger.info(
                 "async_llm_empty task=optimization_mutation duration=%.2fs",
                 task.duration_sec(),
@@ -494,6 +595,7 @@ class Supervisor:
             history=self._history_dicts(),
         )
         if candidate is None:
+            self._last_async_mutation_status = "stale"
             self.logger.info(
                 "async_llm_stale task=optimization_mutation duration=%.2fs reason=duplicate_or_invalid",
                 task.duration_sec(),
@@ -511,13 +613,14 @@ class Supervisor:
             task.duration_sec(),
             candidate.name,
         )
+        self._last_async_mutation_status = "ready"
         return candidate
 
-    def _wait_for_async_mutation(self, experiment_id: int) -> CandidateSpec | None:
+    def _wait_for_async_mutation(self, experiment_id: int, wait_override: float | None = None) -> CandidateSpec | None:
         if self.pending_mutation is None:
             return None
         wait_sec = min(
-            self.args.async_llm_idle_wait,
+            self.args.async_llm_idle_wait if wait_override is None else wait_override,
             max(0.0, self._time_remaining() - self.args.stop_margin),
         )
         if wait_sec <= 0:
@@ -590,6 +693,38 @@ class Supervisor:
                     task.result.get("strategy"),
                 )
 
+        if self.pending_codegen is not None and self.pending_codegen.done():
+            task = self.pending_codegen
+            self.pending_codegen = None
+            if task.error:
+                self.logger.warning(
+                    "async_llm_error task=cuda_candidate_generator duration=%.2fs error=%s",
+                    task.duration_sec(),
+                    task.error,
+                )
+            elif task.result:
+                self.ready_codegen.append(task.result)
+                base = task.result.get("base_metadata", {})
+                self.memory.append_trace(
+                    {
+                        "event": "async_cuda_codegen_ready",
+                        "base_candidate": base,
+                        "duration_sec": task.duration_sec(),
+                        "code_bytes": task.result.get("code_bytes"),
+                    }
+                )
+                self.logger.info(
+                    "async_llm_ready task=cuda_candidate_generator duration=%.2fs base_candidate=%s code_bytes=%s",
+                    task.duration_sec(),
+                    base.get("name"),
+                    task.result.get("code_bytes"),
+                )
+            else:
+                self.logger.info(
+                    "async_llm_empty task=cuda_candidate_generator duration=%.2fs",
+                    task.duration_sec(),
+                )
+
         remaining_reviews: list[tuple[CandidateRecord, BackgroundTask[dict[str, Any] | None]]] = []
         for record, task in self.pending_static_reviews:
             if not task.done():
@@ -652,7 +787,12 @@ class Supervisor:
                     self.pending_mutation.duration_sec(),
                 )
                 self.pending_mutation = None
-            if not self.pending_plan and not self.pending_static_reviews and not self.pending_diagnoses:
+            if (
+                not self.pending_plan
+                and not self.pending_codegen
+                and not self.pending_static_reviews
+                and not self.pending_diagnoses
+            ):
                 return
             time.sleep(min(0.25, max(0.0, deadline - time.monotonic())))
         self._poll_async_llm_results()
@@ -668,6 +808,13 @@ class Supervisor:
 
     def _best_dict(self) -> dict[str, Any] | None:
         return self.best_manager.best_record.to_dict() if self.best_manager.best_record else None
+
+    def _next_available_experiment_id(self, start: int | None = None) -> int:
+        used = {record.spec.experiment_id for record in self.history}
+        next_id = max(start or 1, (max(used) + 1) if used else 1)
+        while next_id in used:
+            next_id += 1
+        return next_id
 
     def _warn_if_promoted_with_failed_llm_review(self, record: CandidateRecord) -> None:
         review = record.llm_static_review_result
@@ -751,6 +898,31 @@ class Supervisor:
         )
         return record
 
+    def _generate_candidate_from_code(
+        self,
+        spec: CandidateSpec,
+        code: str,
+        generation: dict[str, Any],
+    ) -> CandidateRecord:
+        exp_dir = self.memory.experiment_dir(spec.experiment_id)
+        source = exp_dir / "candidate.cu"
+        atomic_write_text(source, code)
+        record = CandidateRecord(spec=spec, source_path=source)
+        record.generation_result = generation
+        self.history.append(record)
+        self.memory.write_json(exp_dir / "candidate_metadata.json", spec.metadata())
+        self.memory.write_json(exp_dir / "generation.json", generation)
+        self.memory.append_trace({"event": "candidate_generated", "candidate": spec.metadata()})
+        self.logger.info(
+            "candidate generated: id=%s name=%s family=%s origin=%s base_candidate=%s",
+            spec.experiment_id,
+            spec.name,
+            spec.family,
+            generation.get("origin"),
+            generation.get("base_candidate", {}).get("name"),
+        )
+        return record
+
     def _evaluate_candidate(self, record: CandidateRecord) -> None:
         exp_dir = self.memory.experiment_dir(record.spec.experiment_id)
         self.logger.info("evaluating candidate id=%s name=%s", record.spec.experiment_id, record.spec.name)
@@ -812,6 +984,7 @@ class Supervisor:
                 compile_result.error_type,
                 compile_result.error_summary,
             )
+            self._maybe_repair_failed_llm_codegen(record)
             return
         self.logger.info("candidate %s compiled in %.2fs", record.spec.name, compile_result.compile_time_sec)
 
@@ -873,6 +1046,78 @@ class Supervisor:
             benchmark.aggregate_speedup,
             benchmark.latency_ms,
         )
+
+    def _maybe_repair_failed_llm_codegen(self, record: CandidateRecord) -> None:
+        if not self.async_llm or not self.args.async_llm_codegen:
+            return
+        if not record.spec.llm_generated:
+            return
+        max_attempts = self.args.llm_codegen_repair_attempts
+        if max_attempts <= 0:
+            return
+        repair_attempt = int(record.generation_result.get("repair_attempt", 0) or 0) + 1
+        if repair_attempt > max_attempts:
+            self.logger.info(
+                "llm_codegen_repair_skip candidate=%s reason=max_attempts_reached attempts=%s",
+                record.spec.name,
+                max_attempts,
+            )
+            return
+
+        failed_code = record.source_path.read_text(encoding="utf-8", errors="replace")
+        self.logger.info(
+            "llm_codegen_repair_start candidate=%s attempt=%s error_type=%s",
+            record.spec.name,
+            repair_attempt,
+            record.compile_result.get("error_type"),
+        )
+        repaired_code = self.candidate_generator_agent.repair_code(
+            spec=record.spec,
+            failed_code=failed_code,
+            compile_result=record.compile_result,
+            history=self._history_dicts(),
+            best_code_summary=summarize_code(self.best_manager.final_path),
+            repair_attempt=repair_attempt,
+        )
+        if not repaired_code:
+            self.logger.warning(
+                "llm_codegen_repair_empty candidate=%s attempt=%s",
+                record.spec.name,
+                repair_attempt,
+            )
+            return
+
+        repair_spec = replace(
+            record.spec,
+            experiment_id=self._next_available_experiment_id(),
+            name=f"{record.spec.name}_repair{repair_attempt}",
+            parent=record.spec.experiment_id,
+            strategy=f"llm_cuda_repair_attempt:{repair_attempt}",
+        )
+        repair_record = self._generate_candidate_from_code(
+            repair_spec,
+            repaired_code,
+            generation={
+                "origin": "llm_repair_codegen",
+                "candidate": repair_spec.metadata(),
+                "failed_candidate": record.spec.metadata(),
+                "failed_compile": record.compile_result,
+                "repair_attempt": repair_attempt,
+                "bytes": len(repaired_code.encode("utf-8")),
+            },
+        )
+        self._evaluate_candidate(repair_record)
+        promoted = self.best_manager.consider(repair_record.source_path, repair_record)
+        if promoted:
+            self._warn_if_promoted_with_failed_llm_review(repair_record)
+        self.logger.info(
+            "candidate %s repair decision=%s promoted=%s aggregate_speedup=%s",
+            repair_record.spec.name,
+            repair_record.decision,
+            promoted,
+            repair_record.aggregate_speedup,
+        )
+        self._flush_leaderboard()
 
     def _diagnose(self, record: CandidateRecord) -> dict[str, Any]:
         if self.async_llm:
@@ -950,9 +1195,25 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Also run non-gating LLM review/diagnosis in background.",
     )
     parser.add_argument(
+        "--async-llm-codegen",
+        action="store_true",
+        default=_env_flag("ASYNC_LLM_CODEGEN", True),
+        help="Generate LLM CUDA code in the background and evaluate returned code locally.",
+    )
+    parser.add_argument(
+        "--llm-codegen-repair-attempts",
+        type=int,
+        default=int(os.getenv("LLM_CODEGEN_REPAIR_ATTEMPTS", "3")),
+    )
+    parser.add_argument(
         "--async-llm-idle-wait",
         type=float,
         default=float(os.getenv("ASYNC_LLM_IDLE_WAIT_SEC", "3")),
+    )
+    parser.add_argument(
+        "--async-llm-stale-retry-wait",
+        type=float,
+        default=float(os.getenv("ASYNC_LLM_STALE_RETRY_WAIT_SEC", "45")),
     )
     parser.add_argument(
         "--async-llm-final-wait",

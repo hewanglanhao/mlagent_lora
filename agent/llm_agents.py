@@ -96,6 +96,65 @@ class LLMCUDACandidateGeneratorAgent:
             "candidate": spec.metadata(),
         }
 
+    def generate_code(
+        self,
+        spec: CandidateSpec,
+        history: list[dict[str, Any]],
+        best_code_summary: str,
+    ) -> str | None:
+        if not self.enabled or not self.llm.enabled:
+            return None
+        return self._try_llm_generate(spec, history, best_code_summary)
+
+    def repair_code(
+        self,
+        spec: CandidateSpec,
+        failed_code: str,
+        compile_result: dict[str, Any],
+        history: list[dict[str, Any]],
+        best_code_summary: str,
+        repair_attempt: int,
+    ) -> str | None:
+        if not self.enabled or not self.llm.enabled:
+            return None
+        prompt = self.prompts.pair("cuda_candidate_generator")
+        user = "\n\n".join(
+            [
+                "Repair the failed PyTorch CUDA extension below.",
+                "Return exactly one complete corrected single-file CUDA/C++ extension. Do not return markdown.",
+                "The repaired code must keep the required forward(W, X, A, B) entrypoint and PYBIND11_MODULE binding.",
+                "If using the current CUDA stream, include <ATen/cuda/CUDAContext.h> and call at::cuda::getCurrentCUDAStream() without a device argument.",
+                f"Repair attempt: {repair_attempt}",
+                "SPEC_CONTEXT:\n" + self.spec.as_prompt_context(),
+                "CANDIDATE_METADATA_JSON:\n" + json.dumps(spec.metadata(), indent=2, sort_keys=True),
+                "COMPILE_RESULT_JSON:\n" + json.dumps(compile_result, indent=2, sort_keys=True),
+                "RECENT_EXPERIMENT_HISTORY_JSON:\n" + json.dumps(history[-6:], indent=2, sort_keys=True),
+                "CURRENT_BEST_CODE_SUMMARY:\n" + best_code_summary,
+                "FAILED_CUDA_CODE:\n" + failed_code,
+            ]
+        )
+        response = self._complete(
+            prompt.system,
+            user,
+            "cuda_candidate_repair",
+            {"candidate": spec.metadata(), "repair_attempt": repair_attempt},
+        )
+        if not response:
+            return None
+        code = strip_code_fences(response.content)
+        if self._looks_like_cuda_extension(code):
+            if self.llm_calls:
+                self.llm_calls.record_parse(response.call_id, "cuda_extension_validation", True)
+            return code
+        if self.llm_calls:
+            self.llm_calls.record_parse(
+                response.call_id,
+                "cuda_extension_validation",
+                False,
+                "repair response did not look like a complete PyTorch CUDA extension",
+            )
+        return None
+
     def _try_llm_generate(
         self,
         spec: CandidateSpec,

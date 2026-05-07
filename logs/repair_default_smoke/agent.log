@@ -1,0 +1,7 @@
+2026-05-07 15:52:46 INFO [mlagent_lora.repair_default_smoke] runtime logger initialized at /workspace/mlagent_lora/logs/repair_default_smoke/agent.log
+2026-05-07 15:52:46 INFO [mlagent_lora.repair_default_smoke] run_id=repair_default_smoke
+2026-05-07 15:52:46 INFO [mlagent_lora.repair_default_smoke] supervisor start: run_id=repair_default_smoke max_time=1700.0s max_iters=0
+2026-05-07 15:52:46 INFO [mlagent_lora.repair_default_smoke] llm status: LLM disabled: no API key in OPENAI_API_KEY or API_KEY.
+2026-05-07 15:52:46 INFO [mlagent_lora.repair_default_smoke] async llm pipeline: enabled=False advisory=False codegen=True repair_attempts=3 idle_wait_sec=3.0 stale_retry_wait_sec=45.0
+2026-05-07 15:52:46 INFO [mlagent_lora.repair_default_smoke] baseline bootstrapped from /workspace/mlagent_lora/experiments/repair_default_smoke/exp_0000/candidate.cu installed_as_initial_best=False decision=bootstrap_preserved_existing_best
+2026-05-07 15:52:46 INFO [mlagent_lora.repair_default_smoke] bootstrap-only run complete; baseline_decision=bootstrap_preserved_existing_best final file is /workspace/mlagent_lora/optimized_lora.cu

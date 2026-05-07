@@ -1,0 +1,93 @@
+{
+  "cu_path": "/workspace/mlagent_lora/optimized_lora.cu",
+  "input_dir": null,
+  "results": {
+    "3584": {
+      "correctness": {
+        "finite": true,
+        "max_abs_err": 0.0,
+        "passed": true,
+        "rel_l2_err": 0.0
+      },
+      "speedup": 1.009197128433731,
+      "student": {
+        "iters": 50,
+        "max_ms": 4.134912014007568,
+        "median_ms": 4.119552135467529,
+        "min_ms": 4.1154561042785645,
+        "p25_ms": 4.118527889251709,
+        "p75_ms": 4.120575904846191,
+        "warmup": 10
+      },
+      "torch_reference": {
+        "iters": 50,
+        "max_ms": 4.16153621673584,
+        "median_ms": 4.157440185546875,
+        "min_ms": 4.123648166656494,
+        "p25_ms": 4.156415939331055,
+        "p75_ms": 4.158463954925537,
+        "warmup": 10
+      }
+    },
+    "4096": {
+      "correctness": {
+        "finite": true,
+        "max_abs_err": 0.0,
+        "passed": true,
+        "rel_l2_err": 0.0
+      },
+      "speedup": 1.0065295580713884,
+      "student": {
+        "iters": 50,
+        "max_ms": 6.558720111846924,
+        "median_ms": 6.273023843765259,
+        "min_ms": 6.214655876159668,
+        "p25_ms": 6.240255832672119,
+        "p75_ms": 6.32422399520874,
+        "warmup": 10
+      },
+      "torch_reference": {
+        "iters": 50,
+        "max_ms": 6.559743881225586,
+        "median_ms": 6.313983917236328,
+        "min_ms": 6.2412800788879395,
+        "p25_ms": 6.261760234832764,
+        "p75_ms": 6.426623821258545,
+        "warmup": 10
+      }
+    },
+    "4608": {
+      "correctness": {
+        "finite": true,
+        "max_abs_err": 0.0,
+        "passed": true,
+        "rel_l2_err": 0.0
+      },
+      "speedup": 1.0146323779835615,
+      "student": {
+        "iters": 50,
+        "max_ms": 8.688639640808105,
+        "median_ms": 8.607744216918945,
+        "min_ms": 8.524800300598145,
+        "p25_ms": 8.536064147949219,
+        "p75_ms": 8.61184024810791,
+        "warmup": 10
+      },
+      "torch_reference": {
+        "iters": 50,
+        "max_ms": 8.819711685180664,
+        "median_ms": 8.733695983886719,
+        "min_ms": 8.654848098754883,
+        "p25_ms": 8.660991668701172,
+        "p75_ms": 8.796159744262695,
+        "warmup": 10
+      }
+    }
+  },
+  "summary": {
+    "aggregate_speedup": 1.0101196881628938,
+    "correct": true,
+    "max_speedup": 1.0146323779835615,
+    "min_speedup": 1.0065295580713884
+  }
+}
