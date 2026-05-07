@@ -5,12 +5,12 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR" || exit 1
 
 ENV_FILE="$ROOT_DIR/doc/环境变量.txt"
-if [ -f "$ENV_FILE" ]; then
-    set +u
-    # shellcheck disable=SC1090
-    source "$ENV_FILE"
-    set -u
-fi
+# if [ -f "$ENV_FILE" ]; then
+#     set +u
+#     # shellcheck disable=SC1090
+#     source "$ENV_FILE"
+#     set -u
+# fi
 
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 export MAX_OPT_TIME="${MAX_OPT_TIME:-1700}"
