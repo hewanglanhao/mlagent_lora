@@ -220,6 +220,7 @@ class Supervisor:
         self.run_id = args.run_id or make_run_id()
         self.deadline = time.monotonic() + args.max_time
         self.output_report_path = Path(os.getenv("MLAGENT_OUTPUT_REPORT", "/workspace/output.md"))
+        self.min_candidate_time_budget = max(args.stop_margin, args.min_candidate_time_budget)
         self.logger = setup_runtime_logger(self.root, self.run_id)
         self.memory = ExperimentMemory(self.root, self.run_id)
         self.constraints = ConstraintSpecManager(self.spec)
@@ -279,7 +280,7 @@ class Supervisor:
         )
         self.logger.info("llm status: %s", self.llm.status)
         self.logger.info(
-            "llm pipeline: closed_loop=%s async=%s advisory=%s async_codegen=%s repair_attempts=%s idle_wait_sec=%s stale_retry_wait_sec=%s",
+            "llm pipeline: closed_loop=%s async=%s advisory=%s async_codegen=%s repair_attempts=%s idle_wait_sec=%s stale_retry_wait_sec=%s min_candidate_time_budget_sec=%s",
             self.llm_closed_loop,
             self.async_llm,
             self.async_llm_advisory,
@@ -287,6 +288,7 @@ class Supervisor:
             self.args.llm_codegen_repair_attempts,
             self.args.async_llm_idle_wait,
             self.args.async_llm_stale_retry_wait,
+            self.min_candidate_time_budget,
         )
         self.memory.append_trace(
             {
@@ -298,6 +300,7 @@ class Supervisor:
                 "async_llm": self.async_llm,
                 "async_llm_advisory": self.async_llm_advisory,
                 "max_time_sec": self.args.max_time,
+                "min_candidate_time_budget_sec": self.min_candidate_time_budget,
             }
         )
 
@@ -358,10 +361,21 @@ class Supervisor:
             latest_diagnosis = self._latest_diagnosis(latest_diagnosis)
             if len([r for r in self.history if r.spec.experiment_id > 0]) >= self.args.max_iters:
                 break
-            if self._time_remaining() < self.args.stop_margin:
-                self.memory.append_trace({"event": "stop_before_timeout", "remaining_sec": self._time_remaining()})
-                self.logger.warning("stopping before timeout; remaining_sec=%.2f", self._time_remaining())
-                stop_reason = "stop_margin"
+            remaining_sec = self._time_remaining()
+            if remaining_sec < self.min_candidate_time_budget:
+                self.memory.append_trace(
+                    {
+                        "event": "stop_before_timeout",
+                        "remaining_sec": remaining_sec,
+                        "required_candidate_budget_sec": self.min_candidate_time_budget,
+                    }
+                )
+                self.logger.warning(
+                    "stopping before starting next candidate; remaining_sec=%.2f required_candidate_budget_sec=%.2f",
+                    remaining_sec,
+                    self.min_candidate_time_budget,
+                )
+                stop_reason = "insufficient_candidate_time_budget"
                 break
             if self.async_llm:
                 record = self._consume_ready_codegen_candidate(next_experiment_id)
@@ -1199,6 +1213,7 @@ class Supervisor:
                     "repair_attempts": self.args.llm_codegen_repair_attempts,
                     "max_time_sec": self.args.max_time,
                     "stop_margin_sec": self.args.stop_margin,
+                    "min_candidate_time_budget_sec": self.min_candidate_time_budget,
                     "max_iters": self.args.max_iters,
                 },
                 stop_reason=stop_reason,
@@ -1237,6 +1252,12 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agentic LoRA CUDA optimizer")
     parser.add_argument("--max-time", type=float, default=float(os.getenv("MAX_OPT_TIME", "1700")))
     parser.add_argument("--stop-margin", type=float, default=float(os.getenv("STOP_MARGIN_SEC", "180")))
+    parser.add_argument(
+        "--min-candidate-time-budget",
+        type=float,
+        default=float(os.getenv("MIN_CANDIDATE_TIME_BUDGET_SEC", "600")),
+        help="Do not start a new candidate unless at least this many seconds remain.",
+    )
     parser.add_argument("--max-iters", type=int, default=int(os.getenv("MAX_CANDIDATES", "6")))
     parser.add_argument("--bench-warmup", type=int, default=int(os.getenv("BENCH_WARMUP", "3")))
     parser.add_argument("--bench-iters", type=int, default=int(os.getenv("BENCH_ITERS", "10")))

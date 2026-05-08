@@ -66,17 +66,43 @@ if [ -f "$ENV_FILE" ]; then
     set -u
 fi
 
+# 让 Python 日志实时输出，便于 tail -f 查看运行进度。
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
+
+# 单次优化运行的内部时间上限，单位秒；平台 30 分钟限制下默认留一点余量。
 export MAX_OPT_TIME="${MAX_OPT_TIME:-1700}"
+
+# 单次 LLM 请求的最长等待时间，单位秒；过短会更容易 timeout，过长会拖慢整体搜索。
 export LLM_TIMEOUT_SEC="${LLM_TIMEOUT_SEC:-180}"
+
+# 启动新候选前要求至少剩余的时间，单位秒；避免候选跑到一半撞上 30 分钟限制。
+export MIN_CANDIDATE_TIME_BUDGET_SEC="${MIN_CANDIDATE_TIME_BUDGET_SEC:-600}"
+
+# 是否启用严格闭环：LLM 生成代码 -> 编译 -> 正确性 -> benchmark/profile -> LLM 分析 -> 下一轮。
 export ENABLE_LLM_CLOSED_LOOP="${ENABLE_LLM_CLOSED_LOOP:-1}"
+
+# 是否启用异步 LLM 流水线；严格闭环开启时会自动禁用异步执行，以保证诊断结果进入下一轮。
 export ENABLE_ASYNC_LLM="${ENABLE_ASYNC_LLM:-1}"
+
+# 是否让非关键 LLM 审查/诊断也后台执行；开启会增加 API 调用，默认关闭。
 export ASYNC_LLM_ADVISORY="${ASYNC_LLM_ADVISORY:-0}"
+
+# 异步模式下是否后台生成 LLM CUDA 代码；严格闭环模式下前台会直接做 LLM codegen。
 export ASYNC_LLM_CODEGEN="${ASYNC_LLM_CODEGEN:-1}"
+
+# LLM 生成代码编译失败后的自动修复次数；次数越多越可能修好，但也越耗时/耗 token。
 export LLM_CODEGEN_REPAIR_ATTEMPTS="${LLM_CODEGEN_REPAIR_ATTEMPTS:-3}"
-export ASYNC_LLM_IDLE_WAIT_SEC="${ASYNC_LLM_IDLE_WAIT_SEC:-3}"
+
+# 异步模式下没有本地候选可跑时，最多等 LLM mutation 建议多久，单位秒。
+export ASYNC_LLM_IDLE_WAIT_SEC="${ASYNC_LLM_IDLE_WAIT_SEC:-60}"
+
+# 异步模式下 LLM mutation 返回重复/无效建议后，重新等待建议的时间，单位秒。
 export ASYNC_LLM_STALE_RETRY_WAIT_SEC="${ASYNC_LLM_STALE_RETRY_WAIT_SEC:-45}"
+
+# 结束前等待后台 LLM 任务收尾的时间，单位秒；设为 0 可更快退出。
 export ASYNC_LLM_FINAL_WAIT_SEC="${ASYNC_LLM_FINAL_WAIT_SEC:-2}"
+
+# 指定 PyTorch CUDA 扩展编译目标架构；8.6 对应常见 Ampere GPU。
 export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.6}"
 
 if [ -z "${CUDA_HOME:-}" ]; then
