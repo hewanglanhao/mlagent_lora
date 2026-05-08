@@ -75,6 +75,9 @@ export MAX_OPT_TIME="${MAX_OPT_TIME:-1680}"
 # 单次 LLM 请求的最长等待时间，单位秒；过短会更容易 timeout，过长会拖慢整体搜索。
 export LLM_TIMEOUT_SEC="${LLM_TIMEOUT_SEC:-180}"
 
+# LLM SDK 层的自动重试次数；设为 0 可避免一次 LLM 调用被隐藏重试放大到数分钟。
+export LLM_MAX_RETRIES="${LLM_MAX_RETRIES:-0}"
+
 # 启动新候选前要求至少剩余的时间，单位秒；避免候选跑到一半撞上 30 分钟限制。
 export MIN_CANDIDATE_TIME_BUDGET_SEC="${MIN_CANDIDATE_TIME_BUDGET_SEC:-600}"
 

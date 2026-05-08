@@ -27,6 +27,7 @@ class LLMClient:
         self.base_url = self._normalize_base_url(os.getenv("OPENAI_BASE_URL") or os.getenv("BASE_URL") or "")
         self.model, self._model_source = self._read_model()
         self.timeout = float(os.getenv("LLM_TIMEOUT_SEC", "180"))
+        self.max_retries = int(os.getenv("LLM_MAX_RETRIES", "0"))
         self._client = None
         self._backend: str | None = None
         self._error: str | None = None
@@ -40,7 +41,7 @@ class LLMClient:
         try:
             from openai import OpenAI
 
-            kwargs = {"api_key": self.api_key, "timeout": self.timeout}
+            kwargs = {"api_key": self.api_key, "timeout": self.timeout, "max_retries": self.max_retries}
             if self.base_url:
                 kwargs["base_url"] = self.base_url
             self._client = OpenAI(**kwargs)
@@ -58,11 +59,12 @@ class LLMClient:
     @property
     def status(self) -> str:
         model_detail = f"{self.model} from {self._model_source}"
+        request_detail = f"timeout={self.timeout:g}s retries={self.max_retries}"
         if self._client is not None:
-            return f"LLM enabled with model {model_detail} via OpenAI SDK."
+            return f"LLM enabled with model {model_detail} via OpenAI SDK ({request_detail})."
         if self._backend == "http":
             suffix = f" ({self._error})" if self._error else ""
-            return f"LLM enabled with model {model_detail} via OpenAI-compatible HTTP fallback.{suffix}"
+            return f"LLM enabled with model {model_detail} via OpenAI-compatible HTTP fallback ({request_detail}).{suffix}"
         return self._error or "LLM disabled."
 
     @property
