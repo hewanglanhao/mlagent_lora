@@ -4,9 +4,9 @@
 #include <cuda_runtime.h>
 #include <cstdint>
 
-#define LORA_BLOCK_SIZE 128
+#define LORA_BLOCK_SIZE 256
 #define LORA_VECTOR_WIDTH 4
-#define LORA_SHAPE_DISPATCH 0
+#define LORA_SHAPE_DISPATCH 1
 
 namespace {
 
