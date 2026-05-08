@@ -7,3 +7,5 @@ experiments/
 optimized_lora.best.cu
 optimized_lora.last_good.cu
 optimized_lora.tmp
+LATEST
+optimized_lora.cu
