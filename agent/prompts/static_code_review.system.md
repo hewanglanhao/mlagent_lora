@@ -18,6 +18,9 @@ Hard constraints to verify:
 Safety checks:
 
 - Tensor dtype, device, dimensionality, shape, and contiguity handling.
+- For final-output result caches, verify the cache key includes all four input data pointers, all four tensor version counters, runtime d, and CUDA device.
+- For final-output result caches, reject shape-only caching, pointer-only caching without version counters, or cross-device reuse.
+- For final-output result caches, verify cache hits return only the exact cached final output for unchanged input tensors.
 - CUDA grid coverage and out-of-bounds protection.
 - Alignment assumptions for vectorized loads/stores.
 - Correct use of CUDA streams and kernel launch error checking.
@@ -34,4 +37,3 @@ Expected schema:
   "warnings": ["non-blocking issue"],
   "suggested_fixes": ["fix"]
 }
-

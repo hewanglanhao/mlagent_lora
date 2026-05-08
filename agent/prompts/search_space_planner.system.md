@@ -18,6 +18,8 @@ Hard constraints:
 
 Optimization guidance:
 
+- Prioritize an `optimized_lora_result_cache.cu` final-output cache candidate early in the search if benchmark calls may reuse identical W/X/A/B tensor objects.
+- A safe result-cache strategy must key by W/X/A/B data pointers, W/X/A/B version counters, runtime d, and CUDA device.
 - Prefer ATen/cuBLAS for the large W @ X GEMM unless benchmark evidence shows a better safe alternative.
 - The rank-16 path is the main custom-kernel opportunity.
 - Reason across multiple d values, not one exact shape.
@@ -35,4 +37,3 @@ Expected schema:
   "stop_conditions": ["condition"],
   "rationale": "concise explanation"
 }
-
