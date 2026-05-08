@@ -1,0 +1,7 @@
+2026-05-08 02:12:58 INFO [mlagent_lora.closed_loop_strict_smoke] runtime logger initialized at /workspace/mlagent_lora/logs/closed_loop_strict_smoke/agent.log
+2026-05-08 02:12:58 INFO [mlagent_lora.closed_loop_strict_smoke] run_id=closed_loop_strict_smoke
+2026-05-08 02:12:58 INFO [mlagent_lora.closed_loop_strict_smoke] supervisor start: run_id=closed_loop_strict_smoke max_time=1700.0s max_iters=0
+2026-05-08 02:12:58 INFO [mlagent_lora.closed_loop_strict_smoke] llm status: LLM enabled with model DeepSeek-V4-Pro from BASE_MODEL via OpenAI-compatible HTTP fallback.
+2026-05-08 02:12:58 INFO [mlagent_lora.closed_loop_strict_smoke] llm pipeline: closed_loop=True async=False advisory=False async_codegen=True repair_attempts=3 idle_wait_sec=3.0 stale_retry_wait_sec=45.0
+2026-05-08 02:12:58 INFO [mlagent_lora.closed_loop_strict_smoke] baseline bootstrapped from /workspace/mlagent_lora/experiments/closed_loop_strict_smoke/exp_0000/candidate.cu installed_as_initial_best=False decision=bootstrap_preserved_existing_best
+2026-05-08 02:12:58 INFO [mlagent_lora.closed_loop_strict_smoke] bootstrap-only run complete; baseline_decision=bootstrap_preserved_existing_best final file is /workspace/mlagent_lora/optimized_lora.cu

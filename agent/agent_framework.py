@@ -257,7 +257,8 @@ class Supervisor:
         )
         self.best_manager = BestCandidateManager(self.root, self.spec)
         self.history: list[CandidateRecord] = []
-        self.async_llm = bool(args.async_llm and self.llm.enabled)
+        self.llm_closed_loop = bool(args.llm_closed_loop and self.llm.enabled)
+        self.async_llm = bool(args.async_llm and self.llm.enabled and not self.llm_closed_loop)
         self.async_llm_advisory = bool(self.async_llm and args.async_llm_advisory)
         self.pending_plan: BackgroundTask[dict[str, Any]] | None = None
         self.pending_mutation: BackgroundTask[dict[str, Any] | None] | None = None
@@ -276,7 +277,8 @@ class Supervisor:
         )
         self.logger.info("llm status: %s", self.llm.status)
         self.logger.info(
-            "async llm pipeline: enabled=%s advisory=%s codegen=%s repair_attempts=%s idle_wait_sec=%s stale_retry_wait_sec=%s",
+            "llm pipeline: closed_loop=%s async=%s advisory=%s async_codegen=%s repair_attempts=%s idle_wait_sec=%s stale_retry_wait_sec=%s",
+            self.llm_closed_loop,
             self.async_llm,
             self.async_llm_advisory,
             self.args.async_llm_codegen,
@@ -290,6 +292,7 @@ class Supervisor:
                 "run_id": self.run_id,
                 "constraints": self.constraints.checklist(),
                 "llm": self.llm.status,
+                "llm_closed_loop": self.llm_closed_loop,
                 "async_llm": self.async_llm,
                 "async_llm_advisory": self.async_llm_advisory,
                 "max_time_sec": self.args.max_time,
@@ -455,6 +458,8 @@ class Supervisor:
         )
 
     def _start_async_codegen(self, spec: CandidateSpec) -> None:
+        if self.llm_closed_loop:
+            return
         if not self.async_llm or not self.args.async_llm_codegen or self.pending_codegen is not None:
             return
         if spec.llm_generated:
@@ -869,7 +874,7 @@ class Supervisor:
     def _generate_candidate(self, spec: CandidateSpec) -> CandidateRecord:
         exp_dir = self.memory.experiment_dir(spec.experiment_id)
         source = exp_dir / "candidate.cu"
-        if self.async_llm:
+        if self.async_llm and not self.llm_closed_loop:
             self.generator.write_candidate(spec, source)
             generation = {
                 "origin": "deterministic_async_pipeline",
@@ -883,6 +888,9 @@ class Supervisor:
                 history=[item.to_dict() for item in self.history],
                 best_code_summary=summarize_code(self.best_manager.final_path),
             )
+            if generation.get("origin") == "llm":
+                spec = replace(spec, llm_generated=True)
+                generation["candidate"] = spec.metadata()
         record = CandidateRecord(spec=spec, source_path=source)
         record.generation_result = generation
         self.history.append(record)
@@ -896,6 +904,13 @@ class Supervisor:
             spec.family,
             generation.get("origin"),
         )
+        if self.llm_closed_loop:
+            self.logger.info(
+                "closed_loop_stage=llm_codegen candidate=%s origin=%s llm_generated=%s",
+                spec.name,
+                generation.get("origin"),
+                spec.llm_generated,
+            )
         return record
 
     def _generate_candidate_from_code(
@@ -1048,9 +1063,9 @@ class Supervisor:
         )
 
     def _maybe_repair_failed_llm_codegen(self, record: CandidateRecord) -> None:
-        if not self.async_llm or not self.args.async_llm_codegen:
-            return
         if not record.spec.llm_generated:
+            return
+        if not self.llm.enabled or not self.candidate_generator_agent.enabled:
             return
         max_attempts = self.args.llm_codegen_repair_attempts
         if max_attempts <= 0:
@@ -1120,6 +1135,23 @@ class Supervisor:
         self._flush_leaderboard()
 
     def _diagnose(self, record: CandidateRecord) -> dict[str, Any]:
+        if self.llm_closed_loop:
+            self.logger.info("closed_loop_stage=bottleneck_analysis_start candidate=%s", record.spec.name)
+            diagnosis = self.diagnosis_agent.diagnose(
+                candidate=record.spec,
+                static_review=record.static_review_result,
+                compile_result=record.compile_result,
+                correctness_result=record.correctness_result,
+                benchmark_result=record.benchmark_result,
+                profile_result=record.profile_result,
+            )
+            self.logger.info(
+                "closed_loop_stage=bottleneck_analysis_complete candidate=%s bottleneck=%s promotion_advice=%s",
+                record.spec.name,
+                diagnosis.get("bottleneck"),
+                diagnosis.get("promotion_advice"),
+            )
+            return diagnosis
         if self.async_llm:
             fallback = self.diagnosis_agent.fallback_diagnosis(
                 candidate=record.spec,
@@ -1176,6 +1208,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--profile-size", type=int, default=int(os.getenv("PROFILE_SIZE", "3584")))
     parser.add_argument("--bootstrap-only", action="store_true")
+    parser.add_argument(
+        "--llm-closed-loop",
+        action="store_true",
+        default=_env_flag("ENABLE_LLM_CLOSED_LOOP", True),
+        help="Use the full LLM codegen -> validation -> profile -> LLM diagnosis -> next codegen loop.",
+    )
+    parser.add_argument(
+        "--disable-llm-closed-loop",
+        action="store_true",
+        default=_env_flag("DISABLE_LLM_CLOSED_LOOP", False),
+        help="Disable the foreground closed loop and use the async advisory pipeline instead.",
+    )
     parser.add_argument(
         "--async-llm",
         action="store_true",
@@ -1236,6 +1280,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = build_arg_parser()
     args = parser.parse_args()
+    if args.disable_llm_closed_loop:
+        args.llm_closed_loop = False
     if args.disable_async_llm:
         args.async_llm = False
     return Supervisor(args).run()
