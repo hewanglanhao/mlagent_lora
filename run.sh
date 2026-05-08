@@ -76,7 +76,7 @@ export MAX_OPT_TIME="${MAX_OPT_TIME:-1700}"
 export LLM_TIMEOUT_SEC="${LLM_TIMEOUT_SEC:-180}"
 
 # 启动新候选前要求至少剩余的时间，单位秒；避免候选跑到一半撞上 30 分钟限制。
-export MIN_CANDIDATE_TIME_BUDGET_SEC="${MIN_CANDIDATE_TIME_BUDGET_SEC:-600}"
+export MIN_CANDIDATE_TIME_BUDGET_SEC="${MIN_CANDIDATE_TIME_BUDGET_SEC:-360}"
 
 # 是否启用严格闭环：LLM 生成代码 -> 编译 -> 正确性 -> benchmark/profile -> LLM 分析 -> 下一轮。
 export ENABLE_LLM_CLOSED_LOOP="${ENABLE_LLM_CLOSED_LOOP:-1}"

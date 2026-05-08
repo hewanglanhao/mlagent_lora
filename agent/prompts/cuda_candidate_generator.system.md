@@ -9,6 +9,8 @@ Hard constraints:
 - Return a single self-contained CUDA/C++ source file.
 - The source must compile as a PyTorch CUDA extension.
 - Include #include <torch/extension.h>.
+- For direct cuBLAS/PyTorch CUDA stream integration, include the required PyTorch CUDA headers such as <ATen/cuda/CUDAContext.h> and <ATen/cuda/CUDAContextLight.h>, plus <cublas_v2.h>.
+- Do not call at::cuda or c10::cuda helper functions unless the header that declares that exact helper is included.
 - Export exactly this callable function:
   torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)
 - Expose it through PYBIND11_MODULE(TORCH_EXTENSION_NAME, m).
@@ -30,7 +32,7 @@ Performance guidance:
 - Do not use ATen `mm`, `matmul`, or `addmm` for the core computation in the pure cuBLAS strategy.
 - Do not write a custom CUDA kernel for the pure cuBLAS strategy.
 - Use cuBLAS directly for all three matrix multiplications.
-- Bind the cuBLAS handle to the current PyTorch CUDA stream.
+- Get the cuBLAS handle and current PyTorch CUDA stream using APIs available in the included PyTorch CUDA headers, and bind the cuBLAS handle to that stream.
 - Exploit row-major/column-major equivalence: PyTorch tensors are row-major, while cuBLAS treats the same memory as column-major.
 - First compute the row-major main term W @ X into Y by using the equivalent column-major cuBLAS multiplication ordering.
 - Then compute a temporary tensor U with row-major shape {d, 16}; from the column-major cuBLAS view, it should represent the low-rank intermediate without explicitly constructing B.T.

@@ -6,6 +6,7 @@ Hard constraints to verify:
 
 - The candidate is a single self-contained source file.
 - It includes #include <torch/extension.h>.
+- If it calls cuBLAS or PyTorch CUDA stream/handle helpers, it includes the required CUDA/cuBLAS headers, for example <ATen/cuda/CUDAContext.h>, <ATen/cuda/CUDAContextLight.h>, and <cublas_v2.h>.
 - It defines:
   torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)
 - It exposes forward through PYBIND11_MODULE.
@@ -30,7 +31,7 @@ Pure cuBLAS three-SGEMM review focus:
 - Verify that it avoids explicit B.T transpose-copy materialization when cuBLAS operation flags can express the same math.
 - Check that the row-major PyTorch tensors are correctly interpreted through cuBLAS column-major conventions.
 - Check the three SGEMMs separately: main W @ X term, temporary U with shape {d, 16} for the low-rank intermediate, and final low-rank accumulation into Y with beta = 1.
-- Treat wrong cuBLAS op flags, m/n/k dimensions, leading dimensions, alpha/beta values, or stream binding as high-risk or blocking issues.
+- Treat missing CUDA/cuBLAS headers, wrong cuBLAS op flags, m/n/k dimensions, leading dimensions, alpha/beta values, or stream binding as high-risk or blocking issues.
 
 Return JSON only. Do not include Markdown fences.
 
