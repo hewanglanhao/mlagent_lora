@@ -1,0 +1,8 @@
+2026-05-08 09:36:12 INFO [mlagent_lora.20260508T093612Z_pid777] runtime logger initialized at /workspace/mlagent_lora/logs/20260508T093612Z_pid777/agent.log
+2026-05-08 09:36:12 INFO [mlagent_lora.20260508T093612Z_pid777] run_id=20260508T093612Z_pid777
+2026-05-08 09:36:12 INFO [mlagent_lora.20260508T093612Z_pid777] supervisor start: run_id=20260508T093612Z_pid777 max_time=1700.0s max_iters=5
+2026-05-08 09:36:12 INFO [mlagent_lora.20260508T093612Z_pid777] llm status: LLM enabled with model DeepSeek-V4-Pro from LLM_MODEL via OpenAI SDK.
+2026-05-08 09:36:12 INFO [mlagent_lora.20260508T093612Z_pid777] llm pipeline: closed_loop=True async=False advisory=False async_codegen=True repair_attempts=3 idle_wait_sec=3.0 stale_retry_wait_sec=45.0
+2026-05-08 09:36:12 INFO [mlagent_lora.20260508T093612Z_pid777] baseline bootstrapped from /workspace/mlagent_lora/experiments/20260508T093612Z_pid777/exp_0000/candidate.cu installed_as_initial_best=False decision=bootstrap_preserved_existing_best
+2026-05-08 09:36:12 INFO [mlagent_lora.20260508T093612Z_pid777] output report written to /workspace/output.md
+2026-05-08 09:36:12 INFO [mlagent_lora.20260508T093612Z_pid777] bootstrap-only run complete; baseline_decision=bootstrap_preserved_existing_best final file is /workspace/mlagent_lora/optimized_lora.cu

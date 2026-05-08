@@ -1,0 +1,17 @@
+2026-05-08 09:28:34 INFO [mlagent_lora.20260508T092834Z_pid155] runtime logger initialized at /workspace/mlagent_lora/logs/20260508T092834Z_pid155/agent.log
+2026-05-08 09:28:34 INFO [mlagent_lora.20260508T092834Z_pid155] run_id=20260508T092834Z_pid155
+2026-05-08 09:28:34 INFO [mlagent_lora.20260508T092834Z_pid155] supervisor start: run_id=20260508T092834Z_pid155 max_time=1700.0s max_iters=5
+2026-05-08 09:28:34 INFO [mlagent_lora.20260508T092834Z_pid155] llm status: LLM enabled with model DeepSeek-V4-Pro from LLM_MODEL via OpenAI SDK.
+2026-05-08 09:28:34 INFO [mlagent_lora.20260508T092834Z_pid155] llm pipeline: closed_loop=True async=False advisory=False async_codegen=True repair_attempts=3 idle_wait_sec=3.0 stale_retry_wait_sec=45.0
+2026-05-08 09:28:35 INFO [mlagent_lora.20260508T092834Z_pid155] baseline bootstrapped from /workspace/mlagent_lora/experiments/20260508T092834Z_pid155/exp_0000/candidate.cu installed_as_initial_best=True decision=bootstrapped_as_initial_best
+2026-05-08 09:28:36 INFO [mlagent_lora.20260508T092834Z_pid155] environment checked: can_test=True reason=CUDA test environment is available
+2026-05-08 09:28:36 INFO [mlagent_lora.20260508T092834Z_pid155] evaluating candidate id=0 name=baseline_aten
+2026-05-08 09:28:36 INFO [mlagent_lora.20260508T092834Z_pid155] llm_call_start id=0001_static_code_review_1778232516562 agent=static_code_review model=DeepSeek-V4-Pro
+2026-05-08 09:31:59 INFO [mlagent_lora.20260508T092834Z_pid155] llm_call_success id=0001_static_code_review_1778232516562 agent=static_code_review duration=203.01s response_chars=213
+2026-05-08 09:31:59 INFO [mlagent_lora.20260508T092834Z_pid155] llm_call_parse_ok id=0001_static_code_review_1778232516562 parser=json_object
+2026-05-08 09:31:59 INFO [mlagent_lora.20260508T092834Z_pid155] candidate baseline_aten passed static review with risk=low
+2026-05-08 09:31:59 INFO [mlagent_lora.20260508T092834Z_pid155] candidate baseline_aten compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-08 09:35:42 INFO [mlagent_lora.20260508T092834Z_pid155] candidate baseline_aten compiled in 222.75s
+2026-05-08 09:35:42 INFO [mlagent_lora.20260508T092834Z_pid155] candidate baseline_aten correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-08 09:35:43 INFO [mlagent_lora.20260508T092834Z_pid155] closed_loop_stage=bottleneck_analysis_start candidate=baseline_aten
+2026-05-08 09:35:43 INFO [mlagent_lora.20260508T092834Z_pid155] llm_call_start id=0002_performance_diagnosis_1778232943334 agent=performance_diagnosis model=DeepSeek-V4-Pro

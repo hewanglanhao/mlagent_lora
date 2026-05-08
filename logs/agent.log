@@ -1,0 +1,201 @@
+2026-05-06 12:00:45 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:00:45 INFO [mlagent_lora] supervisor start: max_time=1700.0s max_iters=6
+2026-05-06 12:00:45 INFO [mlagent_lora] llm status: LLM disabled: no API key in OPENAI_API_KEY or API_KEY.
+2026-05-06 12:00:46 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:00:46 INFO [mlagent_lora] bootstrap-only run complete; final file is /workspace/mlagent_lora/optimized_lora.cu
+2026-05-06 12:02:22 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:02:22 INFO [mlagent_lora] supervisor start: max_time=1700.0s max_iters=6
+2026-05-06 12:02:22 INFO [mlagent_lora] llm status: LLM disabled: ModuleNotFoundError: No module named 'openai'
+2026-05-06 12:02:22 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:02:23 INFO [mlagent_lora] environment checked: can_test=False reason=nvcc was not found in PATH
+2026-05-06 12:02:23 WARNING [mlagent_lora] CUDA validation skipped; keeping baseline optimized_lora.cu
+2026-05-06 12:03:37 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:03:37 INFO [mlagent_lora] supervisor start: max_time=60.0s max_iters=0
+2026-05-06 12:03:37 INFO [mlagent_lora] llm status: LLM disabled: no API key in OPENAI_API_KEY or API_KEY.
+2026-05-06 12:03:37 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:03:39 INFO [mlagent_lora] environment checked: can_test=True reason=CUDA test environment is available
+2026-05-06 12:03:39 INFO [mlagent_lora] evaluating candidate id=0 name=baseline_aten
+2026-05-06 12:03:39 INFO [mlagent_lora] candidate baseline_aten passed static review with risk=low
+2026-05-06 12:04:33 INFO [mlagent_lora] candidate baseline_aten compiled in 54.77s
+2026-05-06 12:04:34 INFO [mlagent_lora] candidate baseline_aten correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:04:34 INFO [mlagent_lora] candidate baseline_aten benchmark complete: aggregate_speedup=0.8595041416736013 latency_ms={'64': 0.12390399724245071}
+2026-05-06 12:04:34 INFO [mlagent_lora] baseline validation complete; promoted=False
+2026-05-06 12:04:34 INFO [mlagent_lora] max_iters=0; stopping after baseline validation
+2026-05-06 12:05:39 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:05:39 INFO [mlagent_lora] supervisor start: max_time=1700.0s max_iters=6
+2026-05-06 12:05:39 INFO [mlagent_lora] llm status: LLM disabled: ModuleNotFoundError: No module named 'openai'
+2026-05-06 12:05:39 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:05:40 INFO [mlagent_lora] environment checked: can_test=True reason=CUDA test environment is available
+2026-05-06 12:05:40 INFO [mlagent_lora] evaluating candidate id=0 name=baseline_aten
+2026-05-06 12:05:40 INFO [mlagent_lora] candidate baseline_aten passed static review with risk=low
+2026-05-06 12:06:35 INFO [mlagent_lora] candidate baseline_aten compiled in 54.76s
+2026-05-06 12:06:36 INFO [mlagent_lora] candidate baseline_aten correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:06:36 INFO [mlagent_lora] candidate baseline_aten benchmark complete: aggregate_speedup=0.9998493645431681 latency_ms={'3584': 4.739071846008301, '4096': 7.142911911010742, '4608': 9.540096282958984}
+2026-05-06 12:06:36 INFO [mlagent_lora] baseline validation complete; promoted=False
+2026-05-06 12:06:36 INFO [mlagent_lora] search plan selected: deterministic_rank16_search
+2026-05-06 12:06:36 INFO [mlagent_lora] candidate generated: id=1 name=rank16_scalar_b128 family=cublas_plus_custom_rank16_update
+2026-05-06 12:06:36 INFO [mlagent_lora] evaluating candidate id=1 name=rank16_scalar_b128
+2026-05-06 12:06:36 INFO [mlagent_lora] candidate rank16_scalar_b128 passed static review with risk=low
+2026-05-06 12:07:32 INFO [mlagent_lora] candidate rank16_scalar_b128 compiled in 55.15s
+2026-05-06 12:07:32 INFO [mlagent_lora] candidate rank16_scalar_b128 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:07:32 INFO [mlagent_lora] candidate rank16_scalar_b128 benchmark complete: aggregate_speedup=0.9872913667171302 latency_ms={'3584': 4.7923197746276855, '4096': 7.2325119972229, '4608': 9.673727989196777}
+2026-05-06 12:07:32 INFO [mlagent_lora] candidate rank16_scalar_b128 decision=kept_existing_best promoted=False aggregate_speedup=0.9872913667171302
+2026-05-06 12:07:32 INFO [mlagent_lora] candidate generated: id=2 name=rank16_scalar_b256 family=cublas_plus_custom_rank16_update
+2026-05-06 12:07:32 INFO [mlagent_lora] evaluating candidate id=2 name=rank16_scalar_b256
+2026-05-06 12:07:32 INFO [mlagent_lora] candidate rank16_scalar_b256 passed static review with risk=low
+2026-05-06 12:07:46 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:07:46 INFO [mlagent_lora] supervisor start: max_time=1700.0s max_iters=6
+2026-05-06 12:07:46 INFO [mlagent_lora] llm status: LLM enabled with model test-model via OpenAI-compatible HTTP fallback.
+2026-05-06 12:07:46 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:07:46 INFO [mlagent_lora] bootstrap-only run complete; final file is /workspace/mlagent_lora/optimized_lora.cu
+2026-05-06 12:07:54 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:07:54 INFO [mlagent_lora] supervisor start: max_time=120.0s max_iters=0
+2026-05-06 12:07:54 INFO [mlagent_lora] llm status: LLM enabled with model gpt-4o-mini via OpenAI-compatible HTTP fallback.
+2026-05-06 12:07:54 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:07:56 INFO [mlagent_lora] environment checked: can_test=True reason=CUDA test environment is available
+2026-05-06 12:07:56 INFO [mlagent_lora] evaluating candidate id=0 name=baseline_aten
+2026-05-06 12:07:56 INFO [mlagent_lora] candidate baseline_aten passed static review with risk=low
+2026-05-06 12:07:56 INFO [mlagent_lora] candidate baseline_aten compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:08:28 INFO [mlagent_lora] candidate rank16_scalar_b256 compiled in 55.72s
+2026-05-06 12:08:28 INFO [mlagent_lora] candidate rank16_scalar_b256 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:08:29 INFO [mlagent_lora] candidate rank16_scalar_b256 benchmark complete: aggregate_speedup=0.9876110755205327 latency_ms={'3584': 4.794367790222168, '4096': 7.224319934844971, '4608': 9.671168327331543}
+2026-05-06 12:08:29 INFO [mlagent_lora] candidate rank16_scalar_b256 decision=kept_existing_best promoted=False aggregate_speedup=0.9876110755205327
+2026-05-06 12:08:29 INFO [mlagent_lora] candidate generated: id=3 name=rank16_scalar_b512 family=cublas_plus_custom_rank16_update
+2026-05-06 12:08:29 INFO [mlagent_lora] evaluating candidate id=3 name=rank16_scalar_b512
+2026-05-06 12:08:29 INFO [mlagent_lora] candidate rank16_scalar_b512 passed static review with risk=low
+2026-05-06 12:08:52 INFO [mlagent_lora] candidate baseline_aten compiled in 56.19s
+2026-05-06 12:08:52 INFO [mlagent_lora] candidate baseline_aten correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:08:52 INFO [mlagent_lora] candidate baseline_aten benchmark complete: aggregate_speedup=0.9911504396288051 latency_ms={'64': 0.1157120019197464}
+2026-05-06 12:08:52 INFO [mlagent_lora] baseline validation complete; promoted=False
+2026-05-06 12:08:52 INFO [mlagent_lora] max_iters=0; stopping after baseline validation
+2026-05-06 12:09:25 INFO [mlagent_lora] candidate rank16_scalar_b512 compiled in 55.69s
+2026-05-06 12:09:25 INFO [mlagent_lora] candidate rank16_scalar_b512 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:09:25 INFO [mlagent_lora] candidate rank16_scalar_b512 benchmark complete: aggregate_speedup=0.9855062763546862 latency_ms={'3584': 4.811776161193848, '4096': 7.231488227844238, '4608': 9.691648006439209}
+2026-05-06 12:09:25 INFO [mlagent_lora] candidate rank16_scalar_b512 decision=kept_existing_best promoted=False aggregate_speedup=0.9855062763546862
+2026-05-06 12:09:25 INFO [mlagent_lora] candidate generated: id=4 name=rank16_vec4_b128 family=cublas_plus_custom_rank16_update
+2026-05-06 12:09:25 INFO [mlagent_lora] evaluating candidate id=4 name=rank16_vec4_b128
+2026-05-06 12:09:25 INFO [mlagent_lora] candidate rank16_vec4_b128 passed static review with risk=low
+2026-05-06 12:10:12 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:10:13 INFO [mlagent_lora] supervisor start: max_time=1700.0s max_iters=6
+2026-05-06 12:10:13 INFO [mlagent_lora] llm status: LLM enabled with model gpt-4o-mini via OpenAI SDK.
+2026-05-06 12:10:13 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:10:14 INFO [mlagent_lora] environment checked: can_test=True reason=CUDA test environment is available
+2026-05-06 12:10:14 INFO [mlagent_lora] evaluating candidate id=0 name=baseline_aten
+2026-05-06 12:10:14 INFO [mlagent_lora] candidate baseline_aten passed static review with risk=low
+2026-05-06 12:10:14 INFO [mlagent_lora] candidate baseline_aten compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:11:10 INFO [mlagent_lora] candidate baseline_aten compiled in 56.02s
+2026-05-06 12:11:11 INFO [mlagent_lora] candidate baseline_aten correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:11:12 INFO [mlagent_lora] candidate baseline_aten benchmark complete: aggregate_speedup=0.9997519906576862 latency_ms={'3584': 4.734463930130005, '4096': 7.142911911010742, '4608': 9.538559913635254}
+2026-05-06 12:11:12 INFO [mlagent_lora] baseline validation complete; promoted=False
+2026-05-06 12:11:12 INFO [mlagent_lora] search plan selected: deterministic_rank16_search
+2026-05-06 12:11:12 INFO [mlagent_lora] candidate generated: id=1 name=rank16_scalar_b128 family=cublas_plus_custom_rank16_update
+2026-05-06 12:11:12 INFO [mlagent_lora] evaluating candidate id=1 name=rank16_scalar_b128
+2026-05-06 12:11:12 INFO [mlagent_lora] candidate rank16_scalar_b128 passed static review with risk=low
+2026-05-06 12:11:12 INFO [mlagent_lora] candidate rank16_scalar_b128 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:12:00 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:12:01 INFO [mlagent_lora] supervisor start: max_time=1700.0s max_iters=6
+2026-05-06 12:12:01 INFO [mlagent_lora] llm status: LLM enabled with model gpt-5.4 via OpenAI SDK.
+2026-05-06 12:12:01 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:12:02 INFO [mlagent_lora] environment checked: can_test=True reason=CUDA test environment is available
+2026-05-06 12:12:02 INFO [mlagent_lora] evaluating candidate id=0 name=baseline_aten
+2026-05-06 12:12:02 INFO [mlagent_lora] candidate baseline_aten passed static review with risk=low
+2026-05-06 12:12:02 INFO [mlagent_lora] candidate baseline_aten compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:12:58 INFO [mlagent_lora] candidate baseline_aten compiled in 55.63s
+2026-05-06 12:12:59 INFO [mlagent_lora] candidate baseline_aten correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:12:59 INFO [mlagent_lora] candidate baseline_aten benchmark complete: aggregate_speedup=0.9995326088015271 latency_ms={'3584': 4.7370240688323975, '4096': 7.147007942199707, '4608': 9.543680191040039}
+2026-05-06 12:12:59 INFO [mlagent_lora] baseline validation complete; promoted=False
+2026-05-06 12:13:00 INFO [mlagent_lora] search plan selected: deterministic_rank16_search
+2026-05-06 12:13:00 INFO [mlagent_lora] candidate generated: id=1 name=rank16_scalar_b128 family=cublas_plus_custom_rank16_update
+2026-05-06 12:13:00 INFO [mlagent_lora] evaluating candidate id=1 name=rank16_scalar_b128
+2026-05-06 12:13:00 INFO [mlagent_lora] candidate rank16_scalar_b128 passed static review with risk=low
+2026-05-06 12:13:00 INFO [mlagent_lora] candidate rank16_scalar_b128 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:13:56 INFO [mlagent_lora] candidate rank16_scalar_b128 compiled in 55.82s
+2026-05-06 12:13:56 INFO [mlagent_lora] candidate rank16_scalar_b128 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:13:56 INFO [mlagent_lora] candidate rank16_scalar_b128 benchmark complete: aggregate_speedup=0.9873043408245825 latency_ms={'3584': 4.7918078899383545, '4096': 7.2335357666015625, '4608': 9.674240112304688}
+2026-05-06 12:13:56 INFO [mlagent_lora] candidate rank16_scalar_b128 decision=kept_existing_best promoted=False aggregate_speedup=0.9873043408245825
+2026-05-06 12:13:56 INFO [mlagent_lora] candidate generated: id=2 name=rank16_scalar_b256 family=cublas_plus_custom_rank16_update
+2026-05-06 12:13:56 INFO [mlagent_lora] evaluating candidate id=2 name=rank16_scalar_b256
+2026-05-06 12:13:56 INFO [mlagent_lora] candidate rank16_scalar_b256 passed static review with risk=low
+2026-05-06 12:13:56 INFO [mlagent_lora] candidate rank16_scalar_b256 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:14:51 INFO [mlagent_lora] candidate rank16_scalar_b256 compiled in 54.55s
+2026-05-06 12:14:51 INFO [mlagent_lora] candidate rank16_scalar_b256 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:14:52 INFO [mlagent_lora] candidate rank16_scalar_b256 benchmark complete: aggregate_speedup=0.9873499021248527 latency_ms={'3584': 4.797951936721802, '4096': 7.229439973831177, '4608': 9.671168327331543}
+2026-05-06 12:14:52 INFO [mlagent_lora] candidate rank16_scalar_b256 decision=kept_existing_best promoted=False aggregate_speedup=0.9873499021248527
+2026-05-06 12:14:52 INFO [mlagent_lora] candidate generated: id=3 name=rank16_scalar_b512 family=cublas_plus_custom_rank16_update
+2026-05-06 12:14:52 INFO [mlagent_lora] evaluating candidate id=3 name=rank16_scalar_b512
+2026-05-06 12:14:52 INFO [mlagent_lora] candidate rank16_scalar_b512 passed static review with risk=low
+2026-05-06 12:14:52 INFO [mlagent_lora] candidate rank16_scalar_b512 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:15:47 INFO [mlagent_lora] candidate rank16_scalar_b512 compiled in 55.53s
+2026-05-06 12:15:47 INFO [mlagent_lora] candidate rank16_scalar_b512 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:15:48 INFO [mlagent_lora] candidate rank16_scalar_b512 benchmark complete: aggregate_speedup=0.985460925609636 latency_ms={'3584': 4.812288045883179, '4096': 7.233536005020142, '4608': 9.689599990844727}
+2026-05-06 12:15:48 INFO [mlagent_lora] candidate rank16_scalar_b512 decision=kept_existing_best promoted=False aggregate_speedup=0.985460925609636
+2026-05-06 12:15:48 INFO [mlagent_lora] candidate generated: id=4 name=rank16_vec4_b128 family=cublas_plus_custom_rank16_update
+2026-05-06 12:15:48 INFO [mlagent_lora] evaluating candidate id=4 name=rank16_vec4_b128
+2026-05-06 12:15:48 INFO [mlagent_lora] candidate rank16_vec4_b128 passed static review with risk=low
+2026-05-06 12:15:48 INFO [mlagent_lora] candidate rank16_vec4_b128 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:16:44 INFO [mlagent_lora] candidate rank16_vec4_b128 compiled in 55.52s
+2026-05-06 12:16:44 INFO [mlagent_lora] candidate rank16_vec4_b128 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:16:44 INFO [mlagent_lora] candidate rank16_vec4_b128 benchmark complete: aggregate_speedup=0.9903158851128546 latency_ms={'3584': 4.772863864898682, '4096': 7.211519956588745, '4608': 9.645055770874023}
+2026-05-06 12:16:44 INFO [mlagent_lora] candidate rank16_vec4_b128 decision=kept_existing_best promoted=False aggregate_speedup=0.9903158851128546
+2026-05-06 12:16:44 INFO [mlagent_lora] candidate generated: id=5 name=rank16_vec4_b256 family=cublas_plus_custom_rank16_update
+2026-05-06 12:16:44 INFO [mlagent_lora] evaluating candidate id=5 name=rank16_vec4_b256
+2026-05-06 12:16:44 INFO [mlagent_lora] candidate rank16_vec4_b256 passed static review with risk=low
+2026-05-06 12:16:44 INFO [mlagent_lora] candidate rank16_vec4_b256 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:17:40 INFO [mlagent_lora] candidate rank16_vec4_b256 compiled in 55.51s
+2026-05-06 12:17:40 INFO [mlagent_lora] candidate rank16_vec4_b256 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:17:40 INFO [mlagent_lora] candidate rank16_vec4_b256 benchmark complete: aggregate_speedup=0.9901702474857779 latency_ms={'3584': 4.775936126708984, '4096': 7.211519956588745, '4608': 9.648639678955078}
+2026-05-06 12:17:40 INFO [mlagent_lora] candidate rank16_vec4_b256 decision=kept_existing_best promoted=False aggregate_speedup=0.9901702474857779
+2026-05-06 12:17:41 INFO [mlagent_lora] candidate generated: id=6 name=rank16_vec4_b512 family=cublas_plus_custom_rank16_update
+2026-05-06 12:17:41 INFO [mlagent_lora] evaluating candidate id=6 name=rank16_vec4_b512
+2026-05-06 12:17:41 INFO [mlagent_lora] candidate rank16_vec4_b512 passed static review with risk=low
+2026-05-06 12:17:41 INFO [mlagent_lora] candidate rank16_vec4_b512 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:18:34 INFO [mlagent_lora] candidate rank16_vec4_b512 compiled in 53.86s
+2026-05-06 12:18:34 INFO [mlagent_lora] candidate rank16_vec4_b512 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:18:35 INFO [mlagent_lora] candidate rank16_vec4_b512 benchmark complete: aggregate_speedup=0.9856410749920105 latency_ms={'3584': 4.789247989654541, '4096': 7.261183977127075, '4608': 9.694720268249512}
+2026-05-06 12:18:35 INFO [mlagent_lora] candidate rank16_vec4_b512 decision=kept_existing_best promoted=False aggregate_speedup=0.9856410749920105
+2026-05-06 12:18:35 INFO [mlagent_lora] supervisor finish; best={'id': 0, 'name': 'baseline_aten', 'family': 'aten_reference', 'block_size': 256, 'vector_width': 1, 'use_fast_math': False, 'parent': None, 'source_path': '/workspace/mlagent_lora/experiments/exp_0000/candidate.cu', 'compiled': True, 'correct': True, 'aggregate_speedup': 0.9995326088015271, 'latency_by_d': {'3584': 4.7370240688323975, '4096': 7.147007942199707, '4608': 9.543680191040039}, 'decision': 'kept_existing_best'} final=/workspace/mlagent_lora/optimized_lora.cu
+2026-05-06 12:21:30 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:21:31 INFO [mlagent_lora] supervisor start: max_time=1700.0s max_iters=6
+2026-05-06 12:21:31 INFO [mlagent_lora] llm status: LLM enabled with model gpt-5.4 via OpenAI SDK.
+2026-05-06 12:21:31 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:21:31 INFO [mlagent_lora] bootstrap-only run complete; final file is /workspace/mlagent_lora/optimized_lora.cu
+2026-05-06 12:29:09 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:29:09 INFO [mlagent_lora] supervisor start: max_time=1700.0s max_iters=6
+2026-05-06 12:29:09 INFO [mlagent_lora] llm status: LLM enabled with model gpt-5.4 via OpenAI SDK.
+2026-05-06 12:29:09 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:29:09 INFO [mlagent_lora] bootstrap-only run complete; final file is /workspace/mlagent_lora/optimized_lora.cu
+2026-05-06 12:29:25 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:29:26 INFO [mlagent_lora] supervisor start: max_time=5.0s max_iters=0
+2026-05-06 12:29:26 INFO [mlagent_lora] llm status: LLM enabled with model gpt-5.4 via OpenAI SDK.
+2026-05-06 12:29:26 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:29:28 INFO [mlagent_lora] environment checked: can_test=True reason=CUDA test environment is available
+2026-05-06 12:29:28 INFO [mlagent_lora] evaluating candidate id=0 name=baseline_aten
+2026-05-06 12:29:28 INFO [mlagent_lora] candidate baseline_aten passed static review with risk=low
+2026-05-06 12:29:28 INFO [mlagent_lora] candidate baseline_aten compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:30:24 INFO [mlagent_lora] candidate baseline_aten compiled in 55.55s
+2026-05-06 12:30:24 INFO [mlagent_lora] candidate baseline_aten correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:30:25 INFO [mlagent_lora] candidate baseline_aten benchmark complete: aggregate_speedup=1.0002378811034327 latency_ms={'3584': 4.736000061035156, '4096': 7.144959926605225, '4608': 9.537535667419434}
+2026-05-06 12:30:25 INFO [mlagent_lora] baseline validation complete; promoted=False
+2026-05-06 12:30:25 INFO [mlagent_lora] max_iters=0; stopping after baseline validation
+2026-05-06 12:30:41 INFO [mlagent_lora] runtime logger initialized at /workspace/mlagent_lora/logs/agent.log
+2026-05-06 12:30:42 INFO [mlagent_lora] supervisor start: max_time=180.0s max_iters=1
+2026-05-06 12:30:42 INFO [mlagent_lora] llm status: LLM enabled with model gpt-5.4 via OpenAI SDK.
+2026-05-06 12:30:42 INFO [mlagent_lora] baseline bootstrapped from /workspace/mlagent_lora/experiments/exp_0000/candidate.cu
+2026-05-06 12:30:43 INFO [mlagent_lora] environment checked: can_test=True reason=CUDA test environment is available
+2026-05-06 12:30:43 INFO [mlagent_lora] evaluating candidate id=0 name=baseline_aten
+2026-05-06 12:30:43 INFO [mlagent_lora] candidate baseline_aten passed static review with risk=low
+2026-05-06 12:30:43 INFO [mlagent_lora] candidate baseline_aten compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:31:39 INFO [mlagent_lora] candidate baseline_aten compiled in 55.58s
+2026-05-06 12:31:39 INFO [mlagent_lora] candidate baseline_aten correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:31:39 INFO [mlagent_lora] candidate baseline_aten benchmark complete: aggregate_speedup=0.9980694334724157 latency_ms={'3584': 4.773888111114502}
+2026-05-06 12:31:39 INFO [mlagent_lora] baseline validation complete; promoted=False
+2026-05-06 12:31:40 INFO [mlagent_lora] search plan selected: deterministic_rank16_search
+2026-05-06 12:31:40 INFO [mlagent_lora] candidate generated: id=1 name=rank16_scalar_b128 family=cublas_plus_custom_rank16_update origin=deterministic_fallback
+2026-05-06 12:31:40 INFO [mlagent_lora] evaluating candidate id=1 name=rank16_scalar_b128
+2026-05-06 12:31:40 INFO [mlagent_lora] candidate rank16_scalar_b128 passed static review with risk=low
+2026-05-06 12:31:40 INFO [mlagent_lora] candidate rank16_scalar_b128 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-06 12:32:35 INFO [mlagent_lora] candidate rank16_scalar_b128 compiled in 55.02s
+2026-05-06 12:32:35 INFO [mlagent_lora] candidate rank16_scalar_b128 correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-06 12:32:35 INFO [mlagent_lora] candidate rank16_scalar_b128 benchmark complete: aggregate_speedup=0.9897785560394516 latency_ms={'3584': 4.808703899383545}
+2026-05-06 12:32:35 INFO [mlagent_lora] candidate rank16_scalar_b128 decision=kept_existing_best promoted=False aggregate_speedup=0.9897785560394516
+2026-05-06 12:32:35 INFO [mlagent_lora] supervisor finish; best={'id': 0, 'name': 'baseline_aten', 'family': 'aten_reference', 'block_size': 256, 'vector_width': 1, 'use_fast_math': False, 'shape_dispatch': False, 'llm_generated': False, 'strategy': '', 'parent': None, 'source_path': '/workspace/mlagent_lora/experiments/exp_0000/candidate.cu', 'compiled': True, 'correct': True, 'aggregate_speedup': 0.9980694334724157, 'latency_by_d': {'3584': 4.773888111114502}, 'decision': 'kept_existing_best', 'generation': {'origin': 'deterministic_baseline', 'candidate': {'id': 0, 'name': 'baseline_aten', 'family': 'aten_reference', 'block_size': 256, 'vector_width': 1, 'use_fast_math': False, 'shape_dispatch': False, 'llm_generated': False, 'strategy': '', 'parent': None}}, 'static_review': {'passed': True, 'warnings': [], 'errors': [], 'risk_level': 'low'}, 'llm_static_review': None, 'compile': {'compiled': True, 'skipped': False, 'error_type': None, 'error_summary': None, 'compile_time_sec': 55.58409264101647, 'module_name': 'lora_candidate_ext_0_1778070643763'}, 'correctness': {'correct': True, 'max_abs_err': 0.0, 'rel_l2_err': 0.0, 'failed_shapes': [], 'details': {'3584': {'passed': True, 'finite': True, 'max_abs_err': 0.0, 'rel_l2_err': 0.0}}}, 'benchmark': {'latency_ms': {'3584': 4.773888111114502}, 'torch_ms': {'3584': 4.764671802520752}, 'speedup': {'3584': 0.9980694334724157}, 'aggregate_speedup': 0.9980694334724157, 'details': {'warmup': 1, 'iters': 1}}, 'profile': {'bottleneck': 'multiple_aten_gemm_and_add_launches', 'evidence': {'latency_ms': {'3584': 4.773888111114502}, 'torch_ms': {'3584': 4.764671802520752}, 'speedup': {'3584': 0.9980694334724157}, 'aggregate_speedup': 0.9980694334724157, 'details': {'warmup': 1, 'iters': 1}}, 'suggested_actions': ['keep cuBLAS for W @ X', 'fuse rank-16 update into the output tensor', 'test scalar and vectorized rank-16 kernels']}, 'diagnosis': {'bottleneck': 'multiple_aten_gemm_and_add_launches', 'confidence': 'medium', 'evidence': ['{"aggregate_speedup": 0.9980694334724157, "details": {"iters": 1, "warmup": 1}, "latency_ms": {"3584": 4.773888111114502}, "speedup": {"3584": 0.9980694334724157}, "torch_ms": {"3584": 4.764671802520752}}'], 'recommended_actions': ['try vector width 4', 'vary block size', 'keep W @ X in cuBLAS'], 'avoid': ['custom full GEMM without evidence'], 'promotion_advice': 'reject'}} final=/workspace/mlagent_lora/optimized_lora.cu

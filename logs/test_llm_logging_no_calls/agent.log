@@ -1,0 +1,6 @@
+2026-05-06 12:57:38 INFO [mlagent_lora.test_llm_logging_no_calls] runtime logger initialized at /workspace/mlagent_lora/logs/test_llm_logging_no_calls/agent.log
+2026-05-06 12:57:38 INFO [mlagent_lora.test_llm_logging_no_calls] run_id=test_llm_logging_no_calls
+2026-05-06 12:57:39 INFO [mlagent_lora.test_llm_logging_no_calls] supervisor start: run_id=test_llm_logging_no_calls max_time=1700.0s max_iters=6
+2026-05-06 12:57:39 INFO [mlagent_lora.test_llm_logging_no_calls] llm status: LLM enabled with model gpt-5.4 via OpenAI SDK.
+2026-05-06 12:57:39 INFO [mlagent_lora.test_llm_logging_no_calls] baseline bootstrapped from /workspace/mlagent_lora/experiments/test_llm_logging_no_calls/exp_0000/candidate.cu
+2026-05-06 12:57:39 INFO [mlagent_lora.test_llm_logging_no_calls] bootstrap-only run complete; final file is /workspace/mlagent_lora/optimized_lora.cu

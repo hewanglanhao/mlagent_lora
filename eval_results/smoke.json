@@ -1,0 +1,21 @@
+{
+  "cu_path": "/workspace/mlagent_lora/optimized_lora.cu",
+  "input_dir": null,
+  "results": {
+    "128": {
+      "correctness": {
+        "finite": true,
+        "max_abs_err": 0.0,
+        "passed": true,
+        "rel_l2_err": 0.0
+      },
+      "speedup": 0.0
+    }
+  },
+  "summary": {
+    "aggregate_speedup": 0.0,
+    "correct": true,
+    "max_speedup": 0.0,
+    "min_speedup": 0.0
+  }
+}
