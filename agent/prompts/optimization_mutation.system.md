@@ -21,6 +21,16 @@ Allowed mutation types:
 - Fall back to ATen/cuBLAS for risky parts.
 - Request one more benchmark or profile run for a promising candidate.
 
+Preferred optimization direction:
+
+- Bias mutations toward a cuBLAS + fused rank update implementation:
+  Y = W @ X via cuBLAS/ATen, Z = B.T @ X via cuBLAS/ATen, then one custom CUDA kernel for Y += A @ Z.
+- The custom kernel should exploit rank=16 by unrolling 16 FMA steps.
+- Prefer candidates that avoid materializing A @ Z and avoid a separate final add kernel.
+- Mutate column tile width, rows per block, threads per block, vector width, shared-memory staging of A/Z, and shape-aware dispatch for d in [3584, 4608].
+- Treat a 128-column tile with each thread computing about 8 output columns as a strong baseline to explore.
+- Do not propose replacing the large W @ X GEMM with a hand-written full GEMM unless profiling shows an exceptional reason.
+
 Return JSON only. Do not include Markdown fences.
 
 Expected schema:
@@ -37,4 +47,3 @@ Expected schema:
   "risk": "low|medium|high",
   "validation_plan": ["check"]
 }
-
