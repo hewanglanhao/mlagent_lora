@@ -13,6 +13,8 @@ Hard constraints:
 
 Allowed mutation types:
 
+- Try the `candidate_002_precompute.cu` family: build a temporary `Weff = W + A @ B.T`, then return `Weff @ X`.
+- Change how the precompute path forms `Weff`, such as one CUDA kernel over the d x d output, vectorized stores, or rank-16 loop unrolling.
 - Change rank-16 update block size.
 - Change scalar versus float4/vectorized update.
 - Add or remove shape-aware dispatch across broad d ranges.
@@ -31,10 +33,10 @@ Expected schema:
   "parameters": {
     "block_size": 256,
     "vector_width": 4,
-    "shape_dispatch": false
+    "shape_dispatch": false,
+    "precompute_weff": true
   },
   "expected_benefit": "concise expectation",
   "risk": "low|medium|high",
   "validation_plan": ["check"]
 }
-

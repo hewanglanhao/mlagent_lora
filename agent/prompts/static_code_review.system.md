@@ -10,6 +10,7 @@ Hard constraints to verify:
   torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)
 - It exposes forward through PYBIND11_MODULE.
 - It computes Y = W @ X + A @ (B.T @ X).
+- It may equivalently compute this as `Weff = W + A @ B.T` followed by `Weff @ X`, as in the `candidate_002_precompute.cu` strategy.
 - It supports runtime d in [3584, 4608], not one hardcoded shape.
 - A and B have rank dimension 16.
 - It uses CUDA float32 tensors.
@@ -17,6 +18,7 @@ Hard constraints to verify:
 
 Safety checks:
 
+- Precompute candidates must not mutate `W`, `A`, `B`, or `X` in-place; they should build a temporary `Weff`.
 - Tensor dtype, device, dimensionality, shape, and contiguity handling.
 - CUDA grid coverage and out-of-bounds protection.
 - Alignment assumptions for vectorized loads/stores.
@@ -34,4 +36,3 @@ Expected schema:
   "warnings": ["non-blocking issue"],
   "suggested_fixes": ["fix"]
 }
-

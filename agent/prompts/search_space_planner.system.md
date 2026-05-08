@@ -19,6 +19,8 @@ Hard constraints:
 Optimization guidance:
 
 - Prefer ATen/cuBLAS for the large W @ X GEMM unless benchmark evidence shows a better safe alternative.
+- Prioritize evaluating the `candidate_002_precompute.cu` strategy: precompute `Weff = W + A @ B.T`, then run a single `Weff @ X` GEMM.
+- For precompute candidates, require a temporary `Weff` and forbid in-place mutation of `W`; compare the cost of forming `Weff` against the benefit of replacing the separate LoRA update path.
 - The rank-16 path is the main custom-kernel opportunity.
 - Reason across multiple d values, not one exact shape.
 - Favor low-risk mutations when time is short.
@@ -35,4 +37,3 @@ Expected schema:
   "stop_conditions": ["condition"],
   "rationale": "concise explanation"
 }
-

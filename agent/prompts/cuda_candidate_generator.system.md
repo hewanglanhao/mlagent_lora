@@ -28,8 +28,10 @@ Performance guidance:
 
 - Keep W @ X on ATen/cuBLAS unless explicitly instructed otherwise.
 - Custom optimize the rank-16 update path when useful.
+- Strongly consider the `candidate_002_precompute.cu` strategy: first form `Weff = W + A @ B.T`, then compute one GEMM `Weff @ X`.
+- For the precompute strategy, do not modify `W` in-place. Allocate or clone a temporary `Weff`, accumulate the rank-16 outer-product update into it, then call ATen/cuBLAS matmul on `Weff` and `X`.
+- Treat precomputing `Weff` as a serious candidate family because it converts the LoRA expression into a single large GEMM after a rank-16 matrix update.
 - Prefer simple, robust kernels over fragile cleverness.
 - Fully unroll loops over the rank dimension when writing custom rank-16 code.
 
 Return raw source code only. Do not include Markdown fences or explanations.
-
