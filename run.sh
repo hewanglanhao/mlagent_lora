@@ -59,12 +59,12 @@ SYNC_PID=$!
 cd "$PROJECT_DIR" || exit 1
 
 ENV_FILE="$PROJECT_DIR/doc/环境变量.txt"
-if [ -f "$ENV_FILE" ]; then
-    set +u
-    # shellcheck disable=SC1090
-    source "$ENV_FILE"
-    set -u
-fi
+# if [ -f "$ENV_FILE" ]; then
+#     set +u
+#     # shellcheck disable=SC1090
+#     source "$ENV_FILE"
+#     set -u
+# fi
 
 # 让 Python 日志实时输出，便于 tail -f 查看运行进度。
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
@@ -76,7 +76,7 @@ export MAX_OPT_TIME="${MAX_OPT_TIME:-1700}"
 export LLM_TIMEOUT_SEC="${LLM_TIMEOUT_SEC:-180}"
 
 # 启动新候选前要求至少剩余的时间，单位秒；避免候选跑到一半撞上 30 分钟限制。
-export MIN_CANDIDATE_TIME_BUDGET_SEC="${MIN_CANDIDATE_TIME_BUDGET_SEC:-600}"
+export MIN_CANDIDATE_TIME_BUDGET_SEC="${MIN_CANDIDATE_TIME_BUDGET_SEC:-300}"
 
 # 是否启用严格闭环：LLM 生成代码 -> 编译 -> 正确性 -> benchmark/profile -> LLM 分析 -> 下一轮。
 export ENABLE_LLM_CLOSED_LOOP="${ENABLE_LLM_CLOSED_LOOP:-1}"
