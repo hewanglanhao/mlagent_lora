@@ -1196,7 +1196,7 @@ def _env_flag(name: str, default: bool) -> bool:
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agentic LoRA CUDA optimizer")
     parser.add_argument("--max-time", type=float, default=float(os.getenv("MAX_OPT_TIME", "1700")))
-    parser.add_argument("--stop-margin", type=float, default=float(os.getenv("STOP_MARGIN_SEC", "60")))
+    parser.add_argument("--stop-margin", type=float, default=float(os.getenv("STOP_MARGIN_SEC", "120")))
     parser.add_argument("--max-iters", type=int, default=int(os.getenv("MAX_CANDIDATES", "6")))
     parser.add_argument("--bench-warmup", type=int, default=int(os.getenv("BENCH_WARMUP", "3")))
     parser.add_argument("--bench-iters", type=int, default=int(os.getenv("BENCH_ITERS", "10")))
