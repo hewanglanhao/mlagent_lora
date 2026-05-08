@@ -261,6 +261,11 @@ class Supervisor:
         self.best_manager = BestCandidateManager(self.root, self.spec)
         self.history: list[CandidateRecord] = []
         self.llm_closed_loop = bool(args.llm_closed_loop and self.llm.enabled)
+        if self.llm_closed_loop:
+            self.min_candidate_time_budget = max(
+                self.min_candidate_time_budget,
+                args.closed_loop_min_candidate_time_budget,
+            )
         self.async_llm = bool(args.async_llm and self.llm.enabled and not self.llm_closed_loop)
         self.async_llm_advisory = bool(self.async_llm and args.async_llm_advisory)
         self.pending_plan: BackgroundTask[dict[str, Any]] | None = None
@@ -280,7 +285,7 @@ class Supervisor:
         )
         self.logger.info("llm status: %s", self.llm.status)
         self.logger.info(
-            "llm pipeline: closed_loop=%s async=%s advisory=%s async_codegen=%s repair_attempts=%s idle_wait_sec=%s stale_retry_wait_sec=%s min_candidate_time_budget_sec=%s",
+            "llm pipeline: closed_loop=%s async=%s advisory=%s async_codegen=%s repair_attempts=%s idle_wait_sec=%s stale_retry_wait_sec=%s min_candidate_time_budget_sec=%s evaluation_budget_sec=%s compile_budget_sec=%s diagnosis_budget_sec=%s",
             self.llm_closed_loop,
             self.async_llm,
             self.async_llm_advisory,
@@ -289,6 +294,9 @@ class Supervisor:
             self.args.async_llm_idle_wait,
             self.args.async_llm_stale_retry_wait,
             self.min_candidate_time_budget,
+            self.args.candidate_evaluation_time_budget,
+            self.args.compile_time_budget,
+            self.args.diagnosis_time_budget,
         )
         self.memory.append_trace(
             {
@@ -301,6 +309,10 @@ class Supervisor:
                 "async_llm_advisory": self.async_llm_advisory,
                 "max_time_sec": self.args.max_time,
                 "min_candidate_time_budget_sec": self.min_candidate_time_budget,
+                "closed_loop_min_candidate_time_budget_sec": self.args.closed_loop_min_candidate_time_budget,
+                "candidate_evaluation_time_budget_sec": self.args.candidate_evaluation_time_budget,
+                "compile_time_budget_sec": self.args.compile_time_budget,
+                "diagnosis_time_budget_sec": self.args.diagnosis_time_budget,
             }
         )
 
@@ -967,6 +979,13 @@ class Supervisor:
     def _evaluate_candidate(self, record: CandidateRecord) -> None:
         exp_dir = self.memory.experiment_dir(record.spec.experiment_id)
         self.logger.info("evaluating candidate id=%s name=%s", record.spec.experiment_id, record.spec.name)
+        if not self._has_stage_budget(
+            "candidate_evaluation",
+            self.args.candidate_evaluation_time_budget,
+            record,
+            mark_rejected=True,
+        ):
+            return
 
         review = self.static_review.review(record.source_path)
         record.static_review_result = review.to_dict()
@@ -974,7 +993,21 @@ class Supervisor:
         if self.async_llm and not self.llm_static_review.can_reject:
             self._start_async_static_review(record)
         else:
-            llm_review = self.llm_static_review.review(record.spec, record.source_path)
+            if self._has_stage_budget(
+                "llm_static_review",
+                self.args.llm_static_review_time_budget,
+                record,
+                mark_rejected=False,
+            ):
+                llm_review = self.llm_static_review.review(record.spec, record.source_path)
+            else:
+                llm_review = {
+                    "pass": None,
+                    "risk_level": "unknown",
+                    "warnings": ["Skipped LLM static review because the run is close to its deadline."],
+                    "errors": [],
+                    "skipped": True,
+                }
             record.llm_static_review_result = llm_review
             if llm_review is not None:
                 self.memory.write_json(exp_dir / "llm_static_review.json", llm_review)
@@ -999,6 +1032,8 @@ class Supervisor:
             "candidate %s compile started; PyTorch extension builds can be quiet for 1-2 minutes",
             record.spec.name,
         )
+        if not self._has_stage_budget("compile", self.args.compile_time_budget, record, mark_rejected=True):
+            return
         compile_result, module = self.compile_agent.compile(
             record.source_path,
             build_dir=exp_dir / "torch_build",
@@ -1062,6 +1097,13 @@ class Supervisor:
             correctness.rel_l2_err,
         )
 
+        if not self._has_stage_budget(
+            "benchmark",
+            self.args.benchmark_time_budget,
+            record,
+            mark_rejected=True,
+        ):
+            return
         benchmark = self.benchmark_agent.run(module)
         record.aggregate_speedup = benchmark.aggregate_speedup
         record.latency_by_d = benchmark.latency_ms
@@ -1162,6 +1204,20 @@ class Supervisor:
 
     def _diagnose(self, record: CandidateRecord) -> dict[str, Any]:
         if self.llm_closed_loop:
+            if not self._has_stage_budget(
+                "llm_diagnosis",
+                self.args.diagnosis_time_budget,
+                record,
+                mark_rejected=False,
+            ):
+                return self.diagnosis_agent.fallback_diagnosis(
+                    candidate=record.spec,
+                    static_review=record.static_review_result,
+                    compile_result=record.compile_result,
+                    correctness_result=record.correctness_result,
+                    benchmark_result=record.benchmark_result,
+                    profile_result=record.profile_result,
+                )
             self.logger.info("closed_loop_stage=bottleneck_analysis_start candidate=%s", record.spec.name)
             diagnosis = self.diagnosis_agent.diagnose(
                 candidate=record.spec,
@@ -1214,6 +1270,12 @@ class Supervisor:
                     "max_time_sec": self.args.max_time,
                     "stop_margin_sec": self.args.stop_margin,
                     "min_candidate_time_budget_sec": self.min_candidate_time_budget,
+                    "closed_loop_min_candidate_time_budget_sec": self.args.closed_loop_min_candidate_time_budget,
+                    "candidate_evaluation_time_budget_sec": self.args.candidate_evaluation_time_budget,
+                    "llm_static_review_time_budget_sec": self.args.llm_static_review_time_budget,
+                    "compile_time_budget_sec": self.args.compile_time_budget,
+                    "benchmark_time_budget_sec": self.args.benchmark_time_budget,
+                    "diagnosis_time_budget_sec": self.args.diagnosis_time_budget,
                     "max_iters": self.args.max_iters,
                 },
                 stop_reason=stop_reason,
@@ -1229,6 +1291,38 @@ class Supervisor:
 
     def _flush_leaderboard(self) -> None:
         self.memory.update_leaderboard([record.to_dict() for record in self.history])
+
+    def _has_stage_budget(
+        self,
+        stage: str,
+        required_sec: float,
+        record: CandidateRecord | None = None,
+        *,
+        mark_rejected: bool = False,
+    ) -> bool:
+        remaining = self._time_remaining()
+        if remaining >= required_sec:
+            return True
+        payload: dict[str, Any] = {
+            "event": "skip_stage_before_timeout",
+            "stage": stage,
+            "remaining_sec": remaining,
+            "required_sec": required_sec,
+        }
+        if record is not None:
+            payload["candidate"] = record.spec.metadata()
+            if mark_rejected and record.decision in {"not_evaluated", "evaluated_valid"}:
+                record.decision = "rejected_time_budget"
+        self.memory.append_trace(payload)
+        candidate_name = record.spec.name if record is not None else "-"
+        self.logger.warning(
+            "skipping stage before timeout: stage=%s candidate=%s remaining_sec=%.2f required_sec=%.2f",
+            stage,
+            candidate_name,
+            remaining,
+            required_sec,
+        )
+        return False
 
     def _time_remaining(self) -> float:
         return self.deadline - time.monotonic()
@@ -1250,13 +1344,49 @@ def _env_flag(name: str, default: bool) -> bool:
 
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agentic LoRA CUDA optimizer")
-    parser.add_argument("--max-time", type=float, default=float(os.getenv("MAX_OPT_TIME", "1700")))
+    parser.add_argument("--max-time", type=float, default=float(os.getenv("MAX_OPT_TIME", "1680")))
     parser.add_argument("--stop-margin", type=float, default=float(os.getenv("STOP_MARGIN_SEC", "180")))
     parser.add_argument(
         "--min-candidate-time-budget",
         type=float,
         default=float(os.getenv("MIN_CANDIDATE_TIME_BUDGET_SEC", "600")),
         help="Do not start a new candidate unless at least this many seconds remain.",
+    )
+    parser.add_argument(
+        "--closed-loop-min-candidate-time-budget",
+        type=float,
+        default=float(os.getenv("CLOSED_LOOP_MIN_CANDIDATE_TIME_BUDGET_SEC", "900")),
+        help="Stricter candidate-start budget used when the synchronous LLM closed loop is enabled.",
+    )
+    parser.add_argument(
+        "--candidate-evaluation-time-budget",
+        type=float,
+        default=float(os.getenv("CANDIDATE_EVALUATION_TIME_BUDGET_SEC", "420")),
+        help="Skip evaluating a generated candidate unless this many seconds remain.",
+    )
+    parser.add_argument(
+        "--llm-static-review-time-budget",
+        type=float,
+        default=float(os.getenv("LLM_STATIC_REVIEW_TIME_BUDGET_SEC", "120")),
+        help="Skip synchronous LLM static review unless this many seconds remain.",
+    )
+    parser.add_argument(
+        "--compile-time-budget",
+        type=float,
+        default=float(os.getenv("COMPILE_TIME_BUDGET_SEC", "300")),
+        help="Skip candidate compilation unless this many seconds remain.",
+    )
+    parser.add_argument(
+        "--benchmark-time-budget",
+        type=float,
+        default=float(os.getenv("BENCHMARK_TIME_BUDGET_SEC", "120")),
+        help="Skip benchmark/profile unless this many seconds remain.",
+    )
+    parser.add_argument(
+        "--diagnosis-time-budget",
+        type=float,
+        default=float(os.getenv("DIAGNOSIS_TIME_BUDGET_SEC", "90")),
+        help="Use fallback diagnosis unless this many seconds remain.",
     )
     parser.add_argument("--max-iters", type=int, default=int(os.getenv("MAX_CANDIDATES", "6")))
     parser.add_argument("--bench-warmup", type=int, default=int(os.getenv("BENCH_WARMUP", "3")))

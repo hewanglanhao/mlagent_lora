@@ -69,14 +69,32 @@ fi
 # 让 Python 日志实时输出，便于 tail -f 查看运行进度。
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 
-# 单次优化运行的内部时间上限，单位秒；平台 30 分钟限制下默认留一点余量。
-export MAX_OPT_TIME="${MAX_OPT_TIME:-1700}"
+# 单次优化运行的内部时间上限，单位秒；平台 30 分钟限制下默认提前约 2 分钟收尾。
+export MAX_OPT_TIME="${MAX_OPT_TIME:-1680}"
 
 # 单次 LLM 请求的最长等待时间，单位秒；过短会更容易 timeout，过长会拖慢整体搜索。
 export LLM_TIMEOUT_SEC="${LLM_TIMEOUT_SEC:-180}"
 
 # 启动新候选前要求至少剩余的时间，单位秒；避免候选跑到一半撞上 30 分钟限制。
 export MIN_CANDIDATE_TIME_BUDGET_SEC="${MIN_CANDIDATE_TIME_BUDGET_SEC:-600}"
+
+# 严格闭环模式下启动新候选前的更保守剩余时间，单位秒；LLM 生成+审查+编译通常会很慢。
+export CLOSED_LOOP_MIN_CANDIDATE_TIME_BUDGET_SEC="${CLOSED_LOOP_MIN_CANDIDATE_TIME_BUDGET_SEC:-900}"
+
+# 已生成候选进入评估前要求剩余的时间，单位秒；防止 codegen 很慢后继续编译导致平台超时。
+export CANDIDATE_EVALUATION_TIME_BUDGET_SEC="${CANDIDATE_EVALUATION_TIME_BUDGET_SEC:-420}"
+
+# 同步 LLM 静态审查前要求剩余的时间，单位秒；不足时跳过该审查，继续依赖本地静态检查。
+export LLM_STATIC_REVIEW_TIME_BUDGET_SEC="${LLM_STATIC_REVIEW_TIME_BUDGET_SEC:-120}"
+
+# 编译候选前要求剩余的时间，单位秒；PyTorch CUDA 扩展编译在当前环境常见需要 3 分钟以上。
+export COMPILE_TIME_BUDGET_SEC="${COMPILE_TIME_BUDGET_SEC:-300}"
+
+# benchmark/profile 前要求剩余的时间，单位秒；不足时跳过，避免最后阶段被硬杀。
+export BENCHMARK_TIME_BUDGET_SEC="${BENCHMARK_TIME_BUDGET_SEC:-120}"
+
+# 同步 LLM 瓶颈诊断前要求剩余的时间，单位秒；不足时改用本地 fallback 诊断。
+export DIAGNOSIS_TIME_BUDGET_SEC="${DIAGNOSIS_TIME_BUDGET_SEC:-90}"
 
 # 是否启用严格闭环：LLM 生成代码 -> 编译 -> 正确性 -> benchmark/profile -> LLM 分析 -> 下一轮。
 export ENABLE_LLM_CLOSED_LOOP="${ENABLE_LLM_CLOSED_LOOP:-1}"
