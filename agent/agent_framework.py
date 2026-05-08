@@ -28,6 +28,7 @@ from .local_harness import (
     ProfilingAgent,
 )
 from .memory import ExperimentMemory, atomic_copy, atomic_write_text
+from .output_report import write_output_report
 from .prompt_library import PromptLibrary
 from .runtime_logging import setup_runtime_logger
 from .run_context import make_run_id
@@ -218,6 +219,7 @@ class Supervisor:
         self.args = args
         self.run_id = args.run_id or make_run_id()
         self.deadline = time.monotonic() + args.max_time
+        self.output_report_path = Path(os.getenv("MLAGENT_OUTPUT_REPORT", "/workspace/output.md"))
         self.logger = setup_runtime_logger(self.root, self.run_id)
         self.memory = ExperimentMemory(self.root, self.run_id)
         self.constraints = ConstraintSpecManager(self.spec)
@@ -303,6 +305,7 @@ class Supervisor:
         if self.args.bootstrap_only:
             self.best_manager.ensure_final_exists()
             self._flush_leaderboard()
+            self._write_output_report("bootstrap_only")
             self.logger.info(
                 "bootstrap-only run complete; baseline_decision=%s final file is %s",
                 baseline_record.decision,
@@ -319,6 +322,7 @@ class Supervisor:
             baseline_record.decision = "kept_without_cuda_validation"
             self.best_manager.ensure_final_exists()
             self._flush_leaderboard()
+            self._write_output_report("cuda_validation_unavailable")
             self.logger.warning("CUDA validation skipped; keeping baseline optimized_lora.cu")
             return 0
 
@@ -332,6 +336,7 @@ class Supervisor:
         if self.args.max_iters == 0:
             self.best_manager.ensure_final_exists()
             self._flush_leaderboard()
+            self._write_output_report("max_iters_zero")
             self.logger.info("max_iters=0; stopping after baseline validation")
             return 0
 
@@ -345,6 +350,7 @@ class Supervisor:
 
         latest_diagnosis: dict[str, Any] | None = baseline_record.diagnosis_result or None
         next_experiment_id = 1
+        stop_reason = "completed"
         if self.async_llm:
             self._start_async_mutation(latest_diagnosis)
         while len([r for r in self.history if r.spec.experiment_id > 0]) < self.args.max_iters:
@@ -355,6 +361,7 @@ class Supervisor:
             if self._time_remaining() < self.args.stop_margin:
                 self.memory.append_trace({"event": "stop_before_timeout", "remaining_sec": self._time_remaining()})
                 self.logger.warning("stopping before timeout; remaining_sec=%.2f", self._time_remaining())
+                stop_reason = "stop_margin"
                 break
             if self.async_llm:
                 record = self._consume_ready_codegen_candidate(next_experiment_id)
@@ -370,6 +377,7 @@ class Supervisor:
                 )
             if record is None and spec is None:
                 self.logger.info("mutation agent found no untried candidates; stopping")
+                stop_reason = "no_untried_candidates"
                 break
             if record is None:
                 assert spec is not None
@@ -395,14 +403,18 @@ class Supervisor:
                 self._start_async_mutation(latest_diagnosis)
 
         self._drain_async_llm_results(self.args.async_llm_final_wait)
+        if stop_reason == "completed" and len([r for r in self.history if r.spec.experiment_id > 0]) >= self.args.max_iters:
+            stop_reason = "max_candidates_reached"
         self.best_manager.ensure_final_exists()
         self._flush_leaderboard()
         self.memory.append_trace(
             {
                 "event": "supervisor_finish",
+                "stop_reason": stop_reason,
                 "best": self.best_manager.best_record.to_dict() if self.best_manager.best_record else None,
             }
         )
+        self._write_output_report(stop_reason)
         self.logger.info(
             "supervisor finish; best=%s final=%s",
             self.best_manager.best_record.to_dict() if self.best_manager.best_record else None,
@@ -1172,6 +1184,34 @@ class Supervisor:
             profile_result=record.profile_result,
         )
 
+    def _write_output_report(self, stop_reason: str) -> None:
+        try:
+            write_output_report(
+                output_path=self.output_report_path,
+                run_id=self.run_id,
+                constraints=self.constraints.checklist(),
+                llm_status=self.llm.status,
+                pipeline={
+                    "closed_loop": self.llm_closed_loop,
+                    "async": self.async_llm,
+                    "async_advisory": self.async_llm_advisory,
+                    "async_codegen": self.args.async_llm_codegen,
+                    "repair_attempts": self.args.llm_codegen_repair_attempts,
+                    "max_time_sec": self.args.max_time,
+                    "stop_margin_sec": self.args.stop_margin,
+                    "max_iters": self.args.max_iters,
+                },
+                stop_reason=stop_reason,
+                history=[record.to_dict() for record in self.history],
+                best=self.best_manager.best_record.to_dict() if self.best_manager.best_record else None,
+                final_path=self.best_manager.final_path,
+                experiments_dir=self.memory.experiments_dir,
+            )
+            self.logger.info("output report written to %s", self.output_report_path)
+            self.memory.append_trace({"event": "output_report_written", "path": str(self.output_report_path)})
+        except Exception as exc:
+            self.logger.warning("failed to write output report: %s: %s", type(exc).__name__, exc)
+
     def _flush_leaderboard(self) -> None:
         self.memory.update_leaderboard([record.to_dict() for record in self.history])
 
@@ -1196,7 +1236,7 @@ def _env_flag(name: str, default: bool) -> bool:
 def build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Agentic LoRA CUDA optimizer")
     parser.add_argument("--max-time", type=float, default=float(os.getenv("MAX_OPT_TIME", "1700")))
-    parser.add_argument("--stop-margin", type=float, default=float(os.getenv("STOP_MARGIN_SEC", "120")))
+    parser.add_argument("--stop-margin", type=float, default=float(os.getenv("STOP_MARGIN_SEC", "180")))
     parser.add_argument("--max-iters", type=int, default=int(os.getenv("MAX_CANDIDATES", "6")))
     parser.add_argument("--bench-warmup", type=int, default=int(os.getenv("BENCH_WARMUP", "3")))
     parser.add_argument("--bench-iters", type=int, default=int(os.getenv("BENCH_ITERS", "10")))
