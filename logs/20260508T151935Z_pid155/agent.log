@@ -1,0 +1,106 @@
+2026-05-08 15:19:35 INFO [mlagent_lora.20260508T151935Z_pid155] runtime logger initialized at /workspace/mlagent_lora/logs/20260508T151935Z_pid155/agent.log
+2026-05-08 15:19:35 INFO [mlagent_lora.20260508T151935Z_pid155] run_id=20260508T151935Z_pid155
+2026-05-08 15:19:36 INFO [mlagent_lora.20260508T151935Z_pid155] supervisor start: run_id=20260508T151935Z_pid155 max_time=1700.0s max_iters=6
+2026-05-08 15:19:36 INFO [mlagent_lora.20260508T151935Z_pid155] llm status: LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.
+2026-05-08 15:19:36 INFO [mlagent_lora.20260508T151935Z_pid155] llm pipeline: closed_loop=True async=False advisory=False async_codegen=True repair_attempts=3 idle_wait_sec=60.0 stale_retry_wait_sec=45.0 min_candidate_time_budget_sec=300.0
+2026-05-08 15:19:36 INFO [mlagent_lora.20260508T151935Z_pid155] baseline bootstrapped from /workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0000/candidate.cu installed_as_initial_best=True decision=bootstrapped_as_initial_best
+2026-05-08 15:19:37 INFO [mlagent_lora.20260508T151935Z_pid155] environment checked: can_test=True reason=CUDA test environment is available
+2026-05-08 15:19:37 INFO [mlagent_lora.20260508T151935Z_pid155] evaluating candidate id=0 name=baseline_aten
+2026-05-08 15:19:37 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0001_static_code_review_1778253577988 agent=static_code_review model=deepseek-reasoner
+2026-05-08 15:19:54 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0001_static_code_review_1778253577988 agent=static_code_review duration=16.37s response_chars=229
+2026-05-08 15:19:54 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0001_static_code_review_1778253577988 parser=json_object
+2026-05-08 15:19:54 INFO [mlagent_lora.20260508T151935Z_pid155] candidate baseline_aten passed static review with risk=low
+2026-05-08 15:19:54 INFO [mlagent_lora.20260508T151935Z_pid155] candidate baseline_aten compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-08 15:23:36 INFO [mlagent_lora.20260508T151935Z_pid155] candidate baseline_aten compiled in 222.15s
+2026-05-08 15:23:36 INFO [mlagent_lora.20260508T151935Z_pid155] candidate baseline_aten correctness passed: max_abs=0.0 rel_l2=0.0
+2026-05-08 15:23:37 INFO [mlagent_lora.20260508T151935Z_pid155] closed_loop_stage=bottleneck_analysis_start candidate=baseline_aten
+2026-05-08 15:23:37 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0002_performance_diagnosis_1778253817487 agent=performance_diagnosis model=deepseek-reasoner
+2026-05-08 15:23:57 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0002_performance_diagnosis_1778253817487 agent=performance_diagnosis duration=20.03s response_chars=1108
+2026-05-08 15:23:57 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0002_performance_diagnosis_1778253817487 parser=json_object
+2026-05-08 15:23:57 INFO [mlagent_lora.20260508T151935Z_pid155] closed_loop_stage=bottleneck_analysis_complete candidate=baseline_aten bottleneck=multiple_aten_gemm_and_add_launches promotion_advice=needs_more_data
+2026-05-08 15:23:57 INFO [mlagent_lora.20260508T151935Z_pid155] candidate baseline_aten benchmark complete: aggregate_speedup=1.0004258769070078 latency_ms={'3584': 3.7227519750595093, '4096': 5.819392204284668, '4608': 7.454207897186279}
+2026-05-08 15:23:57 INFO [mlagent_lora.20260508T151935Z_pid155] baseline validation complete; promoted=False
+2026-05-08 15:23:57 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0003_search_space_planner_1778253837519 agent=search_space_planner model=deepseek-reasoner
+2026-05-08 15:24:08 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0003_search_space_planner_1778253837519 agent=search_space_planner duration=11.09s response_chars=1150
+2026-05-08 15:24:08 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0003_search_space_planner_1778253837519 parser=json_object
+2026-05-08 15:24:08 INFO [mlagent_lora.20260508T151935Z_pid155] search plan selected: cublas_triple_sgemm
+2026-05-08 15:24:08 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0004_optimization_mutation_1778253848613 agent=optimization_mutation model=deepseek-reasoner
+2026-05-08 15:24:18 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0004_optimization_mutation_1778253848613 agent=optimization_mutation duration=9.46s response_chars=628
+2026-05-08 15:24:18 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0004_optimization_mutation_1778253848613 parser=json_object
+2026-05-08 15:24:18 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0005_cuda_candidate_generator_1778253858080 agent=cuda_candidate_generator model=deepseek-reasoner
+2026-05-08 15:32:19 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0005_cuda_candidate_generator_1778253858080 agent=cuda_candidate_generator duration=481.26s response_chars=7668
+2026-05-08 15:32:19 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0005_cuda_candidate_generator_1778253858080 parser=cuda_extension_validation
+2026-05-08 15:32:19 INFO [mlagent_lora.20260508T151935Z_pid155] candidate generated: id=1 name=pure_cublas_three_sgemm family=cublas_plus_custom_rank16_update origin=llm
+2026-05-08 15:32:19 INFO [mlagent_lora.20260508T151935Z_pid155] closed_loop_stage=llm_codegen candidate=pure_cublas_three_sgemm origin=llm llm_generated=True
+2026-05-08 15:32:19 INFO [mlagent_lora.20260508T151935Z_pid155] evaluating candidate id=1 name=pure_cublas_three_sgemm
+2026-05-08 15:32:19 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0006_static_code_review_1778254339399 agent=static_code_review model=deepseek-reasoner
+2026-05-08 15:33:04 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0006_static_code_review_1778254339399 agent=static_code_review duration=45.59s response_chars=697
+2026-05-08 15:33:04 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0006_static_code_review_1778254339399 parser=json_object
+2026-05-08 15:33:04 INFO [mlagent_lora.20260508T151935Z_pid155] candidate pure_cublas_three_sgemm passed static review with risk=low
+2026-05-08 15:33:04 INFO [mlagent_lora.20260508T151935Z_pid155] candidate pure_cublas_three_sgemm compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-08 15:33:36 INFO [mlagent_lora.20260508T151935Z_pid155] closed_loop_stage=bottleneck_analysis_start candidate=pure_cublas_three_sgemm
+2026-05-08 15:33:36 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0007_performance_diagnosis_1778254416270 agent=performance_diagnosis model=deepseek-reasoner
+2026-05-08 15:33:58 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0007_performance_diagnosis_1778254416270 agent=performance_diagnosis duration=22.31s response_chars=1195
+2026-05-08 15:33:58 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0007_performance_diagnosis_1778254416270 parser=json_object
+2026-05-08 15:33:58 INFO [mlagent_lora.20260508T151935Z_pid155] closed_loop_stage=bottleneck_analysis_complete candidate=pure_cublas_three_sgemm bottleneck=compile_error promotion_advice=needs_more_data
+2026-05-08 15:33:58 WARNING [mlagent_lora.20260508T151935Z_pid155] candidate pure_cublas_three_sgemm compile failed: type=pybind_or_signature_error summary=Error building extension 'lora_candidate_ext_1_1778254384990': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_1_1778254384990 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\"_gcc\" -DPYBIND11_STDLIB=\"_libstdcpp\" -DPYBIND11_BUILD_ABI=\"_cxxabi1016\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_72,code=sm_72 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_87,code=sm_87 -gencode=arch=compute_90,code=compute_90 -gencode=arch=compute_90,code=sm_90 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0001/candidate.cu -o candidate.cuda.o 
+FAILED: candidate.cuda.o 
+/usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_1_1778254384990 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\"_gcc\" -DPYBIND11_STDLIB=\"_libstdcpp\" -DPYBIND11_BUILD_ABI=\"_cxxabi1016\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_72,code=sm_72 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_87,code=sm_87 -gencode=arch=compute_90,code=compute_90 -gencode=arch=compute_90,code=sm_90 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0001/candidate.cu -o candidate.cuda.o 
+/workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0001/candidate.cu(31): error: namespace "at::cuda" has no member "getCurrentCUDABlasHandle"
+    cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
+                                      ^
+
+1 error detected in the compilation of "/workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0001/candidate.cu".
+ninja: build stopped: subcommand failed.
+
+2026-05-08 15:33:58 INFO [mlagent_lora.20260508T151935Z_pid155] llm_codegen_repair_start candidate=pure_cublas_three_sgemm attempt=1 error_type=pybind_or_signature_error
+2026-05-08 15:33:58 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0008_cuda_candidate_repair_1778254438601 agent=cuda_candidate_repair model=deepseek-reasoner
+2026-05-08 15:36:02 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0008_cuda_candidate_repair_1778254438601 agent=cuda_candidate_repair duration=123.41s response_chars=6097
+2026-05-08 15:36:02 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0008_cuda_candidate_repair_1778254438601 parser=cuda_extension_validation
+2026-05-08 15:36:02 INFO [mlagent_lora.20260508T151935Z_pid155] candidate generated: id=2 name=pure_cublas_three_sgemm_repair1 family=cublas_plus_custom_rank16_update origin=llm_repair_codegen base_candidate=None
+2026-05-08 15:36:02 INFO [mlagent_lora.20260508T151935Z_pid155] evaluating candidate id=2 name=pure_cublas_three_sgemm_repair1
+2026-05-08 15:36:02 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0009_static_code_review_1778254562028 agent=static_code_review model=deepseek-reasoner
+2026-05-08 15:36:48 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0009_static_code_review_1778254562028 agent=static_code_review duration=46.30s response_chars=595
+2026-05-08 15:36:48 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0009_static_code_review_1778254562028 parser=json_object
+2026-05-08 15:36:48 INFO [mlagent_lora.20260508T151935Z_pid155] candidate pure_cublas_three_sgemm_repair1 passed static review with risk=low
+2026-05-08 15:36:48 INFO [mlagent_lora.20260508T151935Z_pid155] candidate pure_cublas_three_sgemm_repair1 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-08 15:40:20 INFO [mlagent_lora.20260508T151935Z_pid155] candidate pure_cublas_three_sgemm_repair1 compiled in 211.77s
+2026-05-08 15:40:20 INFO [mlagent_lora.20260508T151935Z_pid155] closed_loop_stage=bottleneck_analysis_start candidate=pure_cublas_three_sgemm_repair1
+2026-05-08 15:40:20 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0010_performance_diagnosis_1778254820221 agent=performance_diagnosis model=deepseek-reasoner
+2026-05-08 15:40:39 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0010_performance_diagnosis_1778254820221 agent=performance_diagnosis duration=19.27s response_chars=2038
+2026-05-08 15:40:39 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0010_performance_diagnosis_1778254820221 parser=json_object
+2026-05-08 15:40:39 INFO [mlagent_lora.20260508T151935Z_pid155] closed_loop_stage=bottleneck_analysis_complete candidate=pure_cublas_three_sgemm_repair1 bottleneck=correctness promotion_advice=reject
+2026-05-08 15:40:39 WARNING [mlagent_lora.20260508T151935Z_pid155] candidate pure_cublas_three_sgemm_repair1 correctness failed: failed_shapes=[3584, 4096, 4608] max_abs=18398.591796875 rel_l2=1.4139751195907593
+2026-05-08 15:40:39 INFO [mlagent_lora.20260508T151935Z_pid155] candidate pure_cublas_three_sgemm_repair1 repair decision=rejected_correctness promoted=False aggregate_speedup=None
+2026-05-08 15:40:39 INFO [mlagent_lora.20260508T151935Z_pid155] candidate pure_cublas_three_sgemm decision=rejected_compile promoted=False aggregate_speedup=None
+2026-05-08 15:40:39 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0011_optimization_mutation_1778254839503 agent=optimization_mutation model=deepseek-reasoner
+2026-05-08 15:42:57 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0011_optimization_mutation_1778254839503 agent=optimization_mutation duration=137.70s response_chars=812
+2026-05-08 15:42:57 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0011_optimization_mutation_1778254839503 parser=json_object
+2026-05-08 15:42:57 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0012_cuda_candidate_generator_1778254977209 agent=cuda_candidate_generator model=deepseek-reasoner
+2026-05-08 15:47:23 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0012_cuda_candidate_generator_1778254977209 agent=cuda_candidate_generator duration=266.27s response_chars=5371
+2026-05-08 15:47:23 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0012_cuda_candidate_generator_1778254977209 parser=cuda_extension_validation
+2026-05-08 15:47:23 INFO [mlagent_lora.20260508T151935Z_pid155] candidate generated: id=3 name=rank16_scalar_b128 family=cublas_plus_custom_rank16_update origin=llm
+2026-05-08 15:47:23 INFO [mlagent_lora.20260508T151935Z_pid155] closed_loop_stage=llm_codegen candidate=rank16_scalar_b128 origin=llm llm_generated=True
+2026-05-08 15:47:23 INFO [mlagent_lora.20260508T151935Z_pid155] evaluating candidate id=3 name=rank16_scalar_b128
+2026-05-08 15:47:23 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0013_static_code_review_1778255243519 agent=static_code_review model=deepseek-reasoner
+2026-05-08 15:50:43 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0013_static_code_review_1778255243519 agent=static_code_review duration=200.14s response_chars=674
+2026-05-08 15:50:43 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0013_static_code_review_1778255243519 parser=json_object
+2026-05-08 15:50:43 INFO [mlagent_lora.20260508T151935Z_pid155] candidate rank16_scalar_b128 passed static review with risk=low
+2026-05-08 15:50:43 INFO [mlagent_lora.20260508T151935Z_pid155] candidate rank16_scalar_b128 compile started; PyTorch extension builds can be quiet for 1-2 minutes
+2026-05-08 15:51:13 INFO [mlagent_lora.20260508T151935Z_pid155] closed_loop_stage=bottleneck_analysis_start candidate=rank16_scalar_b128
+2026-05-08 15:51:13 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0014_performance_diagnosis_1778255473930 agent=performance_diagnosis model=deepseek-reasoner
+2026-05-08 15:51:33 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_success id=0014_performance_diagnosis_1778255473930 agent=performance_diagnosis duration=19.30s response_chars=1206
+2026-05-08 15:51:33 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_parse_ok id=0014_performance_diagnosis_1778255473930 parser=json_object
+2026-05-08 15:51:33 INFO [mlagent_lora.20260508T151935Z_pid155] closed_loop_stage=bottleneck_analysis_complete candidate=rank16_scalar_b128 bottleneck=compilation_error promotion_advice=reject
+2026-05-08 15:51:33 WARNING [mlagent_lora.20260508T151935Z_pid155] candidate rank16_scalar_b128 compile failed: type=pybind_or_signature_error summary=Error building extension 'lora_candidate_ext_3_1778255443732': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_3_1778255443732 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\"_gcc\" -DPYBIND11_STDLIB=\"_libstdcpp\" -DPYBIND11_BUILD_ABI=\"_cxxabi1016\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_72,code=sm_72 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_87,code=sm_87 -gencode=arch=compute_90,code=compute_90 -gencode=arch=compute_90,code=sm_90 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0003/candidate.cu -o candidate.cuda.o 
+FAILED: candidate.cuda.o 
+/usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_3_1778255443732 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\"_gcc\" -DPYBIND11_STDLIB=\"_libstdcpp\" -DPYBIND11_BUILD_ABI=\"_cxxabi1016\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_72,code=sm_72 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_87,code=sm_87 -gencode=arch=compute_90,code=compute_90 -gencode=arch=compute_90,code=sm_90 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0003/candidate.cu -o candidate.cuda.o 
+/workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0003/candidate.cu(21): error: namespace "at::cuda" has no member "getCurrentCUDAStream"
+    cudaStream_t stream = at::cuda::getCurrentCUDAStream();
+                                    ^
+
+1 error detected in the compilation of "/workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0003/candidate.cu".
+ninja: build stopped: subcommand failed.
+
+2026-05-08 15:51:33 INFO [mlagent_lora.20260508T151935Z_pid155] llm_codegen_repair_start candidate=rank16_scalar_b128 attempt=1 error_type=pybind_or_signature_error
+2026-05-08 15:51:33 INFO [mlagent_lora.20260508T151935Z_pid155] llm_call_start id=0015_cuda_candidate_repair_1778255493236 agent=cuda_candidate_repair model=deepseek-reasoner
