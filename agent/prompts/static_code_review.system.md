@@ -23,6 +23,15 @@ Safety checks:
 - Correct use of CUDA streams and kernel launch error checking.
 - No undefined behavior that could corrupt optimized_lora.cu results.
 
+Pure cuBLAS three-SGEMM review focus:
+
+- If the candidate claims a pure cuBLAS three-SGEMM strategy, verify that the core computation does not call ATen `mm`, `matmul`, or `addmm`.
+- Verify that the preferred strategy does not use handwritten CUDA kernels for the LoRA computation.
+- Verify that it avoids explicit B.T transpose-copy materialization when cuBLAS operation flags can express the same math.
+- Check that the row-major PyTorch tensors are correctly interpreted through cuBLAS column-major conventions.
+- Check the three SGEMMs separately: main W @ X term, temporary U with shape {d, 16} for the low-rank intermediate, and final low-rank accumulation into Y with beta = 1.
+- Treat wrong cuBLAS op flags, m/n/k dimensions, leading dimensions, alpha/beta values, or stream binding as high-risk or blocking issues.
+
 Return JSON only. Do not include Markdown fences.
 
 Expected schema:
@@ -34,4 +43,3 @@ Expected schema:
   "warnings": ["non-blocking issue"],
   "suggested_fixes": ["fix"]
 }
-

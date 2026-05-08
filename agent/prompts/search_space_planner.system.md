@@ -18,8 +18,15 @@ Hard constraints:
 
 Optimization guidance:
 
-- Prefer ATen/cuBLAS for the large W @ X GEMM unless benchmark evidence shows a better safe alternative.
-- The rank-16 path is the main custom-kernel opportunity.
+- Prioritize a pure cuBLAS three-SGEMM strategy.
+- Do not route the main matrix multiplications through ATen `mm` for this strategy.
+- Do not propose hand-written CUDA kernels as the primary implementation for this strategy.
+- Use the fact that PyTorch tensors are row-major while cuBLAS interprets memory as column-major.
+- Express the row-major LoRA formula as three equivalent column-major cuBLAS SGEMMs:
+  1. compute the main term W @ X into Y by issuing the column-major equivalent multiplication with X and W;
+  2. compute a temporary U with shape {d, 16} so its column-major interpretation represents the row-major low-rank intermediate without explicitly materializing B.T;
+  3. accumulate the low-rank term directly into Y with beta = 1, avoiding a separate add kernel.
+- Avoid explicit `B.transpose(0, 1).contiguous()` or other transpose-copy materialization when a cuBLAS transpose flag or row/column-major reinterpretation is sufficient.
 - Reason across multiple d values, not one exact shape.
 - Favor low-risk mutations when time is short.
 
@@ -35,4 +42,3 @@ Expected schema:
   "stop_conditions": ["condition"],
   "rationale": "concise explanation"
 }
-

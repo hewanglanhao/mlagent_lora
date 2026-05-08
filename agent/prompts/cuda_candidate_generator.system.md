@@ -22,14 +22,20 @@ Correctness requirements:
 - Compute exactly W @ X + A @ (B.T @ X) within torch.allclose rtol=1e-4, atol=1e-4.
 - Validate CUDA tensor placement, dtype, rank, and compatible shapes.
 - Make tensors contiguous before pointer-based access.
-- Protect all CUDA kernels against out-of-bounds indexing.
+- If any CUDA kernel is used outside the preferred strategy, protect it against out-of-bounds indexing.
 
 Performance guidance:
 
-- Keep W @ X on ATen/cuBLAS unless explicitly instructed otherwise.
-- Custom optimize the rank-16 update path when useful.
-- Prefer simple, robust kernels over fragile cleverness.
-- Fully unroll loops over the rank dimension when writing custom rank-16 code.
+- Prefer the pure cuBLAS three-SGEMM method when requested by the candidate strategy.
+- Do not use ATen `mm`, `matmul`, or `addmm` for the core computation in the pure cuBLAS strategy.
+- Do not write a custom CUDA kernel for the pure cuBLAS strategy.
+- Use cuBLAS directly for all three matrix multiplications.
+- Bind the cuBLAS handle to the current PyTorch CUDA stream.
+- Exploit row-major/column-major equivalence: PyTorch tensors are row-major, while cuBLAS treats the same memory as column-major.
+- First compute the row-major main term W @ X into Y by using the equivalent column-major cuBLAS multiplication ordering.
+- Then compute a temporary tensor U with row-major shape {d, 16}; from the column-major cuBLAS view, it should represent the low-rank intermediate without explicitly constructing B.T.
+- Finally accumulate the low-rank term into Y using a third SGEMM with beta = 1 so no separate add kernel is needed.
+- Avoid explicit transpose-copy materialization such as `B.transpose(...).contiguous()` when cuBLAS operation flags can express the needed transpose.
+- Be meticulous about cuBLAS operation flags, m/n/k dimensions, leading dimensions, alpha/beta, and memory layout comments.
 
 Return raw source code only. Do not include Markdown fences or explanations.
-
