@@ -1,0 +1,13 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Remove dead shape-dispatch code or guard it with a preprocessor condition that matches the metadata.",
+    "If vectorized kernel is ever enabled, add runtime alignment checks or use aligned tensor allocation to ensure safety."
+  ],
+  "warnings": [
+    "Dead code: LORA_SHAPE_DISPATCH is 0, so the shape-dependent thread count block is never compiled.",
+    "Vectorized kernel (rank16_add_vec4_kernel) is present but disabled by LORA_VECTOR_WIDTH=1; if enabled, it lacks alignment checks for float4 reinterpret_casts, which could cause undefined behavior on misaligned tensors."
+  ]
+}

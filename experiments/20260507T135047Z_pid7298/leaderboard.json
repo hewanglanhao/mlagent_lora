@@ -1,0 +1,335 @@
+[
+  {
+    "aggregate_speedup": 1.024250091652942,
+    "benchmark": {
+      "aggregate_speedup": 1.024250091652942,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.9746559858322144,
+        "4096": 6.17574405670166,
+        "4608": 8.193023681640625
+      },
+      "speedup": {
+        "3584": 1.0369702851652027,
+        "4096": 1.0050571849968584,
+        "4608": 1.0371204403487926
+      },
+      "torch_ms": {
+        "3584": 4.121600151062012,
+        "4096": 6.206975936889648,
+        "4608": 8.497152328491211
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 57.066930210916325,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_0_1778161874079",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Do not attempt to write a custom full GEMM for W @ X; it is high risk and unlikely to beat cuBLAS.",
+        "Avoid hardcoding hidden dimensions or tensor shapes; the kernel must remain shape-generic for d in [3584, 4608].",
+        "Do not promote this baseline as an optimization; it provides no real speedup."
+      ],
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "confidence": "high",
+      "evidence": [
+        "Correctness is perfect (max_abs_err=0.0, rel_l2_err=0.0) for all shapes.",
+        "Aggregate speedup is only 1.024x, essentially noise, indicating no meaningful optimization over the ATen baseline.",
+        "Profile summary confirms the bottleneck is multiple ATen GEMM and add launches, with no fusion.",
+        "The candidate is the baseline ATen reference, not an optimized kernel."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "overfitting one exact d"
+        ],
+        "bottleneck": "multiple_aten_gemm_and_add_launches",
+        "candidate_family": "aten_reference",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 1.024250091652942, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.9746559858322144, \"4096\": 6.17574405670166, \"4608\": 8.193023681640625}, \"speedup\": {\"3584\": 1.0369702851652027, \"4096\": 1.0050571849968584, \"4608\": 1.0371204403487926}, \"torch_ms\": {\"3584\": 4.121600151062012, \"4096\": 6.206975936889648, \"4608\": 8.497152328491211}}"
+        ],
+        "promotion_advice": "promote",
+        "recommended_actions": [
+          "keep cuBLAS for W @ X",
+          "fuse rank-16 update into the output tensor",
+          "test scalar and vectorized rank-16 kernels"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Keep cuBLAS for the large W @ X matmul; it is already highly optimized.",
+        "Fuse the rank-16 update (A @ (B.T @ X)) into a single kernel to reduce launch overhead and improve memory locality.",
+        "Implement a dedicated rank-16 kernel that computes B.T @ X and then A @ intermediate, adding directly to the output of W @ X.",
+        "Consider vectorized loads/stores and unrolling in the rank-16 kernel to maximize memory bandwidth utilization."
+      ]
+    },
+    "family": "aten_reference",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "aten_reference",
+        "id": 0,
+        "llm_generated": false,
+        "name": "baseline_aten",
+        "parent": null,
+        "shape_dispatch": false,
+        "strategy": "",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "origin": "deterministic_baseline"
+    },
+    "id": 0,
+    "latency_by_d": {
+      "3584": 3.9746559858322144,
+      "4096": 6.17574405670166,
+      "4608": 8.193023681640625
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [],
+      "warnings": [
+        "Uses ATen matmul which may not be optimal but is safe."
+      ]
+    },
+    "name": "baseline_aten",
+    "parent": null,
+    "profile": {
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "evidence": {
+        "aggregate_speedup": 1.024250091652942,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.9746559858322144,
+          "4096": 6.17574405670166,
+          "4608": 8.193023681640625
+        },
+        "speedup": {
+          "3584": 1.0369702851652027,
+          "4096": 1.0050571849968584,
+          "4608": 1.0371204403487926
+        },
+        "torch_ms": {
+          "3584": 4.121600151062012,
+          "4096": 6.206975936889648,
+          "4608": 8.497152328491211
+        }
+      },
+      "suggested_actions": [
+        "keep cuBLAS for W @ X",
+        "fuse rank-16 update into the output tensor",
+        "test scalar and vectorized rank-16 kernels"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260507T135047Z_pid7298/exp_0000/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 1.0112677693372352,
+    "benchmark": {
+      "aggregate_speedup": 1.0112677693372352,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.9864320755004883,
+        "4096": 6.233599901199341,
+        "4608": 8.558080196380615
+      },
+      "speedup": {
+        "3584": 1.0453377413861036,
+        "4096": 0.9956468031558487,
+        "4608": 0.998025752196882
+      },
+      "torch_ms": {
+        "3584": 4.167167901992798,
+        "4096": 6.206463813781738,
+        "4608": 8.541184425354004
+      }
+    },
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 57.29704918898642,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_1_1778162142166",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "overfitting one exact d"
+      ],
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "candidate_family": "cublas_plus_custom_rank16_update",
+      "confidence": "medium",
+      "evidence": [
+        "{\"aggregate_speedup\": 1.0112677693372352, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.9864320755004883, \"4096\": 6.233599901199341, \"4608\": 8.558080196380615}, \"speedup\": {\"3584\": 1.0453377413861036, \"4096\": 0.9956468031558487, \"4608\": 0.998025752196882}, \"torch_ms\": {\"3584\": 4.167167901992798, \"4096\": 6.206463813781738, \"4608\": 8.541184425354004}}"
+      ],
+      "llm_parse_failed": true,
+      "promotion_advice": "promote",
+      "recommended_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 1,
+        "llm_generated": false,
+        "name": "rank16_scalar_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 1,
+    "latency_by_d": {
+      "3584": 3.9864320755004883,
+      "4096": 6.233599901199341,
+      "4608": 8.558080196380615
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "rank16_scalar_b128",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 1.0112677693372352,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.9864320755004883,
+          "4096": 6.233599901199341,
+          "4608": 8.558080196380615
+        },
+        "speedup": {
+          "3584": 1.0453377413861036,
+          "4096": 0.9956468031558487,
+          "4608": 0.998025752196882
+        },
+        "torch_ms": {
+          "3584": 4.167167901992798,
+          "4096": 6.206463813781738,
+          "4608": 8.541184425354004
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260507T135047Z_pid7298/exp_0001/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  }
+]

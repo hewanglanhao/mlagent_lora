@@ -20,6 +20,11 @@ Allowed mutation types:
 - Allocate a temporary U with shape {d, 16}; use it as the column-major low-rank intermediate that corresponds to the row-major B.T @ X result.
 - Accumulate the low-rank contribution into Y through the final SGEMM with beta = 1 rather than launching a separate add kernel.
 - Adjust cuBLAS operation flags, leading dimensions, alpha/beta values, stream binding, and temporary allocation strategy.
+- For the preferred qyh-style mapping, make the mutation explicitly request:
+  - main SGEMM: row-major W @ X via the column-major view using X and W, with dimensions d,d,d and leading dimensions d;
+  - low-rank intermediate SGEMM: U allocated as {d,16}, written with m=d, n=16, k=d, leading dimension of U equal to d, and no explicit B.T tensor;
+  - final SGEMM: accumulate into Y with m=d, n=d, k=16, U leading dimension d, A leading dimension 16, and beta=1.
+- Avoid proposing the alternative U layout that treats U as column-major [16,d] with leading dimension 16; that layout previously produced shape-dependent correctness failures.
 - Add broad shape checks and safe fallback only if direct cuBLAS constraints are not met.
 - Request one more benchmark or profile run for a promising candidate.
 

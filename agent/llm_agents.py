@@ -124,6 +124,8 @@ class LLMCUDACandidateGeneratorAgent:
                 "Return exactly one complete corrected single-file CUDA/C++ extension. Do not return markdown.",
                 "The repaired code must keep the required forward(W, X, A, B) entrypoint and PYBIND11_MODULE binding.",
                 "If using the current CUDA stream, include <ATen/cuda/CUDAContext.h> and call at::cuda::getCurrentCUDAStream() without a device argument.",
+                "For pure cuBLAS repairs, prefer the qyh-style mapping: U has shape {d,16}; the low-rank intermediate SGEMM writes U with m=d, n=16, k=d and U leading dimension d; the final SGEMM uses m=d, n=d, k=16 and beta=1.",
+                "Do not repair into the previously failed alternative that treats U as a [16,d] column-major buffer or uses U leading dimension 16.",
                 f"Repair attempt: {repair_attempt}",
                 "SPEC_CONTEXT:\n" + self.spec.as_prompt_context(),
                 "CANDIDATE_METADATA_JSON:\n" + json.dumps(spec.metadata(), indent=2, sort_keys=True),

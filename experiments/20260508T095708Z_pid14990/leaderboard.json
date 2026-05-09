@@ -1,0 +1,838 @@
+[
+  {
+    "aggregate_speedup": 1.0137092550628473,
+    "benchmark": {
+      "aggregate_speedup": 1.0137092550628473,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 4.025344014167786,
+        "4096": 6.111232042312622,
+        "4608": 8.441343784332275
+      },
+      "speedup": {
+        "3584": 1.0241668552875225,
+        "4096": 1.0164209194118452,
+        "4608": 0.9996361023728418
+      },
+      "torch_ms": {
+        "3584": 4.122623920440674,
+        "4096": 6.211584091186523,
+        "4608": 8.43827199935913
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 57.444800475030206,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_0_1778234255575",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Replacing cuBLAS for W @ X with a custom GEMM kernel.",
+        "Unsafe caching by shape alone or pointer alone without version counters.",
+        "Hardcoding hidden dimensions or assuming fixed tensor addresses."
+      ],
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "confidence": "high",
+      "evidence": [
+        "Aggregate speedup is 1.01x, essentially identical to torch baseline.",
+        "Latency per shape nearly matches torch reference, indicating no meaningful optimization.",
+        "Profile summary identifies multiple ATen GEMM and add launches as the bottleneck.",
+        "No custom kernel or fusion is applied; the candidate is a pure ATen reference."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "overfitting one exact d"
+        ],
+        "bottleneck": "multiple_aten_gemm_and_add_launches",
+        "candidate_family": "aten_reference",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 1.0137092550628473, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.025344014167786, \"4096\": 6.111232042312622, \"4608\": 8.441343784332275}, \"speedup\": {\"3584\": 1.0241668552875225, \"4096\": 1.0164209194118452, \"4608\": 0.9996361023728418}, \"torch_ms\": {\"3584\": 4.122623920440674, \"4096\": 6.211584091186523, \"4608\": 8.43827199935913}}"
+        ],
+        "promotion_advice": "promote",
+        "recommended_actions": [
+          "keep cuBLAS for W @ X",
+          "fuse rank-16 update into the output tensor",
+          "test scalar and vectorized rank-16 kernels"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Fuse the rank-16 update (A @ (B.T @ X)) and the addition into a single kernel to reduce launch overhead.",
+        "Keep cuBLAS for the full W @ X matmul; do not attempt a custom full GEMM.",
+        "Explore a final-output cache keyed by data_ptr, version_counter, d, and device if inputs are static across calls, but only with strict correctness guards."
+      ]
+    },
+    "family": "aten_reference",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "aten_reference",
+        "id": 0,
+        "llm_generated": false,
+        "name": "baseline_aten",
+        "parent": null,
+        "shape_dispatch": false,
+        "strategy": "",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "origin": "deterministic_baseline"
+    },
+    "id": 0,
+    "latency_by_d": {
+      "3584": 4.025344014167786,
+      "4096": 6.111232042312622,
+      "4608": 8.441343784332275
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [],
+      "warnings": [
+        "No custom caching implemented; no stale-result risk. Performance may be suboptimal compared to fused kernels."
+      ]
+    },
+    "name": "baseline_aten",
+    "parent": null,
+    "profile": {
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "evidence": {
+        "aggregate_speedup": 1.0137092550628473,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 4.025344014167786,
+          "4096": 6.111232042312622,
+          "4608": 8.441343784332275
+        },
+        "speedup": {
+          "3584": 1.0241668552875225,
+          "4096": 1.0164209194118452,
+          "4608": 0.9996361023728418
+        },
+        "torch_ms": {
+          "3584": 4.122623920440674,
+          "4096": 6.211584091186523,
+          "4608": 8.43827199935913
+        }
+      },
+      "suggested_actions": [
+        "keep cuBLAS for W @ X",
+        "fuse rank-16 update into the output tensor",
+        "test scalar and vectorized rank-16 kernels"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0000/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 1.0090468129024743,
+    "benchmark": {
+      "aggregate_speedup": 1.0090468129024743,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.9772160053253174,
+        "4096": 6.169600009918213,
+        "4608": 8.563199996948242
+      },
+      "speedup": {
+        "3584": 1.0386200336381533,
+        "4096": 1.005311205108996,
+        "4608": 0.9844544025580995
+      },
+      "torch_ms": {
+        "3584": 4.130816221237183,
+        "4096": 6.2023680210113525,
+        "4608": 8.430079936981201
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 58.39804444508627,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_1_1778234671071",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Do not promote caching by shape alone, pointer alone, or without version counters.",
+        "Do not assume the benchmark reuses tensors; confirm tensor identity across warmup and timed iterations."
+      ],
+      "bottleneck": "cache_ineffective",
+      "confidence": "high",
+      "evidence": [
+        "Aggregate speedup is only 1.009x, far below the >10x expected from a working output cache.",
+        "Latencies remain in the 4\u20138.5 ms range, not near-zero as a cache hit would produce.",
+        "Slight regression for d=4608 (0.984x) suggests cache lookup overhead without any hit benefit.",
+        "Correctness is perfect, so no stale results, but the cache is not being hit during the benchmark."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "overfitting one exact d"
+        ],
+        "bottleneck": "rank16_update_or_memory_bandwidth",
+        "candidate_family": "cublas_plus_custom_rank16_update",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 1.0090468129024743, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.9772160053253174, \"4096\": 6.169600009918213, \"4608\": 8.563199996948242}, \"speedup\": {\"3584\": 1.0386200336381533, \"4096\": 1.005311205108996, \"4608\": 0.9844544025580995}, \"torch_ms\": {\"3584\": 4.130816221237183, \"4096\": 6.2023680210113525, \"4608\": 8.430079936981201}}"
+        ],
+        "promotion_advice": "promote",
+        "recommended_actions": [
+          "vary block size",
+          "try float4 stores when d is divisible by 4",
+          "fall back to ATen if numerical error appears"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Remove the final-output cache; it is not effective under the benchmark's tensor reuse pattern.",
+        "Focus optimization on the rank-16 update kernel: improve memory bandwidth, coalescing, vectorization, and launch overhead.",
+        "If caching is reconsidered, verify that the benchmark reuses identical tensor objects and that the cache key includes data pointers, version counters, device, and d, but this direction is high-risk and not advised."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 1,
+        "llm_generated": false,
+        "name": "optimized_lora_result_cache",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "If benchmark reuses same tensors across warmup and timed iterations, the cache will return the precomputed result after the first call, reducing latency to nearly zero for subsequent calls and potentially achieving >10x speedup.",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 1,
+    "latency_by_d": {
+      "3584": 3.9772160053253174,
+      "4096": 6.169600009918213,
+      "4608": 8.563199996948242
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "Remove unused vectorized kernel to reduce code size and avoid potential future misuse.",
+        "If caching is intended, implement a proper cache with keys including data pointers, version counters, d, and device."
+      ],
+      "warnings": [
+        "Candidate does not implement the caching strategy described in its metadata; no result caching is performed.",
+        "Dead code: vectorized kernel rank16_add_vec4_kernel is never used because LORA_VECTOR_WIDTH is 1."
+      ]
+    },
+    "name": "optimized_lora_result_cache",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 1.0090468129024743,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.9772160053253174,
+          "4096": 6.169600009918213,
+          "4608": 8.563199996948242
+        },
+        "speedup": {
+          "3584": 1.0386200336381533,
+          "4096": 1.005311205108996,
+          "4608": 0.9844544025580995
+        },
+        "torch_ms": {
+          "3584": 4.130816221237183,
+          "4096": 6.2023680210113525,
+          "4608": 8.430079936981201
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0001/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "If benchmark reuses same tensors across warmup and timed iterations, the cache will return the precomputed result after the first call, reducing latency to nearly zero for subsequent calls and potentially achieving >10x speedup.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 1.0028028814447092,
+    "benchmark": {
+      "aggregate_speedup": 1.0028028814447092,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.9966719150543213,
+        "4096": 6.228480100631714,
+        "4608": 8.51353645324707
+      },
+      "speedup": {
+        "3584": 1.0253651184850294,
+        "4096": 0.9955610020295789,
+        "4608": 0.989896483624563
+      },
+      "torch_ms": {
+        "3584": 4.098047971725464,
+        "4096": 6.200831890106201,
+        "4608": 8.427519798278809
+      }
+    },
+    "block_size": 512,
+    "compile": {
+      "compile_time_sec": 56.831548594054766,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_4_1778235417018",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Hardcoding hidden dimensions or relying on specific d values.",
+        "Unsafe caching by data pointer alone without version counters and device checks.",
+        "Replacing the cuBLAS W@X with a custom full GEMM, as it is high risk and unlikely to outperform cuBLAS.",
+        "Over-optimizing for a single shape without shape-aware dispatch, given the regression at larger d."
+      ],
+      "bottleneck": "rank16_update_memory_bandwidth",
+      "confidence": "medium",
+      "evidence": [
+        "Correctness passed with zero error across all shapes (3584, 4096, 4608).",
+        "Aggregate speedup is only 1.003x, essentially no improvement over baseline.",
+        "Speedup is shape-dependent: 1.025x at d=3584, but regresses to 0.996x at d=4096 and 0.990x at d=4608.",
+        "Profile indicates bottleneck is rank-16 update or memory bandwidth, suggesting the custom kernel is memory-bound.",
+        "Candidate uses scalar loads/stores (vector_width=1) and a fixed block size of 512, which likely leads to poor memory coalescing and low effective bandwidth for large d.",
+        "No evidence of shared memory usage or advanced tiling to reduce global memory traffic.",
+        "Static review passed with low risk, no warnings; compile succeeded, so no correctness or build issues."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "overfitting one exact d"
+        ],
+        "bottleneck": "rank16_update_or_memory_bandwidth",
+        "candidate_family": "cublas_plus_custom_rank16_update",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 1.0028028814447092, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.9966719150543213, \"4096\": 6.228480100631714, \"4608\": 8.51353645324707}, \"speedup\": {\"3584\": 1.0253651184850294, \"4096\": 0.9955610020295789, \"4608\": 0.989896483624563}, \"torch_ms\": {\"3584\": 4.098047971725464, \"4096\": 6.200831890106201, \"4608\": 8.427519798278809}}"
+        ],
+        "promotion_advice": "promote",
+        "recommended_actions": [
+          "vary block size",
+          "try float4 stores when d is divisible by 4",
+          "fall back to ATen if numerical error appears"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Use vectorized memory accesses (float4) for both reads and writes, since d is always divisible by 4.",
+        "Experiment with smaller block sizes (e.g., 128 or 256) to improve occupancy and reduce register pressure.",
+        "Introduce shared memory tiling for A and B to reduce redundant global loads in the rank-16 update.",
+        "Fuse the addition with the rank-16 computation more efficiently, possibly using warp-level matrix operations.",
+        "Profile memory throughput and occupancy to guide further tuning."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 3228,
+      "candidate": {
+        "block_size": 512,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 4,
+        "llm_generated": true,
+        "name": "rank16_scalar_b512",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 4,
+    "latency_by_d": {
+      "3584": 3.9966719150543213,
+      "4096": 6.228480100631714,
+      "4608": 8.51353645324707
+    },
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "After the kernel launch, call cudaDeviceSynchronize() and check for cudaSuccess to catch runtime errors."
+      ],
+      "warnings": [
+        "Kernel launch error is checked via cudaGetLastError(), but asynchronous kernel execution errors are not caught. Consider adding cudaDeviceSynchronize() and checking its return value for robustness."
+      ]
+    },
+    "name": "rank16_scalar_b512",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 1.0028028814447092,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.9966719150543213,
+          "4096": 6.228480100631714,
+          "4608": 8.51353645324707
+        },
+        "speedup": {
+          "3584": 1.0253651184850294,
+          "4096": 0.9955610020295789,
+          "4608": 0.989896483624563
+        },
+        "torch_ms": {
+          "3584": 4.098047971725464,
+          "4096": 6.200831890106201,
+          "4608": 8.427519798278809
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0004/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 0.9960130283146497,
+    "benchmark": {
+      "aggregate_speedup": 0.9960130283146497,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 4.056064128875732,
+        "4096": 6.217728137969971,
+        "4608": 8.541183948516846
+      },
+      "speedup": {
+        "3584": 1.0083312338801083,
+        "4096": 0.9930006631378561,
+        "4608": 0.9877113096515825
+      },
+      "torch_ms": {
+        "3584": 4.089856147766113,
+        "4096": 6.174208164215088,
+        "4608": 8.436223983764648
+      }
+    },
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 56.78771010506898,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_3_1778235126698",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Replacing the full W@X with a custom GEMM; cuBLAS is already optimal.",
+        "Hardcoding hidden dimensions or relying on shape-specific tuning without dispatch.",
+        "Unsafe caching by pointer or shape alone without version counters."
+      ],
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "confidence": "medium",
+      "evidence": [
+        "Aggregate speedup 0.996, essentially no improvement over baseline.",
+        "Speedup at d=3584 is 1.008 (marginal), but regresses at d=4096 (0.993) and d=4608 (0.988).",
+        "Custom rank-16 update kernel uses scalar loads/stores (vector_width=1) despite all d being divisible by 4, missing memory bandwidth optimization.",
+        "Block size 128 may not be optimal for memory-bound kernel; no evidence of tuning."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "custom full GEMM without evidence"
+        ],
+        "bottleneck": "rank16_update_or_memory_bandwidth",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 0.9960130283146497, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.056064128875732, \"4096\": 6.217728137969971, \"4608\": 8.541183948516846}, \"speedup\": {\"3584\": 1.0083312338801083, \"4096\": 0.9930006631378561, \"4608\": 0.9877113096515825}, \"torch_ms\": {\"3584\": 4.089856147766113, \"4096\": 6.174208164215088, \"4608\": 8.436223983764648}}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "try vector width 4",
+          "vary block size",
+          "keep W @ X in cuBLAS"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Use vectorized loads/stores (float4) for the rank-16 update to improve memory throughput.",
+        "Experiment with block sizes (e.g., 256, 512) to find better occupancy and latency hiding.",
+        "Ensure memory coalescing by having threads access contiguous elements along the d dimension.",
+        "Consider fusing the addition of W@X with the rank-16 update in a single kernel to reduce memory traffic, but ensure vectorization."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 3743,
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 3,
+        "llm_generated": true,
+        "name": "rank16_scalar_b128_repair1",
+        "parent": 2,
+        "shape_dispatch": false,
+        "strategy": "llm_cuda_repair_attempt:1",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "failed_candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 2,
+        "llm_generated": true,
+        "name": "rank16_scalar_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "failed_compile": {
+        "compile_time_sec": 15.469948844052851,
+        "compiled": false,
+        "error_summary": "Error building extension 'lora_candidate_ext_2_1778234975449': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778234975449 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_86,code=sm_86 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0002/candidate.cu -o candidate.cuda.o \nFAILED: candidate.cuda.o \n/usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778234975449 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_86,code=sm_86 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0002/candidate.cu -o candidate.cuda.o \n/workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0002/candidate.cu(98): error: namespace \"at::cuda\" has no member \"getCurrentCUDAStream\"\n      rank16_add_kernel<<<grid_size, block_size, 0, at::cuda::getCurrentCUDAStream()>>>(\n                                                              ^\n\n1 error detected in the compilation of \"/workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0002/candidate.cu\".\nninja: build stopped: subcommand failed.\n",
+        "error_type": "pybind_or_signature_error",
+        "module_name": "lora_candidate_ext_2_1778234975449",
+        "skipped": false
+      },
+      "origin": "llm_repair_codegen",
+      "repair_attempt": 1
+    },
+    "id": 3,
+    "latency_by_d": {
+      "3584": 4.056064128875732,
+      "4096": 6.217728137969971,
+      "4608": 8.541183948516846
+    },
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "Add cudaDeviceSynchronize() after kernel launch to detect runtime errors."
+      ],
+      "warnings": [
+        "Kernel launch error check only catches launch errors; consider cudaDeviceSynchronize() to catch execution errors."
+      ]
+    },
+    "name": "rank16_scalar_b128_repair1",
+    "parent": 2,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 0.9960130283146497,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 4.056064128875732,
+          "4096": 6.217728137969971,
+          "4608": 8.541183948516846
+        },
+        "speedup": {
+          "3584": 1.0083312338801083,
+          "4096": 0.9930006631378561,
+          "4608": 0.9877113096515825
+        },
+        "torch_ms": {
+          "3584": 4.089856147766113,
+          "4096": 6.174208164215088,
+          "4608": 8.436223983764648
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0003/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "llm_cuda_repair_attempt:1",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 15.469948844052851,
+      "compiled": false,
+      "error_summary": "Error building extension 'lora_candidate_ext_2_1778234975449': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778234975449 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_86,code=sm_86 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0002/candidate.cu -o candidate.cuda.o \nFAILED: candidate.cuda.o \n/usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778234975449 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_86,code=sm_86 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0002/candidate.cu -o candidate.cuda.o \n/workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0002/candidate.cu(98): error: namespace \"at::cuda\" has no member \"getCurrentCUDAStream\"\n      rank16_add_kernel<<<grid_size, block_size, 0, at::cuda::getCurrentCUDAStream()>>>(\n                                                              ^\n\n1 error detected in the compilation of \"/workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0002/candidate.cu\".\nninja: build stopped: subcommand failed.\n",
+      "error_type": "pybind_or_signature_error",
+      "module_name": "lora_candidate_ext_2_1778234975449",
+      "skipped": false
+    },
+    "compiled": false,
+    "correct": false,
+    "correctness": {},
+    "decision": "rejected_compile",
+    "diagnosis": {
+      "avoid": [
+        "Using the current candidate as-is; it cannot be compiled or benchmarked."
+      ],
+      "bottleneck": "compile_error",
+      "confidence": "high",
+      "evidence": [
+        "Compilation failed with error: namespace \"at::cuda\" has no member \"getCurrentCUDAStream\" in candidate.cu line 98."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "promoting uncompiled code"
+        ],
+        "bottleneck": "compile_failure",
+        "confidence": "high",
+        "evidence": [
+          "pybind_or_signature_error",
+          "Error building extension 'lora_candidate_ext_2_1778234975449': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778234975449 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "fall back to a simpler candidate",
+          "preserve current best"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Replace at::cuda::getCurrentCUDAStream() with the correct API, e.g., c10::cuda::getCurrentCUDAStream() or at::cuda::getCurrentCUDAStream() if available in the target PyTorch version.",
+        "Verify the CUDA stream retrieval method against the installed PyTorch headers."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 3597,
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 2,
+        "llm_generated": true,
+        "name": "rank16_scalar_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 2,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "After the kernel launch, add: cudaError_t err = cudaGetLastError(); if (err != cudaSuccess) { throw std::runtime_error(cudaGetErrorString(err)); }"
+      ],
+      "warnings": [
+        "Kernel launch is not followed by a CUDA error check (e.g., cudaGetLastError()). A silent launch failure could leave the output tensor uninitialized."
+      ]
+    },
+    "name": "rank16_scalar_b128",
+    "parent": 0,
+    "profile": {},
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T095708Z_pid14990/exp_0002/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  }
+]

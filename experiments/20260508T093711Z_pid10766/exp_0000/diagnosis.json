@@ -1,0 +1,40 @@
+{
+  "avoid": [
+    "Attempting to write a custom full GEMM for W @ X; cuBLAS is highly optimized and unlikely to be beaten.",
+    "Hardcoding hidden dimensions or tensor sizes; the operator must remain shape-generic for d in [3584, 4608].",
+    "Introducing unnecessary synchronization points or complex scheduling that could add overhead."
+  ],
+  "bottleneck": "multiple_aten_gemm_and_add_launches",
+  "confidence": "high",
+  "evidence": [
+    "Aggregate speedup is 1.01x, within noise, indicating no performance improvement over PyTorch baseline.",
+    "Profile summary explicitly identifies bottleneck as multiple ATen GEMM and add launches.",
+    "The candidate is the unmodified aten reference, which issues separate kernels for W@X, B.T@X, A@(B.T@X), and the final add.",
+    "Correctness is perfect (max_abs_err=0.0) but that is expected for the reference implementation."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0105013987784957, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.9592961072921753, \"4096\": 6.152191877365112, \"4608\": 8.433664321899414}, \"speedup\": {\"3584\": 1.0362084007931476, \"4096\": 0.9999167963711901, \"4608\": 0.9989071999735847}, \"torch_ms\": {\"3584\": 4.10265588760376, \"4096\": 6.151679992675781, \"4608\": 8.424448013305664}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Keep cuBLAS for the large W @ X GEMM to avoid regressing the dominant term.",
+    "Fuse the rank-16 update (B.T @ X, A @ result, and addition into Y) into a single custom kernel to eliminate launch overhead and intermediate memory traffic.",
+    "Design the fused kernel to exploit memory coalescing, vectorized loads/stores (float4), and unrolling for the small rank dimension.",
+    "Consider using a single kernel that computes Y = W @ X + A @ (B.T @ X) in one pass, but only if the rank-16 update can be efficiently integrated without harming the large GEMM; otherwise, keep them separate but fuse the rank-16 part.",
+    "Profile the fused kernel to verify reduction in kernel launch count and memory bandwidth usage."
+  ]
+}

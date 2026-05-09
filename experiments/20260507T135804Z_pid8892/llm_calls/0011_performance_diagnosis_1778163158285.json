@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0011_performance_diagnosis_1778163158285",
+  "duration_sec": 62.29132318496704,
+  "finished_ts": 1778163220.5768301,
+  "llm_status": "LLM enabled with model DeepSeek-V4-Pro from BASE_MODEL via OpenAI-compatible HTTP fallback. (LLM request failed: TimeoutError: The read operation timed out)",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": false,
+      "name": "rank16_scalar_b128",
+      "parent": 1,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "DeepSeek-V4-Pro",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778163220.6340606
+    }
+  ],
+  "request": {
+    "system_chars": 1215,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "8878a9be0a533cead46299fdae5996c8c11a2ff8a7ca72c4c833e98e4fd49f0e",
+    "user_chars": 1753,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": false,\n  \"name\": \"rank16_scalar_b128\",\n  \"parent\": 1,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 58.35122984496411,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_2_1778163099757\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.00079345703125,\n      \"passed\": false,\n      \"rel_l2_err\": 4.1897757796505175e-07\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 1.0728836059570312e-06,\n      \"passed\": true,\n      \"rel_l2_err\": 2.091014295046989e-07\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.00927734375,\n      \"passed\": false,\n      \"rel_l2_err\": 5.720455078517261e-07\n    }\n  },\n  \"failed_shapes\": [\n    3584,\n    4608\n  ],\n  \"max_abs_err\": 0.00927734375,\n  \"rel_l2_err\": 5.720455078517261e-07\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "da9565bf0857391c606fffaf1d9cc81cd6c784c42bc03773c50e4b71fb45489c"
+  },
+  "response": {
+    "content_chars": 1526,
+    "content_preview": "{\n  \"bottleneck\": \"correctness\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Correctness failed for d=3584 (max_abs_err=0.00079) and d=4608 (max_abs_err=0.0093), while d=4096 passed.\",\n    \"Errors are finite but exceed tolerance, indicating a numerical bug rather than catastrophic failure.\",\n    \"The custom rank-16 update kernel uses scalar loads (vector_width=1) and block_size=128, which may introduce race conditions or incorrect partial accumulation for certain grid dimensions.\",\n    \"Static review and compilation passed with no warnings, so the bug is likely a runtime logic error in the kernel.\"\n  ],\n  \"recommended_actions\": [\n    \"Debug the custom rank-16 update kernel for race conditions (e.g., missing __syncthreads() after shared memory writes).\",\n    \"Verify that all threads participate correctly in reductions and that boundary tiles are handled properly, even when d is an exact multiple of block_size.\",\n    \"Test with a range of d values to isolate the pattern of failures (e.g., check if only multiples of 128 pass).\",\n    \"Consider using a simpler, verified rank-16 update (e.g., two cuBLAS gemm calls) as a correctness baseline before optimizing further.\"\n  ],\n  \"avoid\": [\n    \"Promoting this candidate without fixing the correctness bug.\",\n    \"Assuming the error is acceptable just because relative L2 error is small; absolute error up to 0.009 can be significant.\",\n    \"Hardcoding hidden dimensions or relying on shape-specific workarounds to mask the bug.\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "4d653e95c596cc166153dab8f3473023495639d761f8a51b7da7218f45c06872",
+    "model": "DeepSeek-V4-Pro"
+  },
+  "run_id": "20260507T135804Z_pid8892",
+  "started_ts": 1778163158.285507,
+  "status": "success"
+}

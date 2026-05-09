@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Remove unused vec4 kernel or add alignment assertions if intended for future use"
+  ],
+  "warnings": [
+    "Dead code for vec4 kernel and shape dispatch; vec4 kernel may have alignment issues if enabled"
+  ]
+}

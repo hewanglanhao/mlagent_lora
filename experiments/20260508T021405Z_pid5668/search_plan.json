@@ -1,0 +1,29 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "custom_rank16_fused"
+    ],
+    "priority_order": [
+      "custom_rank16_fused"
+    ],
+    "rationale": "Baseline is correct but bottlenecked by multiple ATen GEMM and add launches. Fusing B.T @ X and A @ result into a single kernel that writes directly to the output tensor eliminates intermediate allocations and reduces launch overhead, targeting the rank-16 path while preserving cuBLAS for the large W @ X GEMM.",
+    "risk_controls": [
+      "keep cuBLAS for W @ X",
+      "validate correctness against baseline for all d in [3584, 4096, 4608]",
+      "static review for memory safety and launch bounds",
+      "benchmark with at least 10 iterations and 3 warmup runs"
+    ],
+    "stop_conditions": [
+      "aggregate speedup > 1.2x over baseline",
+      "correctness failure on any shape",
+      "no speedup improvement after two fused kernel variants"
+    ],
+    "strategy": "fuse_rank16_update"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fuse_rank16_update"
+}

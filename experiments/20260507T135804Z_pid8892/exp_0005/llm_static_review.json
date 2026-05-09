@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Remove the unused vec4 kernel or add alignment checks and ensure alignment before using vectorized loads."
+  ],
+  "warnings": [
+    "The vec4 kernel (rank16_add_vec4_kernel) is dead code because LORA_VECTOR_WIDTH is 1. If activated, it assumes 16-byte alignment for float4 loads/stores, which may not hold for all tensor allocations, potentially causing undefined behavior."
+  ]
+}

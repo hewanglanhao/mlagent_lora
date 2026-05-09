@@ -1,0 +1,30 @@
+{
+  "bottleneck": "multiple_aten_gemm_and_add_launches",
+  "evidence": {
+    "aggregate_speedup": 1.0137092550628473,
+    "details": {
+      "iters": 10,
+      "warmup": 3
+    },
+    "latency_ms": {
+      "3584": 4.025344014167786,
+      "4096": 6.111232042312622,
+      "4608": 8.441343784332275
+    },
+    "speedup": {
+      "3584": 1.0241668552875225,
+      "4096": 1.0164209194118452,
+      "4608": 0.9996361023728418
+    },
+    "torch_ms": {
+      "3584": 4.122623920440674,
+      "4096": 6.211584091186523,
+      "4608": 8.43827199935913
+    }
+  },
+  "suggested_actions": [
+    "keep cuBLAS for W @ X",
+    "fuse rank-16 update into the output tensor",
+    "test scalar and vectorized rank-16 kernels"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 3,
+    "llm_generated": false,
+    "name": "fused_rank16_update_float4",
+    "parent": 2,
+    "shape_dispatch": false,
+    "strategy": "Fuse rank-16 update into a single vectorized kernel after cuBLAS W@X, reducing launch overhead and improving memory throughput.",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  "note": "LLM code generation skipped on the foreground path so compile/test work can continue.",
+  "origin": "deterministic_async_pipeline"
+}

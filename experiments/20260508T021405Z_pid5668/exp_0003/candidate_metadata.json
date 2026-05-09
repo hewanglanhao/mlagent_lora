@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 3,
+  "llm_generated": false,
+  "name": "fused_rank16_vectorized_grid_stride_dispatch",
+  "parent": 0,
+  "shape_dispatch": true,
+  "strategy": "Fix grid-size overflow via grid-stride loop, use float4 vectorized access, and dispatch to ATen for d>=4096 to avoid regression; aggregate speedup may exceed 1.01x.",
+  "use_fast_math": false,
+  "vector_width": 4
+}

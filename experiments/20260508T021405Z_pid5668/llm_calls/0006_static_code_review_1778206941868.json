@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0006_static_code_review_1778206941868",
+  "duration_sec": 123.05247378349304,
+  "finished_ts": 1778207064.9213076,
+  "llm_status": "LLM enabled with model DeepSeek-V4-Pro from BASE_MODEL via OpenAI-compatible HTTP fallback. (LLM request failed: TimeoutError: The read operation timed out)",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 1,
+      "llm_generated": false,
+      "name": "fused_rank16_kernel",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Fuse A @ (B.T @ X) into a single kernel that writes directly to the output of W @ X, eliminating intermediate tensor allocations and reducing kernel launch overhead. Vectorized loads (float4) and shared memory tiling improve memory bandwidth utilization for the rank-16 update.",
+      "use_fast_math": false,
+      "vector_width": 4
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T021405Z_pid5668/exp_0001/candidate.cu"
+  },
+  "model": "DeepSeek-V4-Pro",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778207064.9331787
+    }
+  ],
+  "request": {
+    "system_chars": 1239,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "c267bb4057c8aa1e9d6ff4a4a288dd7f56084b80c403f9a47c01f976fb923bf4",
+    "user_chars": 5890,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 1,\n  \"llm_generated\": false,\n  \"name\": \"fused_rank16_kernel\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Fuse A @ (B.T @ X) into a single kernel that writes directly to the output of W @ X, eliminating intermediate tensor allocations and reducing kernel launch overhead. Vectorized loads (float4) and shared memory tiling improve memory bandwidth utilization for the rank-16 update.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <ATen/cuda/CUDAContext.h>\n#include <c10/cuda/CUDAException.h>\n#include <cuda_runtime.h>\n#include <cstdint>\n\n#define LORA_BLOCK_SIZE 256\n#define LORA_VECTOR_WIDTH 4\n#define LORA_SHAPE_DISPATCH 0\n\nnamespace {\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"all inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be rank-2 tensors\");\n    const int64_t d = W.size(0);\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16 &&\n                B.size(0) == d && B.size(1) == 16,\n                \"A and B must be d x 16\");\n}\n\n__global__ void rank16_add_scalar_kernel(float* __restrict__ y,\n                                         const float* __restrict__ A,\n                                         const float* __restrict__ T,\n                                         int64_t d) {\n    const int64_t total = d * d;\n    const int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;\n    for (int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;\n         idx < total;\n         idx += stride) {\n        const int64_t row = idx / d;\n        const int64_t col = idx - row * d;\n        const float* a = A + row * 16;\n        float acc = 0.0f;\n#pragma unroll\n        for (int k = 0; k < 16; ++k) {\n            acc = fmaf(a[k], T[static_cast<int64_t>(k) * d + col], acc);\n        }\n        y[idx] += acc;\n    }\n}\n\n__global__ void rank16_add_vec4_kernel(float* __restrict__ y,\n                                       const float* __restrict__ A,\n                                       const float* __restrict__ T,\n                                       int64_t d) {\n    const int64_t vec_cols = d / 4;\n    const int64_t total = d * vec_cols;\n    const int64_t stride = static_cast<int64_t>(blockDim.x) * gridDim.x;\n    for (int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;\n         idx < total;\n         idx += stride) {\n        const int64_t row = idx / vec_cols;\n        const int64_t col = (idx - row * vec_cols) * 4;\n        const float* a = A + row * 16;\n        float4 acc = make_float4(0.0f, 0.0f, 0.0f, 0.0f);\n#pragma unroll\n        for (int k = 0; k < 16; ++k) {\n            const float aval = a[k];\n            const float4 tv = *reinterpret_cast<const float4*>(T + static_cast<int64_t>(k) * d + col);\n            acc.x = fmaf(aval, tv.x, acc.x);\n            acc.y = fmaf(aval, tv.y, acc.y);\n            acc.z = fmaf(aval, tv.z, acc.z);\n            acc.w = fmaf(aval, tv.w, acc.w);\n        }\n        float4 yv =\n...<trimmed>...",
+    "user_sha256": "06a79343641e00acfb4adcda7c9b55a4b67a9c33244d22a9de99cd431834b328"
+  },
+  "response": {
+    "content_chars": 577,
+    "content_preview": "{\n  \"pass\": false,\n  \"risk_level\": \"high\",\n  \"errors\": [\n    \"Grid size exceeds maximum allowed (82944 > 65535) for 1D grid launch, causing potential kernel launch failure on GPUs with max grid size 65535.\"\n  ],\n  \"warnings\": [\n    \"Vectorized loads/stores assume 16-byte alignment without checking, which may lead to unaligned access and performance degradation or undefined behavior on some architectures.\"\n  ],\n  \"suggested_fixes\": [\n    \"Cap the number of blocks to 65535 and rely on the grid-stride loop to cover all elements, or use a 2D grid to distribute blocks.\"\n  ]\n}",
+    "content_sha256": "4245865642845475c328d775f36f6e9750915924680eb8cef000675f70871d95",
+    "model": "DeepSeek-V4-Pro"
+  },
+  "run_id": "20260508T021405Z_pid5668",
+  "started_ts": 1778206941.8688338,
+  "status": "success"
+}

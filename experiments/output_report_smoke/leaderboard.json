@@ -1,0 +1,42 @@
+[
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 256,
+    "compile": {},
+    "compiled": false,
+    "correct": false,
+    "correctness": {},
+    "decision": "bootstrap_preserved_existing_best",
+    "diagnosis": {},
+    "family": "aten_reference",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "aten_reference",
+        "id": 0,
+        "llm_generated": false,
+        "name": "baseline_aten",
+        "parent": null,
+        "shape_dispatch": false,
+        "strategy": "",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "origin": "deterministic_baseline"
+    },
+    "id": 0,
+    "latency_by_d": {},
+    "llm_generated": false,
+    "llm_static_review": null,
+    "name": "baseline_aten",
+    "parent": null,
+    "profile": {},
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/output_report_smoke/exp_0000/candidate.cu",
+    "static_review": {},
+    "strategy": "",
+    "use_fast_math": false,
+    "vector_width": 1
+  }
+]

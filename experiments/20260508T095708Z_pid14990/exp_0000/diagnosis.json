@@ -1,0 +1,38 @@
+{
+  "avoid": [
+    "Replacing cuBLAS for W @ X with a custom GEMM kernel.",
+    "Unsafe caching by shape alone or pointer alone without version counters.",
+    "Hardcoding hidden dimensions or assuming fixed tensor addresses."
+  ],
+  "bottleneck": "multiple_aten_gemm_and_add_launches",
+  "confidence": "high",
+  "evidence": [
+    "Aggregate speedup is 1.01x, essentially identical to torch baseline.",
+    "Latency per shape nearly matches torch reference, indicating no meaningful optimization.",
+    "Profile summary identifies multiple ATen GEMM and add launches as the bottleneck.",
+    "No custom kernel or fusion is applied; the candidate is a pure ATen reference."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0137092550628473, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.025344014167786, \"4096\": 6.111232042312622, \"4608\": 8.441343784332275}, \"speedup\": {\"3584\": 1.0241668552875225, \"4096\": 1.0164209194118452, \"4608\": 0.9996361023728418}, \"torch_ms\": {\"3584\": 4.122623920440674, \"4096\": 6.211584091186523, \"4608\": 8.43827199935913}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Fuse the rank-16 update (A @ (B.T @ X)) and the addition into a single kernel to reduce launch overhead.",
+    "Keep cuBLAS for the full W @ X matmul; do not attempt a custom full GEMM.",
+    "Explore a final-output cache keyed by data_ptr, version_counter, d, and device if inputs are static across calls, but only with strict correctness guards."
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Remove unused vectorized kernel or enable it with proper alignment checks.",
+    "If caching is intended, implement a safe cache keyed by data pointers, version counters, d, and device."
+  ],
+  "warnings": [
+    "Dead code: vectorized kernel rank16_add_vec4_kernel is never used because LORA_VECTOR_WIDTH is 1.",
+    "Candidate metadata describes a result-caching strategy, but the source code does not implement any caching; benchmark may not see the claimed speedup."
+  ]
+}

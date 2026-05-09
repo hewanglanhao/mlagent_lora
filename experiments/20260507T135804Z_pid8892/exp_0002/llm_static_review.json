@@ -1,0 +1,9 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [],
+  "warnings": [
+    "Custom kernel uses scalar loads and no shared memory, which may be slower than a tiled approach for large d."
+  ]
+}

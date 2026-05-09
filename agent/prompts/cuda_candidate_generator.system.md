@@ -37,6 +37,12 @@ Performance guidance:
 - First compute the row-major main term W @ X into Y by using the equivalent column-major cuBLAS multiplication ordering.
 - Then compute a temporary tensor U with row-major shape {d, 16}; from the column-major cuBLAS view, it should represent the low-rank intermediate without explicitly constructing B.T.
 - Finally accumulate the low-rank term into Y using a third SGEMM with beta = 1 so no separate add kernel is needed.
+- Match the qyh-style three-SGEMM mapping unless the requested strategy explicitly says otherwise:
+  - SGEMM 1: use X and W in column-major view to produce Y, with m=d, n=d, k=d, all leading dimensions d, alpha=1, beta=0.
+  - SGEMM 2: allocate U as a PyTorch tensor with shape {d,16}; write U using m=d, n=16, k=d, leading dimension of X/Y-style d for X and U, leading dimension 16 for B, alpha=1, beta=0, and a cuBLAS transpose flag instead of materializing B.T.
+  - SGEMM 3: accumulate the low-rank term into Y using m=d, n=d, k=16, U leading dimension d, A leading dimension 16, alpha=1, beta=1.
+- Do not switch to a competing U interpretation with m=16, n=d, or leading dimension 16 for U. That layout is easy to make shape-dependent and has failed correctness in prior runs.
+- Keep the code compact and robust; include short comments for the three layout conversions, but do not introduce explanatory scaffolding, test code, or extra entrypoints.
 - Avoid explicit transpose-copy materialization such as `B.transpose(...).contiguous()` when cuBLAS operation flags can express the needed transpose.
 - Be meticulous about cuBLAS operation flags, m/n/k dimensions, leading dimensions, alpha/beta, and memory layout comments.
 

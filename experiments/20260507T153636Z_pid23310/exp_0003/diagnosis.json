@@ -1,0 +1,17 @@
+{
+  "avoid": [
+    "overfitting one exact d"
+  ],
+  "bottleneck": "rank16_update_or_memory_bandwidth",
+  "candidate_family": "cublas_plus_custom_rank16_update",
+  "confidence": "medium",
+  "evidence": [
+    "{\"aggregate_speedup\": 1.0120611579654342, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.97107195854187, \"4096\": 6.2663679122924805, \"4608\": 8.52889633178711}, \"speedup\": {\"3584\": 1.045384264526834, \"4096\": 0.9983659051467844, \"4608\": 0.9969983884955669}, \"torch_ms\": {\"3584\": 4.151296138763428, \"4096\": 6.2561280727386475, \"4608\": 8.5032958984375}}"
+  ],
+  "promotion_advice": "promote",
+  "recommended_actions": [
+    "vary block size",
+    "try float4 stores when d is divisible by 4",
+    "fall back to ATen if numerical error appears"
+  ]
+}

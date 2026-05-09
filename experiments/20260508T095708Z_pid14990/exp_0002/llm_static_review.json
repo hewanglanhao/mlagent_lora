@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "After the kernel launch, add: cudaError_t err = cudaGetLastError(); if (err != cudaSuccess) { throw std::runtime_error(cudaGetErrorString(err)); }"
+  ],
+  "warnings": [
+    "Kernel launch is not followed by a CUDA error check (e.g., cudaGetLastError()). A silent launch failure could leave the output tensor uninitialized."
+  ]
+}

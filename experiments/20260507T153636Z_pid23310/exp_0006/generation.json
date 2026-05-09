@@ -1,0 +1,28 @@
+{
+  "base_candidate": {
+    "block_size": 128,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": false,
+    "name": "rank16_scalar_b128",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "bytes": 5597,
+  "candidate": {
+    "block_size": 128,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 6,
+    "llm_generated": true,
+    "name": "rank16_scalar_b128_llm_codegen",
+    "parent": 1,
+    "shape_dispatch": false,
+    "strategy": "llm_cuda_codegen_from:rank16_scalar_b128",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "origin": "llm_async_codegen"
+}

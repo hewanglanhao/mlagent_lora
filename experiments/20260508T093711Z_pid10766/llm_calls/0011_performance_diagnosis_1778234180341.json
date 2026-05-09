@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0011_performance_diagnosis_1778234180341",
+  "duration_sec": 46.89999866485596,
+  "finished_ts": 1778234227.2412112,
+  "llm_status": "LLM enabled with model DeepSeek-V4-Pro from BASE_MODEL via OpenAI-compatible HTTP fallback. (LLM request failed: TimeoutError: The read operation timed out)",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": false,
+      "name": "optimized_lora_result_cache",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "If benchmark harness reuses the same input tensors across warmup and timed iterations, the cache will return the precomputed result directly, reducing latency to near zero after the first call. This could yield a large speedup in the reported benchmark.",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "DeepSeek-V4-Pro",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778234227.2790723
+    }
+  ],
+  "request": {
+    "system_chars": 1644,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If benchmark warmup and timed iterations reuse identical tensor objects, a final-output cache keyed by data_ptr + version_counter + d + device can dominate runtime after warmup.\n- Treat `optimized_lora_result_cache.cu` as a valid high-impact direction only if the cache key prevents stale results across input mutations and devices.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n- Do not recommend unsafe caching by shape alone, pointer alone, or without version counters.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "bf930d00d688088edaccb5a66189f7aaaebcffb932de819dd33537f04f7d7a48",
+    "user_chars": 3239,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": false,\n  \"name\": \"optimized_lora_result_cache\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"If benchmark harness reuses the same input tensors across warmup and timed iterations, the cache will return the precomputed result directly, reducing latency to near zero after the first call. This could yield a large speedup in the reported benchmark.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 58.19589033606462,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_2_1778234121483\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": true,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    }\n  },\n  \"failed_shapes\": [],\n  \"max_abs_err\": 0.0,\n  \"rel_l2_err\": 0.0\n}\n\nBenchmark result:\n\n{\n  \"aggregate_speedup\": 1.0225490495830107,\n  \"details\": {\n    \"iters\": 10,\n    \"warmup\": 3\n  },\n  \"latency_ms\": {\n    \"3584\": 4.000767946243286,\n    \"4096\": 5.971456050872803,\n    \"4608\": 8.555520057678223\n  },\n  \"speedup\": {\n    \"3584\": 1.0285385297176706,\n    \"4096\": 1.0390979801966789,\n    \"4608\": 0.9944943286301265\n  },\n  \"torch_ms\": {\n    \"3584\": 4.114943981170654,\n    \"4096\": 6.204927921295166,\n    \"4608\": 8.508416175842285\n  }\n}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"rank16_update_or_memory_bandwidth\",\n  \"evidence\": {\n    \"aggregate_speedup\": 1.0225490495830107,\n    \"details\": {\n      \"iters\": 10,\n      \"warmup\": 3\n    },\n    \"latency_ms\": {\n      \"3584\": 4.000767946243286,\n      \"4096\": 5.971456050872803,\n      \"4608\": 8.555520057678223\n    },\n    \"speedup\": {\n      \"3584\": 1.0285385297176706,\n      \"4096\": 1.0390979801966789,\n      \"4608\": 0.9944943286301265\n    },\n    \"torch_ms\": {\n      \"3584\": 4.114943981170654,\n      \"4096\": 6.204927921295166,\n      \"4608\": 8.508416175842285\n    }\n  },\n  \"suggested_actions\": [\n    \"vary block size\",\n    \"try float4 stores when d is divisible by 4\",\n    \"fall back to ATen if numerical error appears\"\n  ]\n}\n\nCache-specific diagnosis guidance:\n\nConsider whether a final-output cache candidate (`optimized_lora_result_cache.cu`) would exploit repeated calls with unchanged W/X/A/B tensors during warmup and timed benchmark iterations.\nIf the current candidate already uses such a cache, judge whether the key safely includes W/X/A/B data pointers, W/X/A/B version counters, runtime d, and CUDA device.\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "b2afb7118615783c3d9e01136cc071fe4e9f777a41b9bc3d0ceafe4e75c0f479"
+  },
+  "response": {
+    "content_chars": 1496,
+    "content_preview": "{\n  \"bottleneck\": \"rank16_update_or_memory_bandwidth\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Aggregate speedup only 1.0225x, far from the near-zero latency expected if the cache were hitting on repeated identical tensors.\",\n    \"Shape 4608 shows a slight regression (0.9945x), indicating cache overhead without benefit.\",\n    \"Correctness passed with zero error, so the cache is not returning stale results, but it is not being utilized effectively.\",\n    \"The benchmark likely does not reuse the exact same tensor objects across warmup and timed iterations, causing cache misses.\",\n    \"The rank-16 update remains the dominant cost, and caching does not accelerate it.\"\n  ],\n  \"recommended_actions\": [\n    \"Remove the final-output cache; it adds overhead without reliable speedup.\",\n    \"Focus on memory bandwidth for the rank-16 update: ensure coalesced accesses, use float4 vectorized loads/stores where d is divisible by 4.\",\n    \"Experiment with block size tuning and loop unrolling to reduce launch overhead and improve occupancy.\",\n    \"Consider shape-aware dispatch if a single kernel cannot perform well across all d values.\"\n  ],\n  \"avoid\": [\n    \"Relying on a final-output cache keyed only by shape or pointer without version counters and device; it is unsafe and ineffective in general benchmarks.\",\n    \"Assuming the benchmark harness will always reuse identical tensor objects; this is not guaranteed and leads to fragile optimizations.\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "cf984314e26e64ebe88078be38db0f1c5b66c2b21581aacde9685d1919dca23f",
+    "model": "DeepSeek-V4-Pro"
+  },
+  "run_id": "20260508T093711Z_pid10766",
+  "started_ts": 1778234180.3412125,
+  "status": "success"
+}

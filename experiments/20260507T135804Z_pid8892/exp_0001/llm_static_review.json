@@ -1,0 +1,11 @@
+{
+  "errors": [
+    "y tensor from matmul may not be contiguous; must call .contiguous() before passing to custom kernel to ensure correct memory layout and alignment for both scalar and vectorized access patterns."
+  ],
+  "pass": false,
+  "risk_level": "medium",
+  "suggested_fixes": [
+    "Add y = y.contiguous(); after y = at::matmul(Wc, Xc); and before launch_rank16_add(y, Ac, t, d);"
+  ],
+  "warnings": []
+}

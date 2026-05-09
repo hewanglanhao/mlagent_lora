@@ -1,0 +1,38 @@
+{
+  "avoid": [
+    "Do not attempt to replace the full W@X GEMM with a custom kernel; cuBLAS is nearly optimal for large square matmuls.",
+    "Avoid hardcoding hidden dimensions or baking d into the kernel; use runtime shape dispatch if needed."
+  ],
+  "bottleneck": "multiple_aten_gemm_and_add_launches",
+  "confidence": "high",
+  "evidence": [
+    "Aggregate speedup is only 1.014x, essentially identical to baseline.",
+    "Profile summary identifies bottleneck as multiple ATen GEMM and add launches.",
+    "Correctness is perfect, so no correctness issues.",
+    "Baseline uses separate cuBLAS calls for W@X, B.T@X, A@(B.T@X), and an add, incurring launch overhead and extra memory traffic."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0148255250974778, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.9659520387649536, \"4096\": 6.151679992675781, \"4608\": 8.497152328491211}, \"speedup\": {\"3584\": 1.0382132914434559, \"4096\": 1.007906785268252, \"4608\": 1.0006627451904677}, \"torch_ms\": {\"3584\": 4.117504119873047, \"4096\": 6.20032000541687, \"4608\": 8.50278377532959}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Keep cuBLAS for the large W@X GEMM; it is already highly optimized.",
+    "Fuse the rank-16 update (B.T@X followed by A@...) into a single custom kernel to reduce launch overhead and improve memory locality.",
+    "Consider writing a fused kernel that computes the low-rank update directly into the output, avoiding intermediate tensors.",
+    "Explore vectorized loads/stores and shared memory tiling for the rank-16 kernel to maximize bandwidth utilization."
+  ]
+}

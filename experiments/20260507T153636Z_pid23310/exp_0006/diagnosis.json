@@ -1,0 +1,16 @@
+{
+  "avoid": [
+    "promoting uncompiled code"
+  ],
+  "bottleneck": "compile_failure",
+  "confidence": "high",
+  "evidence": [
+    "pybind_or_signature_error",
+    "Error building extension 'lora_candidate_ext_6_1778168546501': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_6_1778168546501 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc"
+  ],
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "fall back to a simpler candidate",
+    "preserve current best"
+  ]
+}

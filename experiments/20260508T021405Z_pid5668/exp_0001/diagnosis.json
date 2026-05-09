@@ -1,0 +1,39 @@
+{
+  "avoid": [
+    "Tuning block size, vector width, or shared memory for the rank-16 kernel\u2014these will not move the needle on overall performance.",
+    "Hardcoding hidden dimensions or assuming a specific d.",
+    "Attempting to write a custom full GEMM to replace cuBLAS; high risk and unlikely to beat cuBLAS for these large square matrices."
+  ],
+  "bottleneck": "full_gemm_dominates",
+  "confidence": "high",
+  "evidence": [
+    "Aggregate speedup is 1.0016, essentially no improvement over baseline.",
+    "Speedup per shape: 3584=1.0095, 4096=0.9964 (slight regression), 4608=1.0005.",
+    "The rank-16 update (A @ (B.T @ X)) accounts for only ~0.9% of total FLOPs for d=4096, so even perfect fusion cannot yield significant overall gain.",
+    "Correctness is perfect, so performance is the only concern.",
+    "Profile summary suggests rank16_update_or_memory_bandwidth as bottleneck, but the negligible speedup indicates the full GEMM (W @ X) dominates runtime."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0015684506934044, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.076543807983398, \"4096\": 6.174720048904419, \"4608\": 8.418816089630127}, \"speedup\": {\"3584\": 1.0095454134992885, \"4096\": 0.9963515863160914, \"4608\": 1.0005473070572706}, \"torch_ms\": {\"3584\": 4.1154561042785645, \"4096\": 6.152192115783691, \"4608\": 8.423423767089844}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Profile to confirm that cuBLAS W @ X consumes >95% of time; if so, accept baseline as near-optimal.",
+    "If further optimization is required, explore overlapping the rank-16 update with the GEMM using a separate stream, but this adds complexity and may not help due to GPU saturation.",
+    "Consider shape-aware dispatch only if future candidates show benefit for smaller d where rank-16 fraction is larger, but for d in [3584,4608] this is not promising."
+  ]
+}

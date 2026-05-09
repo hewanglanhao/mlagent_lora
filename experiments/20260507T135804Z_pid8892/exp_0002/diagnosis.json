@@ -1,0 +1,37 @@
+{
+  "avoid": [
+    "Promoting this candidate without fixing the correctness bug.",
+    "Assuming the error is acceptable just because relative L2 error is small; absolute error up to 0.009 can be significant.",
+    "Hardcoding hidden dimensions or relying on shape-specific workarounds to mask the bug."
+  ],
+  "bottleneck": "correctness",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed for d=3584 (max_abs_err=0.00079) and d=4608 (max_abs_err=0.0093), while d=4096 passed.",
+    "Errors are finite but exceed tolerance, indicating a numerical bug rather than catastrophic failure.",
+    "The custom rank-16 update kernel uses scalar loads (vector_width=1) and block_size=128, which may introduce race conditions or incorrect partial accumulation for certain grid dimensions.",
+    "Static review and compilation passed with no warnings, so the bug is likely a runtime logic error in the kernel."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00079345703125, \"passed\": false, \"rel_l2_err\": 4.1897757796505175e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 1.0728836059570312e-06, \"passed\": true, \"rel_l2_err\": 2.091014295046989e-07}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.00927734375, \"passed\": false, \"rel_l2_err\": 5.720455078517261e-07}}, \"failed_shapes\": [3584, 4608], \"max_abs_err\": 0.00927734375, \"rel_l2_err\": 5.720455078517261e-07}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Debug the custom rank-16 update kernel for race conditions (e.g., missing __syncthreads() after shared memory writes).",
+    "Verify that all threads participate correctly in reductions and that boundary tiles are handled properly, even when d is an exact multiple of block_size.",
+    "Test with a range of d values to isolate the pattern of failures (e.g., check if only multiples of 128 pass).",
+    "Consider using a simpler, verified rank-16 update (e.g., two cuBLAS gemm calls) as a correctness baseline before optimizing further."
+  ]
+}

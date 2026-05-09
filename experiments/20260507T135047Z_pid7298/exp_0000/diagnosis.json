@@ -1,0 +1,39 @@
+{
+  "avoid": [
+    "Do not attempt to write a custom full GEMM for W @ X; it is high risk and unlikely to beat cuBLAS.",
+    "Avoid hardcoding hidden dimensions or tensor shapes; the kernel must remain shape-generic for d in [3584, 4608].",
+    "Do not promote this baseline as an optimization; it provides no real speedup."
+  ],
+  "bottleneck": "multiple_aten_gemm_and_add_launches",
+  "confidence": "high",
+  "evidence": [
+    "Correctness is perfect (max_abs_err=0.0, rel_l2_err=0.0) for all shapes.",
+    "Aggregate speedup is only 1.024x, essentially noise, indicating no meaningful optimization over the ATen baseline.",
+    "Profile summary confirms the bottleneck is multiple ATen GEMM and add launches, with no fusion.",
+    "The candidate is the baseline ATen reference, not an optimized kernel."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.024250091652942, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.9746559858322144, \"4096\": 6.17574405670166, \"4608\": 8.193023681640625}, \"speedup\": {\"3584\": 1.0369702851652027, \"4096\": 1.0050571849968584, \"4608\": 1.0371204403487926}, \"torch_ms\": {\"3584\": 4.121600151062012, \"4096\": 6.206975936889648, \"4608\": 8.497152328491211}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Keep cuBLAS for the large W @ X matmul; it is already highly optimized.",
+    "Fuse the rank-16 update (A @ (B.T @ X)) into a single kernel to reduce launch overhead and improve memory locality.",
+    "Implement a dedicated rank-16 kernel that computes B.T @ X and then A @ intermediate, adding directly to the output of W @ X.",
+    "Consider vectorized loads/stores and unrolling in the rank-16 kernel to maximize memory bandwidth utilization."
+  ]
+}

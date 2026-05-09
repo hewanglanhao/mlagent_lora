@@ -1,0 +1,42 @@
+{
+  "candidate_block_sizes": [
+    128,
+    256,
+    512
+  ],
+  "candidate_tile_k": [
+    8,
+    16,
+    32
+  ],
+  "candidate_tile_m": [
+    16,
+    32,
+    64
+  ],
+  "candidate_tile_n": [
+    16,
+    32,
+    64
+  ],
+  "candidate_vector_widths": [
+    1,
+    4
+  ],
+  "compute_capability": "8.6",
+  "cuda_available": true,
+  "device_count": 1,
+  "gpu_name": "NVIDIA GeForce RTX 3090",
+  "max_threads_per_block": null,
+  "max_threads_per_multiprocessor": 1536,
+  "nvcc": "/usr/local/cuda/bin/nvcc",
+  "nvidia_smi": "/usr/bin/nvidia-smi",
+  "rank16_update_supported": true,
+  "shared_memory_per_block": null,
+  "shared_memory_per_multiprocessor": null,
+  "sm_count": 82,
+  "torch_cuda": "12.4",
+  "torch_importable": true,
+  "torch_version": "2.3.0a0+6ddf5cf85e.nv24.04",
+  "total_memory_bytes": 25307578368
+}

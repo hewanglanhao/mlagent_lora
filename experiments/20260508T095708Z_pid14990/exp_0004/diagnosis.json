@@ -1,0 +1,44 @@
+{
+  "avoid": [
+    "Hardcoding hidden dimensions or relying on specific d values.",
+    "Unsafe caching by data pointer alone without version counters and device checks.",
+    "Replacing the cuBLAS W@X with a custom full GEMM, as it is high risk and unlikely to outperform cuBLAS.",
+    "Over-optimizing for a single shape without shape-aware dispatch, given the regression at larger d."
+  ],
+  "bottleneck": "rank16_update_memory_bandwidth",
+  "confidence": "medium",
+  "evidence": [
+    "Correctness passed with zero error across all shapes (3584, 4096, 4608).",
+    "Aggregate speedup is only 1.003x, essentially no improvement over baseline.",
+    "Speedup is shape-dependent: 1.025x at d=3584, but regresses to 0.996x at d=4096 and 0.990x at d=4608.",
+    "Profile indicates bottleneck is rank-16 update or memory bandwidth, suggesting the custom kernel is memory-bound.",
+    "Candidate uses scalar loads/stores (vector_width=1) and a fixed block size of 512, which likely leads to poor memory coalescing and low effective bandwidth for large d.",
+    "No evidence of shared memory usage or advanced tiling to reduce global memory traffic.",
+    "Static review passed with low risk, no warnings; compile succeeded, so no correctness or build issues."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0028028814447092, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.9966719150543213, \"4096\": 6.228480100631714, \"4608\": 8.51353645324707}, \"speedup\": {\"3584\": 1.0253651184850294, \"4096\": 0.9955610020295789, \"4608\": 0.989896483624563}, \"torch_ms\": {\"3584\": 4.098047971725464, \"4096\": 6.200831890106201, \"4608\": 8.427519798278809}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Use vectorized memory accesses (float4) for both reads and writes, since d is always divisible by 4.",
+    "Experiment with smaller block sizes (e.g., 128 or 256) to improve occupancy and reduce register pressure.",
+    "Introduce shared memory tiling for A and B to reduce redundant global loads in the rank-16 update.",
+    "Fuse the addition with the rank-16 computation more efficiently, possibly using warp-level matrix operations.",
+    "Profile memory throughput and occupancy to guide further tuning."
+  ]
+}

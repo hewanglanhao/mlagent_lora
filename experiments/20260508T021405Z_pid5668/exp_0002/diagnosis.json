@@ -1,0 +1,39 @@
+{
+  "avoid": [
+    "Hardcoding hidden dimensions or tensor sizes.",
+    "Replacing cuBLAS for the full W@X GEMM, as it is unlikely to beat cuBLAS.",
+    "Overcomplicating the kernel with excessive shared memory usage that increases register pressure without clear benefit."
+  ],
+  "bottleneck": "rank16_update_memory_bandwidth",
+  "confidence": "high",
+  "evidence": [
+    "Aggregate speedup is 0.997, essentially no improvement over baseline.",
+    "Speedup for d=3584 is 1.013, but for d=4096 and 4608 it regresses to 0.994 and 0.986 respectively.",
+    "Profile summary identifies bottleneck as rank16_update_or_memory_bandwidth.",
+    "Candidate uses scalar access (vector_width=1) and block_size=128, limiting memory throughput.",
+    "Correctness is perfect (max_abs_err=0.0), so performance is the only concern."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "custom full GEMM without evidence"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 0.9972935632854554, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.116480112075806, \"4096\": 6.244352102279663, \"4608\": 8.553983688354492}, \"speedup\": {\"3584\": 1.0131840637969847, \"4096\": 0.9938504151338236, \"4608\": 0.9859939269761019}, \"torch_ms\": {\"3584\": 4.170752048492432, \"4096\": 6.205951929092407, \"4608\": 8.434175968170166}}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "try vector width 4",
+      "vary block size",
+      "keep W @ X in cuBLAS"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Use vectorized loads/stores (e.g., float4) to improve memory bandwidth utilization.",
+    "Experiment with different block sizes (e.g., 64, 256) to find optimal occupancy.",
+    "Consider using shared memory to cache tiles of X or reduce redundant global reads.",
+    "Profile memory throughput to confirm bandwidth saturation and guide optimization."
+  ]
+}

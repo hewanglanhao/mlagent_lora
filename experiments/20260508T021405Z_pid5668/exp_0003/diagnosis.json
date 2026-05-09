@@ -1,0 +1,40 @@
+{
+  "avoid": [
+    "Replacing cuBLAS for the full W@X GEMM (high risk, unlikely to beat cuBLAS).",
+    "Hardcoding hidden dimensions or tensor sizes.",
+    "Using fast-math flags that could affect correctness."
+  ],
+  "bottleneck": "rank16_update_or_memory_bandwidth",
+  "confidence": "medium",
+  "evidence": [
+    "Correctness passed with zero error for all shapes.",
+    "Aggregate speedup 1.026x, but only d=3584 shows meaningful gain (1.107x); d=4096 and d=4608 are near baseline (0.997x, 0.982x).",
+    "Profile summary indicates bottleneck is rank-16 update or memory bandwidth.",
+    "Candidate uses shape dispatch: custom vectorized kernel for d<4096, ATen fallback for d>=4096. The fallback avoids regression but provides no speedup.",
+    "Custom kernel uses float4 vectorized access and grid-stride loop, which helps at d=3584 but is not applied to larger sizes."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0257705975317974, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.786239981651306, \"4096\": 6.220800161361694, \"4608\": 8.582655906677246}, \"speedup\": {\"3584\": 1.1073698754549683, \"4096\": 0.9973662351577176, \"4608\": 0.9820438027740668}, \"torch_ms\": {\"3584\": 4.192768096923828, \"4096\": 6.204416036605835, \"4608\": 8.428544044494629}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "promote",
+  "recommended_actions": [
+    "Investigate custom kernel performance at d=4096 and d=4608 to see if it can be tuned to beat baseline (e.g., adjust block size, shared memory usage for A/B).",
+    "Consider lowering the dispatch threshold if the custom kernel can be made faster for 4096.",
+    "Profile memory bandwidth utilization and occupancy for the custom kernel at larger sizes.",
+    "Ensure memory coalescing is maintained for all d values, especially when d is not a multiple of vector width."
+  ]
+}

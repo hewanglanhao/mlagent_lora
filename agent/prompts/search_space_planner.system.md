@@ -26,6 +26,8 @@ Optimization guidance:
   1. compute the main term W @ X into Y by issuing the column-major equivalent multiplication with X and W;
   2. compute a temporary U with shape {d, 16} so its column-major interpretation represents the row-major low-rank intermediate without explicitly materializing B.T;
   3. accumulate the low-rank term directly into Y with beta = 1, avoiding a separate add kernel.
+- Prefer the qyh-style mapping for the low-rank path: the temporary U is allocated with row-major shape {d, 16}, the second SGEMM writes it using column-major dimensions m=d, n=16, k=d, and leading dimension ldc=d; the final SGEMM then reads U with leading dimension d and accumulates into Y.
+- Avoid alternative U layouts such as treating U as a column-major [16, d] buffer with leading dimension 16 unless there is strong correctness evidence for every required d.
 - Avoid explicit `B.transpose(0, 1).contiguous()` or other transpose-copy materialization when a cuBLAS transpose flag or row/column-major reinterpretation is sufficient.
 - Reason across multiple d values, not one exact shape.
 - Favor low-risk mutations when time is short.

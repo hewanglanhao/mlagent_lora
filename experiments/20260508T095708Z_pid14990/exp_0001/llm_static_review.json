@@ -1,0 +1,13 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Remove unused vectorized kernel to reduce code size and avoid potential future misuse.",
+    "If caching is intended, implement a proper cache with keys including data pointers, version counters, d, and device."
+  ],
+  "warnings": [
+    "Candidate does not implement the caching strategy described in its metadata; no result caching is performed.",
+    "Dead code: vectorized kernel rank16_add_vec4_kernel is never used because LORA_VECTOR_WIDTH is 1."
+  ]
+}

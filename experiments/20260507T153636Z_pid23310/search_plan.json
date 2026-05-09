@@ -1,0 +1,30 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_gemm_plus_fused_rank16"
+    ],
+    "priority_order": [
+      "fused_rank16_kernel_scalar",
+      "fused_rank16_kernel_vectorized",
+      "fused_rank16_kernel_tiled"
+    ],
+    "rationale": "Baseline uses multiple ATen GEMM launches for rank-16 path. Fusing B.T @ X and A @ result into a single kernel that adds to Y reduces launch overhead and memory traffic. Keep cuBLAS for large W @ X GEMM. Start with scalar kernel for simplicity, then vectorize, then tile for better reuse.",
+    "risk_controls": [
+      "validate_correctness_all_d",
+      "avoid_shared_memory_bank_conflicts",
+      "ensure_coalesced_access",
+      "use_occupancy_calculator"
+    ],
+    "stop_conditions": [
+      "aggregate_speedup_above_1.2",
+      "no_improvement_after_3_candidates"
+    ],
+    "strategy": "cublas_gemm_plus_fused_rank16_kernel"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "cublas_gemm_plus_fused_rank16_kernel"
+}

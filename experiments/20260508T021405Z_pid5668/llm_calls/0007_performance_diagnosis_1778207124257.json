@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0007_performance_diagnosis_1778207124257",
+  "duration_sec": 52.5006148815155,
+  "finished_ts": 1778207176.7580426,
+  "llm_status": "LLM enabled with model DeepSeek-V4-Pro from BASE_MODEL via OpenAI-compatible HTTP fallback. (LLM request failed: TimeoutError: The read operation timed out)",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 1,
+      "llm_generated": false,
+      "name": "fused_rank16_kernel",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Fuse A @ (B.T @ X) into a single kernel that writes directly to the output of W @ X, eliminating intermediate tensor allocations and reducing kernel launch overhead. Vectorized loads (float4) and shared memory tiling improve memory bandwidth utilization for the rank-16 update.",
+      "use_fast_math": false,
+      "vector_width": 4
+    }
+  },
+  "model": "DeepSeek-V4-Pro",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778207176.7786293
+    }
+  ],
+  "request": {
+    "system_chars": 1215,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "8878a9be0a533cead46299fdae5996c8c11a2ff8a7ca72c4c833e98e4fd49f0e",
+    "user_chars": 2865,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 1,\n  \"llm_generated\": false,\n  \"name\": \"fused_rank16_kernel\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Fuse A @ (B.T @ X) into a single kernel that writes directly to the output of W @ X, eliminating intermediate tensor allocations and reducing kernel launch overhead. Vectorized loads (float4) and shared memory tiling improve memory bandwidth utilization for the rank-16 update.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 58.404326157062314,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_1_1778207065114\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": true,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    }\n  },\n  \"failed_shapes\": [],\n  \"max_abs_err\": 0.0,\n  \"rel_l2_err\": 0.0\n}\n\nBenchmark result:\n\n{\n  \"aggregate_speedup\": 1.0015684506934044,\n  \"details\": {\n    \"iters\": 10,\n    \"warmup\": 3\n  },\n  \"latency_ms\": {\n    \"3584\": 4.076543807983398,\n    \"4096\": 6.174720048904419,\n    \"4608\": 8.418816089630127\n  },\n  \"speedup\": {\n    \"3584\": 1.0095454134992885,\n    \"4096\": 0.9963515863160914,\n    \"4608\": 1.0005473070572706\n  },\n  \"torch_ms\": {\n    \"3584\": 4.1154561042785645,\n    \"4096\": 6.152192115783691,\n    \"4608\": 8.423423767089844\n  }\n}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"rank16_update_or_memory_bandwidth\",\n  \"evidence\": {\n    \"aggregate_speedup\": 1.0015684506934044,\n    \"details\": {\n      \"iters\": 10,\n      \"warmup\": 3\n    },\n    \"latency_ms\": {\n      \"3584\": 4.076543807983398,\n      \"4096\": 6.174720048904419,\n      \"4608\": 8.418816089630127\n    },\n    \"speedup\": {\n      \"3584\": 1.0095454134992885,\n      \"4096\": 0.9963515863160914,\n      \"4608\": 1.0005473070572706\n    },\n    \"torch_ms\": {\n      \"3584\": 4.1154561042785645,\n      \"4096\": 6.152192115783691,\n      \"4608\": 8.423423767089844\n    }\n  },\n  \"suggested_actions\": [\n    \"vary block size\",\n    \"try float4 stores when d is divisible by 4\",\n    \"fall back to ATen if numerical error appears\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "4eecc0212de4352855e12fe7076aed65fb5c178853433a1941cff599fb0fd657"
+  },
+  "response": {
+    "content_chars": 1508,
+    "content_preview": "{\n  \"bottleneck\": \"full_gemm_dominates\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Aggregate speedup is 1.0016, essentially no improvement over baseline.\",\n    \"Speedup per shape: 3584=1.0095, 4096=0.9964 (slight regression), 4608=1.0005.\",\n    \"The rank-16 update (A @ (B.T @ X)) accounts for only ~0.9% of total FLOPs for d=4096, so even perfect fusion cannot yield significant overall gain.\",\n    \"Correctness is perfect, so performance is the only concern.\",\n    \"Profile summary suggests rank16_update_or_memory_bandwidth as bottleneck, but the negligible speedup indicates the full GEMM (W @ X) dominates runtime.\"\n  ],\n  \"recommended_actions\": [\n    \"Profile to confirm that cuBLAS W @ X consumes >95% of time; if so, accept baseline as near-optimal.\",\n    \"If further optimization is required, explore overlapping the rank-16 update with the GEMM using a separate stream, but this adds complexity and may not help due to GPU saturation.\",\n    \"Consider shape-aware dispatch only if future candidates show benefit for smaller d where rank-16 fraction is larger, but for d in [3584,4608] this is not promising.\"\n  ],\n  \"avoid\": [\n    \"Tuning block size, vector width, or shared memory for the rank-16 kernel\u2014these will not move the needle on overall performance.\",\n    \"Hardcoding hidden dimensions or assuming a specific d.\",\n    \"Attempting to write a custom full GEMM to replace cuBLAS; high risk and unlikely to beat cuBLAS for these large square matrices.\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "8d70aa0cce70a34512828222a167982b78eb1c025cd877b8d3f96934f5c6176d",
+    "model": "DeepSeek-V4-Pro"
+  },
+  "run_id": "20260508T021405Z_pid5668",
+  "started_ts": 1778207124.2574277,
+  "status": "success"
+}

@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Add y = y.contiguous(); before launch_rank16_add(y, Ac, t, d);"
+  ],
+  "warnings": [
+    "The output tensor y from matmul is assumed contiguous; consider calling y = y.contiguous() before passing to the custom kernel to guarantee correct memory layout for vectorized access."
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "candidate": {
+    "block_size": 512,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 3,
+    "llm_generated": false,
+    "name": "rank16_b512_vec4",
+    "parent": 1,
+    "shape_dispatch": false,
+    "strategy": "Higher block size may improve occupancy for larger d, potentially reducing the regression at d=4608 and increasing overall speedup.",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  "enabled": true,
+  "origin": "deterministic_fallback"
+}

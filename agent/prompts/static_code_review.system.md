@@ -31,6 +31,8 @@ Pure cuBLAS three-SGEMM review focus:
 - Verify that it avoids explicit B.T transpose-copy materialization when cuBLAS operation flags can express the same math.
 - Check that the row-major PyTorch tensors are correctly interpreted through cuBLAS column-major conventions.
 - Check the three SGEMMs separately: main W @ X term, temporary U with shape {d, 16} for the low-rank intermediate, and final low-rank accumulation into Y with beta = 1.
+- For qyh-style candidates, require the low-rank U mapping to use U shape {d,16} with SGEMM dimensions m=d, n=16, k=d and U leading dimension d. Flag m=16, n=d or U leading dimension 16 as high risk unless the code gives a convincing, shape-general proof.
+- For qyh-style candidates, require the final accumulation SGEMM to use m=d, n=d, k=16 with beta=1 and to read U with leading dimension d and A with leading dimension 16.
 - Treat missing CUDA/cuBLAS headers, wrong cuBLAS op flags, m/n/k dimensions, leading dimensions, alpha/beta values, or stream binding as high-risk or blocking issues.
 
 Return JSON only. Do not include Markdown fences.

@@ -14,6 +14,8 @@ Important reasoning rules:
 - If the rank-16 path is slow or fragile, consider replacing handwritten rank-16 kernels with the cuBLAS low-rank SGEMM sequence.
 - Check whether the candidate avoids explicit B.T materialization, uses a temporary U with shape {d, 16}, and accumulates the low-rank term into Y with beta = 1.
 - If a pure cuBLAS candidate is incorrect, suspect row-major/column-major reasoning, cuBLAS op flags, m/n/k dimensions, leading dimensions, or alpha/beta settings before suggesting unrelated optimizations.
+- When repairing a failed pure cuBLAS candidate, steer it back to the qyh-style mapping: U is row-major {d,16}, the low-rank intermediate SGEMM uses m=d, n=16, k=d, ldc=d, and the final accumulation uses m=d, n=d, k=16 with beta=1.
+- If a candidate treats U as column-major [16,d] or uses U leading dimension 16, call that out as a likely cause of shape-dependent correctness failure and recommend the qyh-style U mapping instead.
 - If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.
 - Consider compile failures and static-review warnings as useful evidence.
 - Do not recommend hardcoding hidden dimensions or hidden tensors.

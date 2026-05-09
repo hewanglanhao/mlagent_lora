@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 1,
+  "llm_generated": false,
+  "name": "fused_rank16_update_v1",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Fuse B.T@X and A@(B.T@X) into a single kernel that writes directly to the output, eliminating intermediate tensor and reducing launch overhead. Vectorized loads (float4) improve memory throughput. Expected 1.2-1.5x speedup for the rank-16 update portion, translating to modest overall improvement over baseline.",
+  "use_fast_math": false,
+  "vector_width": 4
+}

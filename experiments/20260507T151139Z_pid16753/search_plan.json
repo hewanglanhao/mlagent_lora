@@ -1,0 +1,29 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_gemm_plus_custom_rank16_update"
+    ],
+    "priority_order": [
+      "scalar_tiled_kernel",
+      "vectorized_tiled_kernel",
+      "shared_mem_optimized"
+    ],
+    "rationale": "The baseline uses three separate ATen/cuBLAS launches. The rank-16 update (A @ (B.T @ X)) is a small-K GEMM that can be efficiently fused into a single custom kernel that adds directly to the output of W @ X, reducing launch overhead and memory traffic. Keeping cuBLAS for the large W @ X ensures stability. We will explore tiled kernels with increasing optimization levels.",
+    "risk_controls": [
+      "static_review",
+      "correctness_test_all_d",
+      "benchmark_against_baseline"
+    ],
+    "stop_conditions": [
+      "speedup_gt_1.2",
+      "no_improvement_after_3_candidates"
+    ],
+    "strategy": "cublas_plus_custom_rank16"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "cublas_plus_custom_rank16"
+}

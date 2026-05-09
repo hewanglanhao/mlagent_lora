@@ -1,0 +1,32 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "fused_rank16_scalar",
+      "fused_rank16_vectorized",
+      "fused_rank16_tiled"
+    ],
+    "priority_order": [
+      "fused_rank16_scalar",
+      "fused_rank16_vectorized",
+      "fused_rank16_tiled"
+    ],
+    "rationale": "Baseline shows negligible speedup due to multiple ATen launches. Fusing the rank-16 update (B.T @ X then A @ intermediate) into a single custom kernel reduces launch overhead and avoids intermediate memory. Starting with a scalar kernel is low-risk and validates the approach before attempting vectorized or tiled optimizations.",
+    "risk_controls": [
+      "keep_aten_baseline_as_fallback",
+      "correctness_test_all_d",
+      "benchmark_before_promotion",
+      "static_review"
+    ],
+    "stop_conditions": [
+      "speedup_above_1.2x",
+      "no_improvement_after_3_candidates"
+    ],
+    "strategy": "fuse_rank16_update"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fuse_rank16_update"
+}

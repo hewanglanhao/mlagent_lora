@@ -1,0 +1,41 @@
+{
+  "avoid": [
+    "Hardcoding hidden dimensions or tensors.",
+    "Enabling fast math without verifying it does not introduce numerical errors (though correctness is currently perfect).",
+    "Overcomplicating with shape dispatch if the custom kernel can be optimized to beat cuBLAS across all shapes."
+  ],
+  "bottleneck": "rank16_update",
+  "confidence": "medium",
+  "evidence": [
+    "Aggregate speedup is only 1.005, essentially no improvement over baseline.",
+    "Speedup for d=3584 is 1.038, but for d=4096 it is 0.995 and for d=4608 it is 0.984, showing regression on larger shapes.",
+    "Custom rank-16 update kernel uses block_size=128 and vector_width=1 (scalar loads/stores), leading to poor memory bandwidth utilization.",
+    "Profile summary identifies bottleneck as rank16_update_or_memory_bandwidth and suggests trying float4 stores.",
+    "All shapes are divisible by 4, so vectorization to float4 is feasible and likely beneficial."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0050342689577239, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.9639039039611816, \"4096\": 6.228991985321045, \"4608\": 8.559103965759277}, \"speedup\": {\"3584\": 1.038491339193055, \"4096\": 0.9955614050921742, \"4608\": 0.9842076838764591}, \"torch_ms\": {\"3584\": 4.116479873657227, \"4096\": 6.201344013214111, \"4608\": 8.423935890197754}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Increase vector_width to 4 (float4) to improve memory coalescing and bandwidth.",
+    "Experiment with smaller block sizes (e.g., 64 or 32) to improve occupancy for the rank-16 update kernel.",
+    "Consider using shared memory to cache tiles of A and B for the rank-16 update to reduce global memory traffic.",
+    "Evaluate whether using cuBLAS for the two small GEMMs (B.T @ X and A @ result) is faster than the custom fused kernel; if so, fall back to cuBLAS for the rank-16 update.",
+    "If custom kernel is retained, add shape-aware dispatch to use it only for d=3584 where it shows a gain, and use cuBLAS for larger shapes."
+  ]
+}

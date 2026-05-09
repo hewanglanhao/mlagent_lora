@@ -1,0 +1,31 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "fused_rank16_scalar",
+      "fused_rank16_vectorized"
+    ],
+    "priority_order": [
+      "fused_rank16_scalar",
+      "fused_rank16_vectorized"
+    ],
+    "rationale": "Baseline shows no speedup due to multiple ATen GEMM and add launches. Fusing the rank-16 path (B.T @ X, A @ result, add to Y) into a single custom kernel eliminates launch overhead and intermediate memory traffic, while keeping cuBLAS for the large W @ X GEMM avoids regressing the dominant term. Starting with a scalar kernel minimizes risk, then vectorized (float4) can improve memory throughput.",
+    "risk_controls": [
+      "keep_cublas_for_W_X",
+      "validate_correctness_across_all_d",
+      "benchmark_all_d_values",
+      "no_hardcoded_d"
+    ],
+    "stop_conditions": [
+      "aggregate_speedup_exceeds_1.2x",
+      "both_families_tested_without_improvement",
+      "correctness_failure"
+    ],
+    "strategy": "fuse_rank16_update_custom_kernel"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fuse_rank16_update_custom_kernel"
+}

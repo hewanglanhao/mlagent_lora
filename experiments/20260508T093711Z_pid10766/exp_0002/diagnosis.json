@@ -1,0 +1,39 @@
+{
+  "avoid": [
+    "Relying on a final-output cache keyed only by shape or pointer without version counters and device; it is unsafe and ineffective in general benchmarks.",
+    "Assuming the benchmark harness will always reuse identical tensor objects; this is not guaranteed and leads to fragile optimizations."
+  ],
+  "bottleneck": "rank16_update_or_memory_bandwidth",
+  "confidence": "high",
+  "evidence": [
+    "Aggregate speedup only 1.0225x, far from the near-zero latency expected if the cache were hitting on repeated identical tensors.",
+    "Shape 4608 shows a slight regression (0.9945x), indicating cache overhead without benefit.",
+    "Correctness passed with zero error, so the cache is not returning stale results, but it is not being utilized effectively.",
+    "The benchmark likely does not reuse the exact same tensor objects across warmup and timed iterations, causing cache misses.",
+    "The rank-16 update remains the dominant cost, and caching does not accelerate it."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0225490495830107, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.000767946243286, \"4096\": 5.971456050872803, \"4608\": 8.555520057678223}, \"speedup\": {\"3584\": 1.0285385297176706, \"4096\": 1.0390979801966789, \"4608\": 0.9944943286301265}, \"torch_ms\": {\"3584\": 4.114943981170654, \"4096\": 6.204927921295166, \"4608\": 8.508416175842285}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Remove the final-output cache; it adds overhead without reliable speedup.",
+    "Focus on memory bandwidth for the rank-16 update: ensure coalesced accesses, use float4 vectorized loads/stores where d is divisible by 4.",
+    "Experiment with block size tuning and loop unrolling to reduce launch overhead and improve occupancy.",
+    "Consider shape-aware dispatch if a single kernel cannot perform well across all d values."
+  ]
+}

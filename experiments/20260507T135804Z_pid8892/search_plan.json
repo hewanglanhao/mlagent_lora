@@ -1,0 +1,33 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_wx_fused_rank16_kernel",
+      "cublas_wx_fused_rank16_vectorized",
+      "cublas_wx_fused_rank16_tiled"
+    ],
+    "priority_order": [
+      "cublas_wx_fused_rank16_kernel",
+      "cublas_wx_fused_rank16_vectorized",
+      "cublas_wx_fused_rank16_tiled"
+    ],
+    "rationale": "Baseline ATen reference shows bottleneck is multiple GEMM and add launches. Keeping cuBLAS for the large W@X matmul and fusing the rank-16 update (B.T@X then A@...) into a single custom kernel will reduce launch overhead and improve memory locality. Start with a simple fused kernel, then explore vectorized loads/stores and shared memory tiling to maximize bandwidth utilization.",
+    "risk_controls": [
+      "always keep cuBLAS for W @ X",
+      "validate correctness against baseline for all d in [3584, 4096, 4608]",
+      "use runtime shape dispatch, never hardcode d",
+      "static review for memory safety and launch bounds"
+    ],
+    "stop_conditions": [
+      "aggregate speedup > 1.2x over baseline",
+      "three consecutive candidates with no improvement",
+      "any candidate fails correctness"
+    ],
+    "strategy": "fuse_rank16_update"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fuse_rank16_update"
+}
