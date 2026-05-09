@@ -1,0 +1,983 @@
+[
+  {
+    "aggregate_speedup": 1.0315494945175359,
+    "benchmark": {
+      "aggregate_speedup": 1.0315494945175359,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.5942399501800537,
+        "4096": 5.660671949386597,
+        "4608": 7.251968145370483
+      },
+      "speedup": {
+        "3584": 1.0368946030055053,
+        "4096": 1.0297575928882874,
+        "4608": 1.0285935882018975
+      },
+      "torch_ms": {
+        "3584": 3.726848006248474,
+        "4096": 5.829119920730591,
+        "4608": 7.459327936172485
+      }
+    },
+    "block_size": 512,
+    "compile": {
+      "compile_time_sec": 221.296756436117,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_3_1778316064956",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.00146484375,
+          "passed": true,
+          "rel_l2_err": 7.909732744337816e-07,
+          "rtol": 0.0001
+        },
+        "4096": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        },
+        "4608": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.00146484375,
+      "rel_l2_err": 7.909732744337816e-07
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Do not write or tune a custom full d x d GEMM for W @ X; cuBLAS SGEMM should handle the dominant term.",
+        "Do not explicitly transpose or materialize B.T.",
+        "Do not use a U layout of [16,d] with leading dimension 16; use U shape {d,16} with ldc=d for the qyh-style mapping.",
+        "Do not use opA=T/opB=T for SGEMM1 or SGEMM3 unless the full row-major/column-major mapping has been rederived and validated.",
+        "Do not hardcode hidden dimensions beyond the runtime d and rank 16 contract.",
+        "Do not rely on result caching or repeated identical inputs as an optimization strategy."
+      ],
+      "bottleneck": "rank16_custom_update_overhead",
+      "confidence": "medium",
+      "evidence": [
+        "Candidate is correct for all tested shapes: d=3584, 4096, 4608 with max_abs_err 0.00146484375 and rel_l2_err 7.9e-7.",
+        "Speedup is positive but modest and uniform: 1.0369x at d=3584, 1.0298x at d=4096, 1.0286x at d=4608, aggregate 1.0315x.",
+        "Profile labels the remaining bottleneck as rank16_update_or_memory_bandwidth, consistent with a cublas main GEMM plus handwritten scalar rank-16 update path.",
+        "The main W @ X term is a large d x d SGEMM and likely dominates total runtime; replacing it with a custom GEMM is not indicated.",
+        "The implementation uses a custom scalar rank-16 update, which is correct here but likely leaves performance on the table versus a pure cuBLAS low-rank SGEMM sequence.",
+        "Compile time is very high at 221 seconds despite only a modest runtime improvement."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "overfitting one exact d"
+        ],
+        "bottleneck": "rank16_update_or_memory_bandwidth",
+        "candidate_family": "cublas_plus_custom_rank16_update",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 1.0315494945175359, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.5942399501800537, \"4096\": 5.660671949386597, \"4608\": 7.251968145370483}, \"speedup\": {\"3584\": 1.0368946030055053, \"4096\": 1.0297575928882874, \"4608\": 1.0285935882018975}, \"torch_ms\": {\"3584\": 3.726848006248474, \"4096\": 5.829119920730591, \"4608\": 7.459327936172485}}"
+        ],
+        "promotion_advice": "promote",
+        "recommended_actions": [
+          "vary block size",
+          "try float4 stores when d is divisible by 4",
+          "fall back to ATen if numerical error appears"
+        ]
+      },
+      "promotion_advice": "promote",
+      "recommended_actions": [
+        "Keep direct cuBLAS SGEMM for the main W @ X term; do not attempt a custom full GEMM.",
+        "Validate a pure cuBLAS three-SGEMM implementation before further tuning the handwritten rank-16 update.",
+        "Use the qyh-style pure cuBLAS mapping: SGEMM1 opA=N/opB=N with A=X and B=W to compute the main output Y.",
+        "Compute the low-rank temporary U without explicitly materializing B.T: SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, U shape {d,16}, ldc=d.",
+        "Accumulate the low-rank contribution into Y using SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1.",
+        "If retaining the custom rank-16 update, benchmark against the pure cuBLAS three-SGEMM version on all d values; only keep the custom path if it clearly beats cuBLAS and remains correct.",
+        "Because speedup is consistent across all tested shapes, this candidate is usable as a baseline, but the next iteration should focus on eliminating the custom scalar rank-16 kernel."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 5511,
+      "candidate": {
+        "block_size": 512,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 3,
+        "llm_generated": true,
+        "name": "rank16_scalar_b512",
+        "parent": 1,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 3,
+    "latency_by_d": {
+      "3584": 3.5942399501800537,
+      "4096": 5.660671949386597,
+      "4608": 7.251968145370483
+    },
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [],
+      "warnings": []
+    },
+    "name": "rank16_scalar_b512",
+    "parent": 1,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 1.0315494945175359,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.5942399501800537,
+          "4096": 5.660671949386597,
+          "4608": 7.251968145370483
+        },
+        "speedup": {
+          "3584": 1.0368946030055053,
+          "4096": 1.0297575928882874,
+          "4608": 1.0285935882018975
+        },
+        "torch_ms": {
+          "3584": 3.726848006248474,
+          "4096": 5.829119920730591,
+          "4608": 7.459327936172485
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T082444Z_pid155/exp_0003/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 1.031426319037018,
+    "benchmark": {
+      "aggregate_speedup": 1.031426319037018,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.5942399501800537,
+        "4096": 5.657599925994873,
+        "4608": 7.249919891357422
+      },
+      "speedup": {
+        "3584": 1.036324798089064,
+        "4096": 1.0301357446918615,
+        "4608": 1.0282486057785147
+      },
+      "torch_ms": {
+        "3584": 3.7247999906539917,
+        "4096": 5.82809591293335,
+        "4608": 7.4547200202941895
+      }
+    },
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 221.88566224905662,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_2_1778315750917",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.00146484375,
+          "passed": true,
+          "rel_l2_err": 7.909732744337816e-07,
+          "rtol": 0.0001
+        },
+        "4096": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        },
+        "4608": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.00146484375,
+      "rel_l2_err": 7.909732744337816e-07
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Do not write a custom full W @ X GEMM; the main term should stay on cuBLAS SGEMM.",
+        "Do not hardcode hidden dimensions or assume only one d value.",
+        "Do not materialize B.T as a separate transpose-copy.",
+        "Do not use a U layout of [16,d] with leading dimension 16 for the qyh-style cuBLAS path; use U shape {d,16} with ldc=d.",
+        "Do not use opA=T/opB=T in SGEMM1 or SGEMM3 unless the full row-major/column-major mapping is proven correct.",
+        "Do not optimize via result caching unless the benchmark explicitly validates repeated identical tensor inputs as the target workload.",
+        "Do not spend much effort tuning block size or vectorized stores before comparing against the pure cuBLAS low-rank SGEMM sequence."
+      ],
+      "bottleneck": "main_sgemm_dominates_with_marginal_rank16_overhead",
+      "confidence": "medium",
+      "evidence": [
+        "Candidate is correct for all tested d values: 3584, 4096, and 4608.",
+        "Speedup is consistent but small: 1.036x at d=3584, 1.030x at d=4096, 1.028x at d=4608, aggregate 1.031x.",
+        "Latency scales like the dominant d x d SGEMM term: 3.59 ms, 5.66 ms, 7.25 ms as d increases.",
+        "Profile labels the remaining bottleneck as rank16_update_or_memory_bandwidth, suggesting the custom rank-16 update is not a large compute win and may be memory-bandwidth limited.",
+        "No shape-specific regression is visible, but the improvement is small enough that cuBLAS-only low-rank sequencing should be validated before relying on handwritten rank-16 kernels.",
+        "Compile succeeded and static review passed, but compile time is high at about 222 seconds."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "overfitting one exact d"
+        ],
+        "bottleneck": "rank16_update_or_memory_bandwidth",
+        "candidate_family": "cublas_plus_custom_rank16_update",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 1.031426319037018, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.5942399501800537, \"4096\": 5.657599925994873, \"4608\": 7.249919891357422}, \"speedup\": {\"3584\": 1.036324798089064, \"4096\": 1.0301357446918615, \"4608\": 1.0282486057785147}, \"torch_ms\": {\"3584\": 3.7247999906539917, \"4096\": 5.82809591293335, \"4608\": 7.4547200202941895}}"
+        ],
+        "promotion_advice": "promote",
+        "recommended_actions": [
+          "vary block size",
+          "try float4 stores when d is divisible by 4",
+          "fall back to ATen if numerical error appears"
+        ]
+      },
+      "promotion_advice": "needs_more_data",
+      "recommended_actions": [
+        "Validate a pure cuBLAS three-SGEMM implementation before further tuning the handwritten rank-16 update.",
+        "Use direct cuBLAS SGEMM for the main W @ X term; do not attempt a custom full d x d GEMM.",
+        "For the pure cuBLAS path, use the exact qyh-style mapping: SGEMM1 opA=N/opB=N with A=X and B=W for the main output Y.",
+        "Compute the low-rank intermediate with SGEMM2 opA=N/opB=T using A=X and B=B, with m=d, n=16, k=d, output U shape {d,16}, and ldc=d.",
+        "Accumulate the low-rank term with SGEMM3 opA=N/opB=N using A=U and B=A, with m=d, n=d, k=16, and beta=1 so the result is added into Y.",
+        "Avoid explicit B.T materialization; use the cuBLAS transpose flag for B in SGEMM2.",
+        "Benchmark the pure cuBLAS three-SGEMM candidate against this candidate across all three d values. If it matches correctness and is comparable or faster, prefer it because it is simpler and less fragile.",
+        "If keeping this candidate as a temporary baseline, confirm performance stability with more benchmark iterations because the observed gain is only about 3%."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 5810,
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 2,
+        "llm_generated": true,
+        "name": "rank16_scalar_b128",
+        "parent": 1,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 2,
+    "latency_by_d": {
+      "3584": 3.5942399501800537,
+      "4096": 5.657599925994873,
+      "4608": 7.249919891357422
+    },
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "Add #include <limits> near the other includes.",
+        "Optionally rely on at::cuda::getCurrentCUDABlasHandle() stream configuration instead of calling cublasSetStream manually, unless explicit stream binding is required by the submission framework."
+      ],
+      "warnings": [
+        "The code uses std::numeric_limits<int>::max() but does not explicitly include <limits>. This may compile transitively through PyTorch headers, but the source should include <limits> directly for self-contained correctness.",
+        "cublasSetStream is called explicitly on the PyTorch cuBLAS handle. This is acceptable for stream binding, but PyTorch's getCurrentCUDABlasHandle usually already returns a handle configured for the current stream."
+      ]
+    },
+    "name": "rank16_scalar_b128",
+    "parent": 1,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 1.031426319037018,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.5942399501800537,
+          "4096": 5.657599925994873,
+          "4608": 7.249919891357422
+        },
+        "speedup": {
+          "3584": 1.036324798089064,
+          "4096": 1.0301357446918615,
+          "4608": 1.0282486057785147
+        },
+        "torch_ms": {
+          "3584": 3.7247999906539917,
+          "4096": 5.82809591293335,
+          "4608": 7.4547200202941895
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T082444Z_pid155/exp_0002/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 1.0311698089154095,
+    "benchmark": {
+      "aggregate_speedup": 1.0311698089154095,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.595263957977295,
+        "4096": 5.660672187805176,
+        "4608": 7.251967906951904
+      },
+      "speedup": {
+        "3584": 1.0363144520124168,
+        "4096": 1.0296670791464113,
+        "4608": 1.0280288055103999
+      },
+      "torch_ms": {
+        "3584": 3.725823998451233,
+        "4096": 5.828607797622681,
+        "4608": 7.4552319049835205
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 224.13671108102426,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_1_1778315447088",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.00146484375,
+          "passed": true,
+          "rel_l2_err": 7.909732744337816e-07,
+          "rtol": 0.0001
+        },
+        "4096": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        },
+        "4608": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.00146484375,
+      "rel_l2_err": 7.909732744337816e-07
+    },
+    "decision": "promoted_to_best",
+    "diagnosis": {
+      "avoid": [
+        "Do not replace the full W @ X SGEMM with a custom CUDA GEMM; that term dominates and cuBLAS is the right implementation.",
+        "Do not pursue block-size tuning or float4 store tuning unless a future candidate actually introduces custom kernels; these are not meaningful for the current pure cuBLAS path.",
+        "Do not materialize B.T explicitly, since the current cuBLAS op flags already avoid that extra copy.",
+        "Do not change U to a column-major [16,d] contract, m=16,n=d, or leading dimension 16; that is a common source of correctness failures.",
+        "Do not use result caching as an optimization unless the benchmark explicitly validates repeated identical inputs as the target workload."
+      ],
+      "bottleneck": "main_sgemm_dominates",
+      "confidence": "high",
+      "evidence": [
+        "Correctness passed for all tested d values: 3584, 4096, and 4608, with max_abs_err 0.00146 and rel_l2_err 7.9e-07.",
+        "The candidate implements the desired pure cuBLAS three-SGEMM style path and avoids ATen matmul/add overhead and explicit B.T materialization.",
+        "Speedup is positive and consistent across all shapes: 1.036x at d=3584, 1.030x at d=4096, and 1.028x at d=4608.",
+        "Aggregate speedup is modest at 1.031x, which is expected because the dominant cost is the full d x d SGEMM for W @ X; the rank-16 path is comparatively small.",
+        "No static review warnings or compile errors were reported.",
+        "Profile suggestion about varying block size or float4 stores is not very relevant for this candidate because the implementation is cuBLAS-based rather than a handwritten update kernel."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "overfitting one exact d"
+        ],
+        "bottleneck": "rank16_update_or_memory_bandwidth",
+        "candidate_family": "cublas_plus_custom_rank16_update",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 1.0311698089154095, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.595263957977295, \"4096\": 5.660672187805176, \"4608\": 7.251967906951904}, \"speedup\": {\"3584\": 1.0363144520124168, \"4096\": 1.0296670791464113, \"4608\": 1.0280288055103999}, \"torch_ms\": {\"3584\": 3.725823998451233, \"4096\": 5.828607797622681, \"4608\": 7.4552319049835205}}"
+        ],
+        "promotion_advice": "promote",
+        "recommended_actions": [
+          "vary block size",
+          "try float4 stores when d is divisible by 4",
+          "fall back to ATen if numerical error appears"
+        ]
+      },
+      "promotion_advice": "promote",
+      "recommended_actions": [
+        "Promote this as a correct low-risk baseline pure cuBLAS implementation.",
+        "Keep the exact qyh-style three-SGEMM mapping: SGEMM1 computes W @ X through the row-major-compatible cuBLAS layout, SGEMM2 computes U = B.T @ X using U shape {d,16} with m=d, n=16, k=d, ldc=d, and SGEMM3 accumulates A @ U into Y with beta=1.",
+        "Continue avoiding explicit B.T materialization and avoid ATen matrix multiply composition.",
+        "For further improvement, focus on reducing launch/dispatch overhead around the three cuBLAS calls or investigating cuBLASLt grouped/heuristic matmul options, while preserving the same mathematical layout and beta=1 accumulation.",
+        "Use this candidate as the reference fallback for future custom-rank16 experiments, since it is correct and consistently faster across all tested shapes.",
+        "Run a slightly longer benchmark if promotion criteria are strict, because the measured improvement is only about 3%, but the consistency across shapes is a good signal."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 5482,
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 1,
+        "llm_generated": true,
+        "name": "pure_cublas_three_sgemm_qyh",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "Removes ATen matmul/add composition and explicit B.T materialization while keeping all heavy work in cuBLAS; expected modest speedup from lower launch/dispatch overhead and accumulating rank-16 update into Y with beta=1.",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 1,
+    "latency_by_d": {
+      "3584": 3.595263957977295,
+      "4096": 5.660672187805176,
+      "4608": 7.251967906951904
+    },
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "Optionally document that U's PyTorch shape is only an allocation convenience and its memory is interpreted as column-major by cuBLAS.",
+        "Optionally rely on at::cuda::getCurrentCUDABlasHandle stream binding if desired, but the explicit cublasSetStream call is acceptable and checked."
+      ],
+      "warnings": [
+        "Inputs are made contiguous via copies when needed, which is safe but may add overhead for non-contiguous tensors.",
+        "The temporary U tensor is allocated as a PyTorch row-major {d,16} tensor but is intentionally used only as a cuBLAS column-major d x 16 buffer; this is correct because U is not exposed, but the comment could be clearer."
+      ]
+    },
+    "name": "pure_cublas_three_sgemm_qyh",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 1.0311698089154095,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.595263957977295,
+          "4096": 5.660672187805176,
+          "4608": 7.251967906951904
+        },
+        "speedup": {
+          "3584": 1.0363144520124168,
+          "4096": 1.0296670791464113,
+          "4608": 1.0280288055103999
+        },
+        "torch_ms": {
+          "3584": 3.725823998451233,
+          "4096": 5.828607797622681,
+          "4608": 7.4552319049835205
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T082444Z_pid155/exp_0001/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "Removes ATen matmul/add composition and explicit B.T materialization while keeping all heavy work in cuBLAS; expected modest speedup from lower launch/dispatch overhead and accumulating rank-16 update into Y with beta=1.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 1.030927606617133,
+    "benchmark": {
+      "aggregate_speedup": 1.030927606617133,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.595263957977295,
+        "4096": 5.659136056900024,
+        "4608": 7.2524800300598145
+      },
+      "speedup": {
+        "3584": 1.0361720413564524,
+        "4096": 1.0292228259383571,
+        "4608": 1.0279562127828477
+      },
+      "torch_ms": {
+        "3584": 3.7253119945526123,
+        "4096": 5.824512004852295,
+        "4608": 7.4552319049835205
+      }
+    },
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 221.54715049709193,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_4_1778316391583",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.00146484375,
+          "passed": true,
+          "rel_l2_err": 7.909732744337816e-07,
+          "rtol": 0.0001
+        },
+        "4096": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        },
+        "4608": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.00146484375,
+      "rel_l2_err": 7.909732744337816e-07
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Do not write or tune a custom full W @ X GEMM.",
+        "Do not explicitly transpose-copy B into a materialized B.T buffer.",
+        "Do not treat the low-rank temporary U as column-major [16,d] with leading dimension 16.",
+        "Do not use SGEMM2 with m=16,n=d for U if following the qyh-style contract.",
+        "Do not use opA=T/opB=T in SGEMM1 or SGEMM3 unless the row-major/column-major mapping is proven correct.",
+        "Do not hardcode hidden dimensions or assume only one d value.",
+        "Do not rely on result caching or repeated identical inputs as an optimization direction."
+      ],
+      "bottleneck": "main_sgemm_dominates_custom_rank16_marginal",
+      "confidence": "high",
+      "evidence": [
+        "Correctness passes for all tested d values: 3584, 4096, and 4608.",
+        "Numerical error is acceptable: max_abs_err 0.00146484375 and rel_l2_err 7.9e-7, with exact agreement for 4096 and 4608.",
+        "Speedup is consistent but small across shapes: 1.036x at d=3584, 1.029x at d=4096, 1.028x at d=4608.",
+        "Aggregate speedup is only 1.031x, indicating the dominant cost remains the large W @ X SGEMM.",
+        "Profile labels the remaining bottleneck as rank16_update_or_memory_bandwidth, but the low-rank path is small compared with the d x d main multiply.",
+        "Candidate uses a custom deterministic rank-16 update; this may be adding implementation complexity for only a small gain.",
+        "Compile succeeded and static review found no warnings, but compile time was high at 221.5 seconds."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "overfitting one exact d"
+        ],
+        "bottleneck": "rank16_update_or_memory_bandwidth",
+        "candidate_family": "cublas_plus_custom_rank16_update",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 1.030927606617133, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.595263957977295, \"4096\": 5.659136056900024, \"4608\": 7.2524800300598145}, \"speedup\": {\"3584\": 1.0361720413564524, \"4096\": 1.0292228259383571, \"4608\": 1.0279562127828477}, \"torch_ms\": {\"3584\": 3.7253119945526123, \"4096\": 5.824512004852295, \"4608\": 7.4552319049835205}}"
+        ],
+        "promotion_advice": "promote",
+        "recommended_actions": [
+          "vary block size",
+          "try float4 stores when d is divisible by 4",
+          "fall back to ATen if numerical error appears"
+        ]
+      },
+      "promotion_advice": "needs_more_data",
+      "recommended_actions": [
+        "Validate a pure cuBLAS three-SGEMM implementation before further tuning this handwritten rank-16 path.",
+        "Use direct cuBLAS SGEMM for W @ X; do not attempt a custom full GEMM because the main term dominates and cuBLAS is the right implementation.",
+        "For the pure cuBLAS path, use the exact qyh-style mapping: SGEMM1 opA=N/opB=N with A=X and B=W to produce Y.",
+        "Compute the low-rank intermediate without explicitly materializing B.T: SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, producing U with shape {d,16} and ldc=d.",
+        "Accumulate the low-rank output directly into Y: SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, and beta=1.",
+        "Compare this candidate against the pure cuBLAS three-SGEMM version on all target shapes; only keep the custom rank-16 update if it beats pure cuBLAS reliably.",
+        "If retaining this candidate, profile kernel-level time to confirm whether the custom rank-16 update is actually faster than cuBLAS SGEMM3 or only hidden by W @ X dominance.",
+        "Because gains are uniform but small, collect more benchmark iterations and possibly additional d values before promotion."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 5496,
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 4,
+        "llm_generated": true,
+        "name": "rank16_vec4_b128",
+        "parent": 1,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 4
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 4,
+    "latency_by_d": {
+      "3584": 3.595263957977295,
+      "4096": 5.659136056900024,
+      "4608": 7.2524800300598145
+    },
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [],
+      "warnings": []
+    },
+    "name": "rank16_vec4_b128",
+    "parent": 1,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 1.030927606617133,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.595263957977295,
+          "4096": 5.659136056900024,
+          "4608": 7.2524800300598145
+        },
+        "speedup": {
+          "3584": 1.0361720413564524,
+          "4096": 1.0292228259383571,
+          "4608": 1.0279562127828477
+        },
+        "torch_ms": {
+          "3584": 3.7253119945526123,
+          "4096": 5.824512004852295,
+          "4608": 7.4552319049835205
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T082444Z_pid155/exp_0004/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  {
+    "aggregate_speedup": 1.0002023828475946,
+    "benchmark": {
+      "aggregate_speedup": 1.0002023828475946,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.7263360023498535,
+        "4096": 5.82809591293335,
+        "4608": 7.457791805267334
+      },
+      "speedup": {
+        "3584": 1.0001374014308688,
+        "4096": 1.000351403893326,
+        "4608": 1.0000686695366783
+      },
+      "torch_ms": {
+        "3584": 3.726848006248474,
+        "4096": 5.830143928527832,
+        "4608": 7.458303928375244
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 221.1390770340804,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_0_1778315104325",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        },
+        "4096": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        },
+        "4608": {
+          "atol": 0.002,
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0,
+          "rtol": 0.0001
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Do not promote this baseline as an optimization; it is only a correctness reference.",
+        "Do not write a custom kernel for the full W @ X GEMM.",
+        "Do not materialize B.T as a separate transpose-copy.",
+        "Do not use fragile handwritten rank-16 kernels before validating the pure cuBLAS three-SGEMM sequence.",
+        "Do not use opA=T/opB=T for SGEMM1 or SGEMM3.",
+        "Do not treat U as column-major [16,d], do not use m=16,n=d for U, and do not use leading dimension 16 for U.",
+        "Do not hardcode hidden dimensions or hidden tensors.",
+        "Do not rely on result caching unless the benchmark explicitly uses repeated identical inputs as the target workload."
+      ],
+      "bottleneck": "aten_reference_multiple_gemm_launches",
+      "confidence": "high",
+      "evidence": [
+        "Candidate is exactly correct for all tested d values: 3584, 4096, and 4608 with max_abs_err=0 and rel_l2_err=0.",
+        "Performance is effectively identical to the PyTorch/ATen reference: aggregate speedup is only 1.0002x.",
+        "Per-shape speedups are negligible: 1.0001x at d=3584, 1.0004x at d=4096, and 1.0001x at d=4608.",
+        "Profile labels the bottleneck as multiple ATen GEMM and add launches, indicating the submission has not changed the computational path in a meaningful way.",
+        "Latency is dominated by the large W @ X GEMM, so replacing that with a custom full GEMM is not advisable; it should remain a direct cuBLAS SGEMM."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "overfitting one exact d"
+        ],
+        "bottleneck": "multiple_aten_gemm_and_add_launches",
+        "candidate_family": "aten_reference",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 1.0002023828475946, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.7263360023498535, \"4096\": 5.82809591293335, \"4608\": 7.457791805267334}, \"speedup\": {\"3584\": 1.0001374014308688, \"4096\": 1.000351403893326, \"4608\": 1.0000686695366783}, \"torch_ms\": {\"3584\": 3.726848006248474, \"4096\": 5.830143928527832, \"4608\": 7.458303928375244}}"
+        ],
+        "promotion_advice": "promote",
+        "recommended_actions": [
+          "keep cuBLAS for W @ X",
+          "fuse rank-16 update into the output tensor",
+          "test scalar and vectorized rank-16 kernels"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Move away from ATen matmul/add composition and implement a pure cuBLAS three-SGEMM path.",
+        "Use direct cuBLAS SGEMM for the main term W @ X rather than writing a custom full GEMM.",
+        "Avoid explicit B.T materialization. Compute the low-rank intermediate directly with cuBLAS.",
+        "Use the qyh-style mapping exactly: SGEMM1 with opA=N/opB=N using A=X and B=W to produce Y.",
+        "Then compute U = B.T @ X using SGEMM2 with opA=N/opB=T, A=X, B=B, m=d, n=16, k=d, U shape {d,16}, and ldc=d.",
+        "Accumulate the low-rank term into Y using SGEMM3 with opA=N/opB=N, A=U, B=A, m=d, n=d, k=16, and beta=1.",
+        "Keep U laid out as {d,16} with leading dimension d, not as {16,d}.",
+        "Validate the pure cuBLAS implementation across all runtime d values before considering handwritten rank-16 kernels.",
+        "If later experiments show one d improves but another regresses, use shape-aware dispatch or reject promotion."
+      ]
+    },
+    "family": "aten_reference",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "aten_reference",
+        "id": 0,
+        "llm_generated": false,
+        "name": "baseline_aten",
+        "parent": null,
+        "shape_dispatch": false,
+        "strategy": "",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "origin": "deterministic_baseline"
+    },
+    "id": 0,
+    "latency_by_d": {
+      "3584": 3.7263360023498535,
+      "4096": 5.82809591293335,
+      "4608": 7.457791805267334
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "If targeting a pure cuBLAS three-SGEMM implementation, replace ATen matmul calls with cublasSgemm calls using the required operation flags and leading dimensions, include the necessary CUDA/cuBLAS headers, and bind the cuBLAS handle to the current PyTorch CUDA stream.",
+        "Avoid materializing B.T by expressing the transpose through cuBLAS operation flags when using cuBLAS.",
+        "Optionally add TORCH_CHECK(d >= 3584 && d <= 4608, ...) to enforce the documented supported runtime range.",
+        "Optionally verify W, X, A, and B are on the same CUDA device before launching computation."
+      ],
+      "warnings": [
+        "The implementation uses ATen matmul rather than a pure cuBLAS three-SGEMM strategy; this is acceptable for the declared aten_reference family but not suitable if the candidate is intended to satisfy pure cuBLAS requirements.",
+        "The expression Bc.transpose(0, 1).contiguous() explicitly materializes B.T, which is avoidable in a cuBLAS implementation using transpose operation flags.",
+        "The input validation does not explicitly check that d is within [3584, 4608], although the implementation is shape-general and supports runtime d values in that range.",
+        "The input validation does not explicitly check that all tensors are on the same CUDA device; ATen will likely raise an error if they are not, but an earlier explicit check would improve diagnostics."
+      ]
+    },
+    "name": "baseline_aten",
+    "parent": null,
+    "profile": {
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "evidence": {
+        "aggregate_speedup": 1.0002023828475946,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.7263360023498535,
+          "4096": 5.82809591293335,
+          "4608": 7.457791805267334
+        },
+        "speedup": {
+          "3584": 1.0001374014308688,
+          "4096": 1.000351403893326,
+          "4608": 1.0000686695366783
+        },
+        "torch_ms": {
+          "3584": 3.726848006248474,
+          "4096": 5.830143928527832,
+          "4608": 7.458303928375244
+        }
+      },
+      "suggested_actions": [
+        "keep cuBLAS for W @ X",
+        "fuse rank-16 update into the output tensor",
+        "test scalar and vectorized rank-16 kernels"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T082444Z_pid155/exp_0000/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "",
+    "use_fast_math": false,
+    "vector_width": 1
+  }
+]

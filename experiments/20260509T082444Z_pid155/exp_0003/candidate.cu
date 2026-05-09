@@ -47,7 +47,6 @@ void check_inputs(const torch::Tensor& W,
                 "all inputs must be float32 tensors");
     TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,
                 "all inputs must be rank-2 tensors");
-
     TORCH_CHECK(W.get_device() == X.get_device() &&
                 W.get_device() == A.get_device() &&
                 W.get_device() == B.get_device(),
@@ -98,7 +97,7 @@ torch::Tensor forward(torch::Tensor W,
     float* Yp = Y.data_ptr<float>();
     float* Up = U.data_ptr<float>();
 
-    // Row-major W @ X is column-major X_col * W_col, stored directly in Y memory.
+    // Row-major W @ X is column-major X^T @ W^T in the same memory.
     CHECK_CUBLAS(cublasSgemm(handle,
                              CUBLAS_OP_N, CUBLAS_OP_N,
                              d, d, d,
@@ -108,8 +107,8 @@ torch::Tensor forward(torch::Tensor W,
                              &beta0,
                              Yp, d));
 
-    // U is a d x 16 column-major cuBLAS buffer in row-major {d,16} storage:
-    // U_col = X_col * B_col^T = (B.T @ X)^T.
+    // U is allocated as {d,16}; as column-major d x 16 it stores X^T @ B,
+    // whose row-major transpose is the logical B.T @ X intermediate.
     CHECK_CUBLAS(cublasSgemm(handle,
                              CUBLAS_OP_N, CUBLAS_OP_T,
                              d, r, d,
@@ -119,7 +118,7 @@ torch::Tensor forward(torch::Tensor W,
                              &beta0,
                              Up, d));
 
-    // Accumulate low-rank update: U_col * A_col = (A @ (B.T @ X))^T into Y.
+    // Accumulate column-major (X^T @ B) @ A^T = (A @ (B.T @ X))^T into Y.
     CHECK_CUBLAS(cublasSgemm(handle,
                              CUBLAS_OP_N, CUBLAS_OP_N,
                              d, d, r,
@@ -133,5 +132,5 @@ torch::Tensor forward(torch::Tensor W,
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("forward", &forward, "LoRA forward");
+    m.def("forward", &forward, "LoRA forward pure cuBLAS three-SGEMM");
 }

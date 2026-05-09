@@ -1,0 +1,45 @@
+{
+  "avoid": [
+    "Do not replace the full W @ X SGEMM with a custom CUDA GEMM; that term dominates and cuBLAS is the right implementation.",
+    "Do not pursue block-size tuning or float4 store tuning unless a future candidate actually introduces custom kernels; these are not meaningful for the current pure cuBLAS path.",
+    "Do not materialize B.T explicitly, since the current cuBLAS op flags already avoid that extra copy.",
+    "Do not change U to a column-major [16,d] contract, m=16,n=d, or leading dimension 16; that is a common source of correctness failures.",
+    "Do not use result caching as an optimization unless the benchmark explicitly validates repeated identical inputs as the target workload."
+  ],
+  "bottleneck": "main_sgemm_dominates",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passed for all tested d values: 3584, 4096, and 4608, with max_abs_err 0.00146 and rel_l2_err 7.9e-07.",
+    "The candidate implements the desired pure cuBLAS three-SGEMM style path and avoids ATen matmul/add overhead and explicit B.T materialization.",
+    "Speedup is positive and consistent across all shapes: 1.036x at d=3584, 1.030x at d=4096, and 1.028x at d=4608.",
+    "Aggregate speedup is modest at 1.031x, which is expected because the dominant cost is the full d x d SGEMM for W @ X; the rank-16 path is comparatively small.",
+    "No static review warnings or compile errors were reported.",
+    "Profile suggestion about varying block size or float4 stores is not very relevant for this candidate because the implementation is cuBLAS-based rather than a handwritten update kernel."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0311698089154095, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.595263957977295, \"4096\": 5.660672187805176, \"4608\": 7.251967906951904}, \"speedup\": {\"3584\": 1.0363144520124168, \"4096\": 1.0296670791464113, \"4608\": 1.0280288055103999}, \"torch_ms\": {\"3584\": 3.725823998451233, \"4096\": 5.828607797622681, \"4608\": 7.4552319049835205}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "promote",
+  "recommended_actions": [
+    "Promote this as a correct low-risk baseline pure cuBLAS implementation.",
+    "Keep the exact qyh-style three-SGEMM mapping: SGEMM1 computes W @ X through the row-major-compatible cuBLAS layout, SGEMM2 computes U = B.T @ X using U shape {d,16} with m=d, n=16, k=d, ldc=d, and SGEMM3 accumulates A @ U into Y with beta=1.",
+    "Continue avoiding explicit B.T materialization and avoid ATen matrix multiply composition.",
+    "For further improvement, focus on reducing launch/dispatch overhead around the three cuBLAS calls or investigating cuBLASLt grouped/heuristic matmul options, while preserving the same mathematical layout and beta=1 accumulation.",
+    "Use this candidate as the reference fallback for future custom-rank16 experiments, since it is correct and consistently faster across all tested shapes.",
+    "Run a slightly longer benchmark if promotion criteria are strict, because the measured improvement is only about 3%, but the consistency across shapes is a good signal."
+  ]
+}

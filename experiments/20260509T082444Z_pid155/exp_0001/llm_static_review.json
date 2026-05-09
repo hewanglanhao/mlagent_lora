@@ -1,0 +1,13 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Optionally document that U's PyTorch shape is only an allocation convenience and its memory is interpreted as column-major by cuBLAS.",
+    "Optionally rely on at::cuda::getCurrentCUDABlasHandle stream binding if desired, but the explicit cublasSetStream call is acceptable and checked."
+  ],
+  "warnings": [
+    "Inputs are made contiguous via copies when needed, which is safe but may add overhead for non-contiguous tensors.",
+    "The temporary U tensor is allocated as a PyTorch row-major {d,16} tensor but is intentionally used only as a cuBLAS column-major d x 16 buffer; this is correct because U is not exposed, but the comment could be clearer."
+  ]
+}

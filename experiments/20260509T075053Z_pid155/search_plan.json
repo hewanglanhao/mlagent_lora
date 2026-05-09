@@ -1,0 +1,38 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_three_sgemm_qyh"
+    ],
+    "priority_order": [
+      "Implement a single optimized_lora.cu using cuBLAS directly for all three matrix multiplications, with no ATen mm/matmul and no explicit transpose materialization.",
+      "Use the qyh-style row-major/column-major mapping exactly: SGEMM1 opA=N/opB=N with A=X and B=W to compute Y; SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, U allocated as {d,16}, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1 to accumulate into Y.",
+      "Bind cuBLAS handle to the current PyTorch CUDA stream, allocate only Y {d,d} and U {d,16}, and validate correctness/latency for d=3584, 4096, and 4608 before considering any other family."
+    ],
+    "rationale": "The only tested candidate is the ATen reference and matches baseline latency, so the next low-risk step is the preferred pure cuBLAS three-SGEMM implementation. The qyh mapping avoids row-major transpose pitfalls, avoids materializing B.T, keeps the dominant W @ X on cuBLAS, and folds the rank-16 update into Y with beta=1. This directly targets ATen launch/materialization overhead while preserving correctness across the runtime d range.",
+    "risk_controls": [
+      "Do not promote unless correctness passes for all tested d values; correctness is a hard gate.",
+      "Do not route W @ X, B.T @ X, or the final low-rank GEMM through ATen mm/matmul.",
+      "Do not use handwritten CUDA kernels as the primary implementation in this iteration.",
+      "Do not materialize B.transpose(0,1).contiguous(); use cuBLAS opB=T for SGEMM2.",
+      "Keep U layout fixed as a row-major tensor of shape {d,16}, interpreted by cuBLAS with ldc=d; avoid alternative U-as-[16,d] layouts or leading dimension 16.",
+      "Use runtime d from tensor sizes only; do not hardcode one hidden benchmark shape.",
+      "Add input checks for CUDA, float32, contiguous tensors, W/X shape {d,d}, A/B shape {d,16}, and d in [3584,4608].",
+      "Use beta=1 in SGEMM3 so the low-rank term is accumulated directly into Y, avoiding a separate add kernel.",
+      "Check all cuBLAS return statuses and ensure the handle uses at::cuda::getCurrentCUDAStream()."
+    ],
+    "stop_conditions": [
+      "Stop and reject the candidate if static review finds ATen mm/matmul, explicit transpose-copy materialization, custom full GEMM kernels, or the wrong U layout.",
+      "Stop and reject if compilation fails or if any cuBLAS API usage/leading dimension is inconsistent with the qyh mapping.",
+      "Stop and reject if correctness fails for any of d=3584, 4096, or 4608.",
+      "Keep the existing ATen baseline as best if the pure cuBLAS candidate is correct but does not improve aggregate speedup.",
+      "After one correct pure cuBLAS qyh candidate is benchmarked, only consider low-risk refinements such as handle reuse or allocation minimization if they preserve the exact SGEMM mapping."
+    ],
+    "strategy": "pure_cublas_qyh_three_sgemm"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_qyh_three_sgemm"
+}

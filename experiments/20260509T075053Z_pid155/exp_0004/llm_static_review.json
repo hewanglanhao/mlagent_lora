@@ -1,0 +1,13 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Keep U internal-only, or document that its PyTorch shape is only used for allocation while cuBLAS treats the memory as column-major with leading dimension d.",
+    "If extending the code, preserve the current qyh-style SGEMM parameter patterns and avoid replacing them with ATen mm/matmul/addmm or explicit transpose materialization."
+  ],
+  "warnings": [
+    "The temporary U tensor is allocated as a regular contiguous PyTorch tensor with shape {d,16}, but is intentionally used only as raw storage for a cuBLAS column-major d x 16 matrix with ldc=d. This is correct for the current implementation because U is never interpreted through PyTorch semantics, but it should not be returned or used as a normal row-major tensor without conversion.",
+    "cublasSetPointerMode and cublasSetStream modify state on the PyTorch-provided cuBLAS handle. This is commonly acceptable in extensions, and stream binding is present, but future changes should avoid leaving unexpected handle state if device-pointer scalars or custom workspaces are introduced."
+  ]
+}

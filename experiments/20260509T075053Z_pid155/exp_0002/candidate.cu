@@ -39,15 +39,13 @@ void check_inputs(const torch::Tensor& W,
                   const torch::Tensor& B) {
     TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),
                 "all inputs must be CUDA tensors");
-    TORCH_CHECK(W.layout() == torch::kStrided && X.layout() == torch::kStrided &&
-                A.layout() == torch::kStrided && B.layout() == torch::kStrided,
-                "all inputs must be strided tensors");
-    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&
-                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,
+    TORCH_CHECK(W.scalar_type() == at::kFloat &&
+                X.scalar_type() == at::kFloat &&
+                A.scalar_type() == at::kFloat &&
+                B.scalar_type() == at::kFloat,
                 "all inputs must be float32 tensors");
     TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,
                 "all inputs must be rank-2 tensors");
-
     TORCH_CHECK(W.get_device() == X.get_device() &&
                 W.get_device() == A.get_device() &&
                 W.get_device() == B.get_device(),
@@ -55,11 +53,10 @@ void check_inputs(const torch::Tensor& W,
 
     const int64_t d = W.size(0);
     TORCH_CHECK(d >= 3584 && d <= 4608, "d must be in [3584, 4608]");
-    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,
-                "W and X must be d x d");
-    TORCH_CHECK(A.size(0) == d && A.size(1) == 16 &&
-                B.size(0) == d && B.size(1) == 16,
-                "A and B must be d x 16");
+    TORCH_CHECK(W.size(1) == d, "W must be d x d");
+    TORCH_CHECK(X.size(0) == d && X.size(1) == d, "X must be d x d");
+    TORCH_CHECK(A.size(0) == d && A.size(1) == 16, "A must be d x 16");
+    TORCH_CHECK(B.size(0) == d && B.size(1) == 16, "B must be d x 16");
 }
 
 }  // namespace
@@ -84,8 +81,9 @@ torch::Tensor forward(torch::Tensor W,
     auto U = torch::empty({d, r}, Wc.options());
 
     cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
-    auto stream = at::cuda::getCurrentCUDAStream();
+    auto stream = at::cuda::getCurrentCUDAStream(Wc.get_device());
     CHECK_CUBLAS(cublasSetStream(handle, stream.stream()));
+    CHECK_CUBLAS(cublasSetPointerMode(handle, CUBLAS_POINTER_MODE_HOST));
 
     const float alpha = 1.0f;
     const float beta0 = 0.0f;
@@ -98,40 +96,42 @@ torch::Tensor forward(torch::Tensor W,
     float* Yp = Y.data_ptr<float>();
     float* Up = U.data_ptr<float>();
 
-    // Row-major W @ X is column-major X_col * W_col, stored directly in Y memory.
-    CHECK_CUBLAS(cublasSgemm(handle,
-                             CUBLAS_OP_N, CUBLAS_OP_N,
-                             d, d, d,
-                             &alpha,
-                             Xp, d,
-                             Wp, d,
-                             &beta0,
-                             Yp, d));
+    // Row-major Y = W @ X is column-major Y^T = X^T @ W^T.
+    CHECK_CUBLAS(cublasSgemm(
+        handle,
+        CUBLAS_OP_N, CUBLAS_OP_N,
+        d, d, d,
+        &alpha,
+        Xp, d,
+        Wp, d,
+        &beta0,
+        Yp, d));
 
-    // U is a d x 16 column-major cuBLAS buffer in row-major {d,16} storage:
-    // U_col = X_col * B_col^T = (B.T @ X)^T.
-    CHECK_CUBLAS(cublasSgemm(handle,
-                             CUBLAS_OP_N, CUBLAS_OP_T,
-                             d, r, d,
-                             &alpha,
-                             Xp, d,
-                             Bp, r,
-                             &beta0,
-                             Up, d));
+    // U is a raw {d,16} buffer; column-major U stores (B.T @ X)^T without materializing B.T.
+    CHECK_CUBLAS(cublasSgemm(
+        handle,
+        CUBLAS_OP_N, CUBLAS_OP_T,
+        d, r, d,
+        &alpha,
+        Xp, d,
+        Bp, r,
+        &beta0,
+        Up, d));
 
-    // Accumulate low-rank update: U_col * A_col = (A @ (B.T @ X))^T into Y.
-    CHECK_CUBLAS(cublasSgemm(handle,
-                             CUBLAS_OP_N, CUBLAS_OP_N,
-                             d, d, r,
-                             &alpha,
-                             Up, d,
-                             Ap, r,
-                             &beta1,
-                             Yp, d));
+    // Accumulate low-rank term: Y^T += U_col @ A^T, equivalent to Y += A @ (B.T @ X).
+    CHECK_CUBLAS(cublasSgemm(
+        handle,
+        CUBLAS_OP_N, CUBLAS_OP_N,
+        d, d, r,
+        &alpha,
+        Up, d,
+        Ap, r,
+        &beta1,
+        Yp, d));
 
     return Y;
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("forward", &forward, "LoRA forward");
+    m.def("forward", &forward, "LoRA forward pure cuBLAS three-SGEMM");
 }

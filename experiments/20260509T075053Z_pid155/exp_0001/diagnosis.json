@@ -1,0 +1,45 @@
+{
+  "avoid": [
+    "Do not attempt a custom full d x d GEMM for W @ X; direct cuBLAS SGEMM is the right path for the dominant term.",
+    "Do not introduce explicit B.T transpose-copy materialization.",
+    "Do not change U to a column-major [16,d] contract, use m=16,n=d for SGEMM2, or set U leading dimension to 16; those are common causes of pure-cuBLAS correctness failures.",
+    "Do not use opA=T/opB=T in SGEMM1 or SGEMM3 unless the full row-major/column-major mapping is revalidated against all shapes.",
+    "Do not hardcode hidden dimensions beyond using the runtime d and fixed rank 16.",
+    "Do not pursue result caching as an optimization; this benchmark validates general operator execution, not repeated identical inputs."
+  ],
+  "bottleneck": "main_sgemm_dominates_with_small_overhead_savings",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested d values 3584, 4096, and 4608 with max_abs_err 0.00146484375 and rel_l2_err 7.9e-7.",
+    "The candidate is a validated pure cuBLAS three-SGEMM implementation with no explicit B.T materialization and beta=1 accumulation for the low-rank term.",
+    "Speedup is consistent but modest across all shapes: 1.036x at d=3584, 1.029x at d=4096, 1.028x at d=4608, aggregate 1.031x.",
+    "The small uniform gain matches the expected benefit from removing ATen matmul/add overhead and avoiding transpose-copy overhead, while the dominant W @ X full SGEMM still controls total latency.",
+    "No compile, static review, or shape-specific correctness issues were observed."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.030992987727544, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.593727946281433, \"4096\": 5.656576156616211, \"4608\": 7.246848106384277}, \"speedup\": {\"3584\": 1.0363299733384197, \"4096\": 1.0291455570822832, \"4608\": 1.0281192429770158}, \"torch_ms\": {\"3584\": 3.724287986755371, \"4096\": 5.82144021987915, \"4608\": 7.450623989105225}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "promote",
+  "recommended_actions": [
+    "Promote this candidate as a correct low-risk baseline for the pure cuBLAS three-SGEMM path.",
+    "Keep the exact qyh-style cuBLAS mapping: SGEMM1 computes W @ X via row-major-compatible cuBLAS arguments, SGEMM2 computes U with shape {d,16} using opA=N/opB=T, m=d, n=16, k=d, ldc=d, and SGEMM3 accumulates A @ U.T or equivalent low-rank contribution into Y with m=d, n=d, k=16 and beta=1.",
+    "Preserve avoidance of explicit B.T materialization and avoid replacing the rank-16 path with handwritten kernels unless profiling shows a clear, correct, shape-stable advantage.",
+    "If further optimizing, focus on small overheads around allocation, cuBLAS handle/stream setup, and launch sequencing, because the main W @ X SGEMM likely dominates runtime.",
+    "Run a higher-iteration benchmark and kernel-level profile to confirm whether remaining overhead is from temporary U/Y allocation, the two low-rank SGEMMs, or memory bandwidth in the beta=1 accumulation.",
+    "Use this implementation as the reference fallback for future experimental variants, especially for all d values since speedup is consistent and there is no regression."
+  ]
+}

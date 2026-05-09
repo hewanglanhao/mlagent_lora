@@ -1,0 +1,13 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Add #include <limits> near the other includes.",
+    "Optionally rely on at::cuda::getCurrentCUDABlasHandle() stream configuration instead of calling cublasSetStream manually, unless explicit stream binding is required by the submission framework."
+  ],
+  "warnings": [
+    "The code uses std::numeric_limits<int>::max() but does not explicitly include <limits>. This may compile transitively through PyTorch headers, but the source should include <limits> directly for self-contained correctness.",
+    "cublasSetStream is called explicitly on the PyTorch cuBLAS handle. This is acceptable for stream binding, but PyTorch's getCurrentCUDABlasHandle usually already returns a handle configured for the current stream."
+  ]
+}
