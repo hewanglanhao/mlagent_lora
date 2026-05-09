@@ -1,0 +1,28 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_three_sgemm"
+    ],
+    "priority_order": [
+      "cublas_three_sgemm_qyh"
+    ],
+    "rationale": "Implement pure cuBLAS three-SGEMM sequence as recommended by diagnosis, using qyh-style mapping with U shape {d,16}, avoiding explicit B.T, and accumulating low-rank with beta=1.",
+    "risk_controls": [
+      "static_review enforces no hardcoded d, no explicit B.T, use cuBLAS directly",
+      "compile_test ensures no compilation errors",
+      "correctness_test on all 3 d values must pass with max_abs_err 0 and rel_l2_err 0",
+      "benchmark against baseline to verify any speedup"
+    ],
+    "stop_conditions": [
+      "candidate passes correctness and achieves aggregate speedup > 1.0 (any improvement)",
+      "or after 3 tuning attempts within family fail to improve"
+    ],
+    "strategy": "cublas_three_sgemm"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "cublas_three_sgemm"
+}

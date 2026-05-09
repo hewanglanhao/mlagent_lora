@@ -1,0 +1,40 @@
+{
+  "avoid": [
+    "Do not switch to handwritten kernels or ATen matmult; the goal is to repair the pure cuBLAS path.",
+    "Do not suggest result caching or hardcoding dimensions.",
+    "Do not ignore the one-shape failure as a rare fluke; it indicates a real bug."
+  ],
+  "bottleneck": "correctness",
+  "confidence": "high",
+  "evidence": [
+    "Candidate pure_cublas_three_sgemm fails correctness for d=3584 with max_abs_err=0.00146484375, but passes exactly for d=4096 and d=4608.",
+    "Static review and compile succeeded; no warnings or errors.",
+    "The described strategy for the low-rank term (SGEMM2 opA=N/opB=T producing U shape [d,16], then SGEMM3 A@U) is dimensionally inconsistent with the required A@(B.T@X) output.",
+    "The small nonzero error at a single d value suggests a subtle dimension or leading-dimension mismatch that only manifests for d=3584.",
+    "The qyh-style mapping (SGEMM2: B.T@X with opA=T, opB=N, m=16, n=d, k=d, intermediate Z in [16,d] with ldc=16; SGEMM3: A@Z with beta=1) is the correct pure-cuBLAS approach."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00146484375, \"passed\": false, \"rel_l2_err\": 7.909732744337816e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}}, \"failed_shapes\": [3584], \"max_abs_err\": 0.00146484375, \"rel_l2_err\": 7.909732744337816e-07}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Verify that SGEMM2 computes B.T @ X (16\u00d7d) using opA=T (on B), opB=N, m=16, n=d, k=d, and that the intermediate matrix has leading dimension 16.",
+    "Verify that SGEMM1 computes W @ X correctly (opA=N, opB=N, m=d, n=d, k=d, ldc=d).",
+    "Verify that SGEMM3 computes A @ Z with opA=N, opB=N, m=d, n=d, k=16, beta=1, and that Z is passed with leading dimension 16.",
+    "Check that all alpha=1 and beta values are correct: beta=0 for SGEMM1 and SGEMM2, beta=1 for SGEMM3.",
+    "Add explicit debugging output for the dimensions and leading dimensions of all matrices involved in the SGEMM calls to confirm correctness, especially for d=3584.",
+    "Consider testing with a wider range of d values to see if the error is systematic for d not a multiple of a certain block size."
+  ]
+}

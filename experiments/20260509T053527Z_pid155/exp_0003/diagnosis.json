@@ -1,0 +1,44 @@
+{
+  "avoid": [
+    "Do not attempt to fix the custom kernel further; the pure cuBLAS path is simpler and more robust.",
+    "Do not hardcode hidden dimension d; it is runtime-selected.",
+    "Do not use shape-aware dispatch unless the pure cuBLAS path also shows shape-specific failures.",
+    "Avoid using opA=T in SGEMM1 or SGEMM3; they should be opA=N.",
+    "Avoid storing U as [16,d] or using leading dimension 16; this is a common correctness pitfall."
+  ],
+  "bottleneck": "custom_rank16_kernel_bug",
+  "confidence": "medium",
+  "evidence": [
+    "Candidate 'rank16_scalar_b128_repair1' fails correctness for d=3584 (max_abs_err=0.001465), while d=4096 and d=4608 pass exactly.",
+    "Error is small but nonzero, indicating a subtle bug in the custom rank-16 update kernel that manifests only for certain dimensions.",
+    "Static review and compilation passed, so the issue is runtime.",
+    "No benchmark results are available, but the correctness failure dominates.",
+    "The parent candidate (2) was presumably a custom kernel attempt, and this repair did not fix the d=3584 case."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00146484375, \"passed\": false, \"rel_l2_err\": 7.909732744337816e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}}, \"failed_shapes\": [3584], \"max_abs_err\": 0.00146484375, \"rel_l2_err\": 7.909732744337816e-07}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Replace the entire candidate with a pure cuBLAS three-SGEMM implementation:",
+    "  SGEMM1: opA=N, opB=N, A=X, B=W, m=n=k=d, beta=0 -> Y = W @ X",
+    "  SGEMM2: opA=N, opB=T, A=X, B=B, m=d, n=16, k=d, ldc=d, store into U (shape [d,16])",
+    "  SGEMM3: opA=N, opB=N, A=U, B=A, m=d, n=d, k=16, beta=1.0 -> Y += A @ (B.T @ X)",
+    "Ensure U is stored in column-major layout with leading dimension d (not 16).",
+    "Do not use custom CUDA kernels; rely on cuBLAS SGEMM for all three multiplications.",
+    "Avoid explicit transpose of B; use cublasOperation_t = CUBLAS_OP_T in SGEMM2.",
+    "Set alpha=1.0 and beta=1.0 for SGEMM3 to accumulate into Y."
+  ]
+}

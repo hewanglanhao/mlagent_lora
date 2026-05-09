@@ -1,0 +1,36 @@
+{
+  "avoid": [
+    "Do not use handwritten rank-16 kernels that lead to compile errors",
+    "Avoid explicit B.T transpose-copy in device code; use cuBLAS with opB=T directly",
+    "Do not use ATen matrix multiply for the main multiplication paths"
+  ],
+  "bottleneck": "compile_failure",
+  "confidence": "high",
+  "evidence": [
+    "Compile error: identifier 'lda' is undefined, 'ldb' is undefined, syntax errors on lines 81-82, code has malformed comment/assignment",
+    "5 errors detected in compilation of candidate.cu",
+    "Candidate family is 'cublas_plus_custom_rank16_update' but code contains syntax errors in cuBLAS parameter definitions"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "promoting uncompiled code"
+    ],
+    "bottleneck": "compile_failure",
+    "confidence": "high",
+    "evidence": [
+      "pybind_or_signature_error",
+      "Error building extension 'lora_candidate_ext_2_1778305905639': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778305905639 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "fall back to a simpler candidate",
+      "preserve current best"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Fix syntax errors in candidate.cu: ensure comments are properly formatted and cuBLAS parameter definitions are correct",
+    "Rewrite the kernel to use pure cuBLAS three-SGEMM approach without custom rank-16 update: SGEMM1: opA=N, opB=N, A=X, B=W; SGEMM2: opA=N, opB=T, A=X, B=B, m=d, n=16, k=d, U shape {d,16}, ldc=d; SGEMM3: opA=N, opB=N, A=U, B=A, m=d, n=d, k=16, beta=1",
+    "Ensure all lda, ldb, ldc are correctly defined as integer variables before use"
+  ]
+}

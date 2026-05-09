@@ -1,0 +1,592 @@
+[
+  {
+    "aggregate_speedup": 0.999791498519591,
+    "benchmark": {
+      "aggregate_speedup": 0.999791498519591,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.728384017944336,
+        "4096": 5.8224639892578125,
+        "4608": 7.4552319049835205
+      },
+      "speedup": {
+        "3584": 0.9994506961770501,
+        "4096": 0.9997362126258907,
+        "4608": 1.000206015387066
+      },
+      "torch_ms": {
+        "3584": 3.7263360023498535,
+        "4096": 5.82092809677124,
+        "4608": 7.456767797470093
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 212.92042465112172,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_0_1778304946162",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Do not hardcode d values; keep runtime selection.",
+        "Do not use handwritten rank-16 kernels unless cuBLAS path fails correctness.",
+        "Do not store B.T as a separate transposed tensor; use cuBLAS transposed flag.",
+        "Do not rely on result caching; the benchmark likely uses fresh tensors per iteration.",
+        "Do not use ATen's matmul if cuBLAS can be called directly for lower dispatch overhead."
+      ],
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "confidence": "high",
+      "evidence": [
+        "Correctness perfect across all d values (max_abs_err=0, rel_l2_err=0).",
+        "Aggregate speedup 0.99979, essentially identical to torch reference.",
+        "Latency matches torch reference within 0.1%, indicating no improvement.",
+        "Profile summary identifies multiple separate ATen GEMM and addition launches as bottleneck.",
+        "Baseline uses separate ATen matmul calls for W@X, B.T@X, and A@(B.T@X) plus addition."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "custom full GEMM without evidence"
+        ],
+        "bottleneck": "multiple_aten_gemm_and_add_launches",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 0.999791498519591, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.728384017944336, \"4096\": 5.8224639892578125, \"4608\": 7.4552319049835205}, \"speedup\": {\"3584\": 0.9994506961770501, \"4096\": 0.9997362126258907, \"4608\": 1.000206015387066}, \"torch_ms\": {\"3584\": 3.7263360023498535, \"4096\": 5.82092809677124, \"4608\": 7.456767797470093}}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "try vector width 4",
+          "vary block size",
+          "keep W @ X in cuBLAS"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Implement a pure cuBLAS three-SGEMM sequence: SGEMM1 for W@X (opA=N, opB=N), SGEMM2 for X@B (opA=N, opB=T) producing U of shape [d,16] with leading dimension d, and SGEMM3 for A@U with beta=1 accumulating into W@X output.",
+        "Ensure SGEMM2 uses m=d, n=16, k=d, and does not materialize B.T explicitly.",
+        "Ensure SGEMM3 uses m=d, n=d, k=16, beta=1, and consumes U as stored row-major with ldc=d.",
+        "Consider fusing the alpha/beta scaling into the cuBLAS calls to avoid extra scalar launches."
+      ]
+    },
+    "family": "aten_reference",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "aten_reference",
+        "id": 0,
+        "llm_generated": false,
+        "name": "baseline_aten",
+        "parent": null,
+        "shape_dispatch": false,
+        "strategy": "",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "origin": "deterministic_baseline"
+    },
+    "id": 0,
+    "latency_by_d": {
+      "3584": 3.728384017944336,
+      "4096": 5.8224639892578125,
+      "4608": 7.4552319049835205
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "Consider using cuBLAS directly to avoid transpose and reduce memory overhead."
+      ],
+      "warnings": [
+        "Candidate uses ATen matmul which may not be optimized; explicit transpose of B causes memory allocation and copy."
+      ]
+    },
+    "name": "baseline_aten",
+    "parent": null,
+    "profile": {
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "evidence": {
+        "aggregate_speedup": 0.999791498519591,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.728384017944336,
+          "4096": 5.8224639892578125,
+          "4608": 7.4552319049835205
+        },
+        "speedup": {
+          "3584": 0.9994506961770501,
+          "4096": 0.9997362126258907,
+          "4608": 1.000206015387066
+        },
+        "torch_ms": {
+          "3584": 3.7263360023498535,
+          "4096": 5.82092809677124,
+          "4608": 7.456767797470093
+        }
+      },
+      "suggested_actions": [
+        "keep cuBLAS for W @ X",
+        "fuse rank-16 update into the output tensor",
+        "test scalar and vectorized rank-16 kernels"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0000/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 214.234479353996,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_1_1778305413002",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.00146484375,
+          "passed": false,
+          "rel_l2_err": 7.909732744337816e-07
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [
+        3584
+      ],
+      "max_abs_err": 0.00146484375,
+      "rel_l2_err": 7.909732744337816e-07
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "Do not switch to handwritten kernels or ATen matmult; the goal is to repair the pure cuBLAS path.",
+        "Do not suggest result caching or hardcoding dimensions.",
+        "Do not ignore the one-shape failure as a rare fluke; it indicates a real bug."
+      ],
+      "bottleneck": "correctness",
+      "confidence": "high",
+      "evidence": [
+        "Candidate pure_cublas_three_sgemm fails correctness for d=3584 with max_abs_err=0.00146484375, but passes exactly for d=4096 and d=4608.",
+        "Static review and compile succeeded; no warnings or errors.",
+        "The described strategy for the low-rank term (SGEMM2 opA=N/opB=T producing U shape [d,16], then SGEMM3 A@U) is dimensionally inconsistent with the required A@(B.T@X) output.",
+        "The small nonzero error at a single d value suggests a subtle dimension or leading-dimension mismatch that only manifests for d=3584.",
+        "The qyh-style mapping (SGEMM2: B.T@X with opA=T, opB=N, m=16, n=d, k=d, intermediate Z in [16,d] with ldc=16; SGEMM3: A@Z with beta=1) is the correct pure-cuBLAS approach."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00146484375, \"passed\": false, \"rel_l2_err\": 7.909732744337816e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}}, \"failed_shapes\": [3584], \"max_abs_err\": 0.00146484375, \"rel_l2_err\": 7.909732744337816e-07}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "needs_more_data",
+      "recommended_actions": [
+        "Verify that SGEMM2 computes B.T @ X (16\u00d7d) using opA=T (on B), opB=N, m=16, n=d, k=d, and that the intermediate matrix has leading dimension 16.",
+        "Verify that SGEMM1 computes W @ X correctly (opA=N, opB=N, m=d, n=d, k=d, ldc=d).",
+        "Verify that SGEMM3 computes A @ Z with opA=N, opB=N, m=d, n=d, k=16, beta=1, and that Z is passed with leading dimension 16.",
+        "Check that all alpha=1 and beta values are correct: beta=0 for SGEMM1 and SGEMM2, beta=1 for SGEMM3.",
+        "Add explicit debugging output for the dimensions and leading dimensions of all matrices involved in the SGEMM calls to confirm correctness, especially for d=3584.",
+        "Consider testing with a wider range of d values to see if the error is systematic for d not a multiple of a certain block size."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 4461,
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 1,
+        "llm_generated": true,
+        "name": "pure_cublas_three_sgemm",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "Replace three separate ATen matmul and addition with three direct cuBLAS SGEMM calls: SGEMM1 W@X (opA=N,opB=N), SGEMM2 X@B (opA=N,opB=T) producing U shape [d,16] with ldc=d, SGEMM3 A@U (opA=N,opB=N) with beta=1 accumulating into Y. Eliminates explicit transpose of B and separate addition kernel.",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 1,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [
+        "cuBLAS SGEMM2 and SGEMM3 parameterization for row-major tensors is incorrect: SGEMM2 uses op(B)=T with m=d, n=16, ldc=d, which produces the transpose of the desired intermediate (X @ B.T). This causes SGEMM3 to accumulate the wrong low-rank product, yielding an incorrect Y."
+      ],
+      "pass": false,
+      "risk_level": "high",
+      "suggested_fixes": [
+        "Use explicit transpose of B (B.t().contiguous()) and standard op=N, op=N cuBLAS calls with proper dimension ordering, or adopt the common pattern: cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, 16, d, d, &alpha, B, 16, X, d, &beta, U, 16) for the intermediate, then cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, d, d, 16, &alpha, U, d, A, 16, &beta, Y, d) for accumulation, adjusting leading dimensions accordingly."
+      ],
+      "warnings": []
+    },
+    "name": "pure_cublas_three_sgemm",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0001/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "Replace three separate ATen matmul and addition with three direct cuBLAS SGEMM calls: SGEMM1 W@X (opA=N,opB=N), SGEMM2 X@B (opA=N,opB=T) producing U shape [d,16] with ldc=d, SGEMM3 A@U (opA=N,opB=N) with beta=1 accumulating into Y. Eliminates explicit transpose of B and separate addition kernel.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 30.812862674938515,
+      "compiled": false,
+      "error_summary": "Error building extension 'lora_candidate_ext_2_1778305905639': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778305905639 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_72,code=sm_72 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_87,code=sm_87 -gencode=arch=compute_90,code=compute_90 -gencode=arch=compute_90,code=sm_90 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu -o candidate.cuda.o \nFAILED: candidate.cuda.o \n/usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778305905639 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_72,code=sm_72 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_87,code=sm_87 -gencode=arch=compute_90,code=compute_90 -gencode=arch=compute_90,code=sm_90 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu -o candidate.cuda.o \n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(81): error: identifier \"lda\" is undefined\n      lda = d, ldb = 16 (A is d x 16 row-major -> column-major 16 x d, leading dim 16)\n      ^\n\n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(81): error: identifier \"ldb\" is undefined\n      lda = d, ldb = 16 (A is d x 16 row-major -> column-major 16 x d, leading dim 16)\n               ^\n\n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(81): error: expression preceding parentheses of apparent call must have (pointer-to-) function type\n      lda = d, ldb = 16 (A is d x 16 row-major -> column-major 16 x d, leading dim 16)\n                     ^\n\n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(81): error: expected a \")\"\n      lda = d, ldb = 16 (A is d x 16 row-major -> column-major 16 x d, leading dim 16)\n                           ^\n\n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(82): error: expected an expression\n      */\n       ^\n\n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(90): warning #12-D: parsing restarts here after previous syntax error\n                  Y.data_ptr<float>(), d);\n                                         ^\n\nRemark: The warnings can be suppressed with \"-diag-suppress <warning-number>\"\n\n5 errors detected in the compilation of \"/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu\".\nninja: build stopped: subcommand failed.\n",
+      "error_type": "pybind_or_signature_error",
+      "module_name": "lora_candidate_ext_2_1778305905639",
+      "skipped": false
+    },
+    "compiled": false,
+    "correct": false,
+    "correctness": {},
+    "decision": "rejected_compile",
+    "diagnosis": {
+      "avoid": [
+        "Do not use handwritten rank-16 kernels that lead to compile errors",
+        "Avoid explicit B.T transpose-copy in device code; use cuBLAS with opB=T directly",
+        "Do not use ATen matrix multiply for the main multiplication paths"
+      ],
+      "bottleneck": "compile_failure",
+      "confidence": "high",
+      "evidence": [
+        "Compile error: identifier 'lda' is undefined, 'ldb' is undefined, syntax errors on lines 81-82, code has malformed comment/assignment",
+        "5 errors detected in compilation of candidate.cu",
+        "Candidate family is 'cublas_plus_custom_rank16_update' but code contains syntax errors in cuBLAS parameter definitions"
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "promoting uncompiled code"
+        ],
+        "bottleneck": "compile_failure",
+        "confidence": "high",
+        "evidence": [
+          "pybind_or_signature_error",
+          "Error building extension 'lora_candidate_ext_2_1778305905639': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778305905639 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "fall back to a simpler candidate",
+          "preserve current best"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Fix syntax errors in candidate.cu: ensure comments are properly formatted and cuBLAS parameter definitions are correct",
+        "Rewrite the kernel to use pure cuBLAS three-SGEMM approach without custom rank-16 update: SGEMM1: opA=N, opB=N, A=X, B=W; SGEMM2: opA=N, opB=T, A=X, B=B, m=d, n=16, k=d, U shape {d,16}, ldc=d; SGEMM3: opA=N, opB=N, A=U, B=A, m=d, n=d, k=16, beta=1",
+        "Ensure all lda, ldb, ldc are correctly defined as integer variables before use"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 3636,
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 2,
+        "llm_generated": true,
+        "name": "rank16_scalar_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 2,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [
+        "SGEMM1: Order of operands and op flags are wrong; current call computes (W @ X)^T instead of W @ X.",
+        "SGEMM2: Leading dimension ldb=16 is invalid for matrix B with d rows; must be >= d (d up to 4608).",
+        "SGEMM2: Intermediate U is allocated as {d, 16} but should be {16, d} to match B.T @ X shape.",
+        "SGEMM3: Shape mismatch; A (d \u00d7 16) cannot multiply U (d \u00d7 16); intent likely requires transpose.",
+        "Syntax error: line `lda = d, ldb = 16 ... */` is not valid C++ and will cause compilation failure.",
+        "Overall, the candidate does not correctly compute the required expression Y = W @ X + A @ (B.T @ X)."
+      ],
+      "pass": false,
+      "risk_level": "high",
+      "suggested_fixes": [
+        "Rewrite SGEMM1 to compute W @ X correctly: use CUBLAS_OP_N, CUBLAS_OP_N with swapped order? Customary pattern: cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, d, d, d, &alpha, W, d, X, d, &beta0, Y, d) may compute X @ W? Need to verify row-major mapping.",
+        "Fix SGEMM2 to compute B.T @ X: allocate U of shape {16, d}, use appropriate flags and leading dimensions (lda=d, ldb=16, ldc=16).",
+        "Fix SGEMM3 to accumulate U (16 \u00d7 d) onto Y: use CUBLAS_OP_T or swap order, with correct leading dimensions.",
+        "Correct the syntax error by removing the invalid line or properly commenting it.",
+        "Consider using cublasXt or transpose before calls to avoid confusion with row-major / column-major mapping."
+      ],
+      "warnings": [
+        "Candidate avoids ATen mm/matmul, which is good for a pure cuBLAS strategy.",
+        "Candidate uses contiguous tensors, which helps memory access."
+      ]
+    },
+    "name": "rank16_scalar_b128",
+    "parent": 0,
+    "profile": {},
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 224.5347326840274,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_3_1778306181815",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.00146484375,
+          "passed": false,
+          "rel_l2_err": 7.909732744337816e-07
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [
+        3584
+      ],
+      "max_abs_err": 0.00146484375,
+      "rel_l2_err": 7.909732744337816e-07
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "Do not attempt to fix the custom kernel further; the pure cuBLAS path is simpler and more robust.",
+        "Do not hardcode hidden dimension d; it is runtime-selected.",
+        "Do not use shape-aware dispatch unless the pure cuBLAS path also shows shape-specific failures.",
+        "Avoid using opA=T in SGEMM1 or SGEMM3; they should be opA=N.",
+        "Avoid storing U as [16,d] or using leading dimension 16; this is a common correctness pitfall."
+      ],
+      "bottleneck": "custom_rank16_kernel_bug",
+      "confidence": "medium",
+      "evidence": [
+        "Candidate 'rank16_scalar_b128_repair1' fails correctness for d=3584 (max_abs_err=0.001465), while d=4096 and d=4608 pass exactly.",
+        "Error is small but nonzero, indicating a subtle bug in the custom rank-16 update kernel that manifests only for certain dimensions.",
+        "Static review and compilation passed, so the issue is runtime.",
+        "No benchmark results are available, but the correctness failure dominates.",
+        "The parent candidate (2) was presumably a custom kernel attempt, and this repair did not fix the d=3584 case."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00146484375, \"passed\": false, \"rel_l2_err\": 7.909732744337816e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}}, \"failed_shapes\": [3584], \"max_abs_err\": 0.00146484375, \"rel_l2_err\": 7.909732744337816e-07}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Replace the entire candidate with a pure cuBLAS three-SGEMM implementation:",
+        "  SGEMM1: opA=N, opB=N, A=X, B=W, m=n=k=d, beta=0 -> Y = W @ X",
+        "  SGEMM2: opA=N, opB=T, A=X, B=B, m=d, n=16, k=d, ldc=d, store into U (shape [d,16])",
+        "  SGEMM3: opA=N, opB=N, A=U, B=A, m=d, n=d, k=16, beta=1.0 -> Y += A @ (B.T @ X)",
+        "Ensure U is stored in column-major layout with leading dimension d (not 16).",
+        "Do not use custom CUDA kernels; rely on cuBLAS SGEMM for all three multiplications.",
+        "Avoid explicit transpose of B; use cublasOperation_t = CUBLAS_OP_T in SGEMM2.",
+        "Set alpha=1.0 and beta=1.0 for SGEMM3 to accumulate into Y."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 3547,
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 3,
+        "llm_generated": true,
+        "name": "rank16_scalar_b128_repair1",
+        "parent": 2,
+        "shape_dispatch": false,
+        "strategy": "llm_cuda_repair_attempt:1",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "failed_candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 2,
+        "llm_generated": true,
+        "name": "rank16_scalar_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "failed_compile": {
+        "compile_time_sec": 30.812862674938515,
+        "compiled": false,
+        "error_summary": "Error building extension 'lora_candidate_ext_2_1778305905639': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778305905639 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_72,code=sm_72 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_87,code=sm_87 -gencode=arch=compute_90,code=compute_90 -gencode=arch=compute_90,code=sm_90 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu -o candidate.cuda.o \nFAILED: candidate.cuda.o \n/usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778305905639 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_72,code=sm_72 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_87,code=sm_87 -gencode=arch=compute_90,code=compute_90 -gencode=arch=compute_90,code=sm_90 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu -o candidate.cuda.o \n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(81): error: identifier \"lda\" is undefined\n      lda = d, ldb = 16 (A is d x 16 row-major -> column-major 16 x d, leading dim 16)\n      ^\n\n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(81): error: identifier \"ldb\" is undefined\n      lda = d, ldb = 16 (A is d x 16 row-major -> column-major 16 x d, leading dim 16)\n               ^\n\n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(81): error: expression preceding parentheses of apparent call must have (pointer-to-) function type\n      lda = d, ldb = 16 (A is d x 16 row-major -> column-major 16 x d, leading dim 16)\n                     ^\n\n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(81): error: expected a \")\"\n      lda = d, ldb = 16 (A is d x 16 row-major -> column-major 16 x d, leading dim 16)\n                           ^\n\n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(82): error: expected an expression\n      */\n       ^\n\n/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu(90): warning #12-D: parsing restarts here after previous syntax error\n                  Y.data_ptr<float>(), d);\n                                         ^\n\nRemark: The warnings can be suppressed with \"-diag-suppress <warning-number>\"\n\n5 errors detected in the compilation of \"/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0002/candidate.cu\".\nninja: build stopped: subcommand failed.\n",
+        "error_type": "pybind_or_signature_error",
+        "module_name": "lora_candidate_ext_2_1778305905639",
+        "skipped": false
+      },
+      "origin": "llm_repair_codegen",
+      "repair_attempt": 1
+    },
+    "id": 3,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "Wrap each cublasSgemm call with a status check (e.g., TORCH_CHECK(status == CUBLAS_STATUS_SUCCESS, ...)).",
+        "Clarify the row-major to column-major mapping in comments to reduce confusion."
+      ],
+      "warnings": [
+        "No cuBLAS error checking after each SGEMM call; missing error handling could mask failures.",
+        "The leading dimension for U (lda=d) in SGEMM3 may be incorrect if strictly adhering to column-major conventions, but it matches the required qyh pattern."
+      ]
+    },
+    "name": "rank16_scalar_b128_repair1",
+    "parent": 2,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0003/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "llm_cuda_repair_attempt:1",
+    "use_fast_math": false,
+    "vector_width": 1
+  }
+]

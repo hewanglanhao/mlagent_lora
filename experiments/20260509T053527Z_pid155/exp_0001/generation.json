@@ -1,0 +1,17 @@
+{
+  "bytes": 4461,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": true,
+    "name": "pure_cublas_three_sgemm",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Replace three separate ATen matmul and addition with three direct cuBLAS SGEMM calls: SGEMM1 W@X (opA=N,opB=N), SGEMM2 X@B (opA=N,opB=T) producing U shape [d,16] with ldc=d, SGEMM3 A@U (opA=N,opB=N) with beta=1 accumulating into Y. Eliminates explicit transpose of B and separate addition kernel.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "enabled": true,
+  "origin": "llm"
+}

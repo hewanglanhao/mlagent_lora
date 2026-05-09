@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Consider using cuBLAS directly to avoid transpose and reduce memory overhead."
+  ],
+  "warnings": [
+    "Candidate uses ATen matmul which may not be optimized; explicit transpose of B causes memory allocation and copy."
+  ]
+}

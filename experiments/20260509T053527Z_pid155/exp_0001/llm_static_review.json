@@ -1,0 +1,11 @@
+{
+  "errors": [
+    "cuBLAS SGEMM2 and SGEMM3 parameterization for row-major tensors is incorrect: SGEMM2 uses op(B)=T with m=d, n=16, ldc=d, which produces the transpose of the desired intermediate (X @ B.T). This causes SGEMM3 to accumulate the wrong low-rank product, yielding an incorrect Y."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Use explicit transpose of B (B.t().contiguous()) and standard op=N, op=N cuBLAS calls with proper dimension ordering, or adopt the common pattern: cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, 16, d, d, &alpha, B, 16, X, d, &beta, U, 16) for the intermediate, then cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, d, d, 16, &alpha, U, d, A, 16, &beta, Y, d) for accumulation, adjusting leading dimensions accordingly."
+  ],
+  "warnings": []
+}

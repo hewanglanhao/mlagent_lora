@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0006_static_code_review_1778305246999",
+  "duration_sec": 165.98367428779602,
+  "finished_ts": 1778305412.9833832,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 1,
+      "llm_generated": true,
+      "name": "pure_cublas_three_sgemm",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Replace three separate ATen matmul and addition with three direct cuBLAS SGEMM calls: SGEMM1 W@X (opA=N,opB=N), SGEMM2 X@B (opA=N,opB=T) producing U shape [d,16] with ldc=d, SGEMM3 A@U (opA=N,opB=N) with beta=1 accumulating into Y. Eliminates explicit transpose of B and separate addition kernel.",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T053527Z_pid155/exp_0001/candidate.cu"
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778305412.9850852
+    }
+  ],
+  "request": {
+    "system_chars": 2830,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- If it calls cuBLAS or PyTorch CUDA stream/handle helpers, it includes the required CUDA/cuBLAS headers, for example <ATen/cuda/CUDAContext.h>, <ATen/cuda/CUDAContextLight.h>, and <cublas_v2.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nPure cuBLAS three-SGEMM review focus:\n\n- If the candidate claims a pure cuBLAS three-SGEMM strategy, verify that the core computation does not call ATen `mm`, `matmul`, or `addmm`.\n- Verify that the preferred strategy does not use handwritten CUDA kernels for the LoRA computation.\n- Verify that it avoids explicit B.T transpose-copy materialization when cuBLAS operation flags can express the same math.\n- Check that the row-major PyTorch tensors are correctly interpreted through cuBLAS column-major conventions.\n- Check the three SGEMMs separately: main W @ X term, temporary U with shape {d, 16} for the low-rank intermediate, and final low-rank accumulation into Y with beta = 1.\n- For qyh-style candidates, require these exact cuBLAS parameter patterns:\n  - SGEMM 1: opA=N, opB=N, m=d, n=d, k=d, A=X, B=W, C=Y, lda=ldb=ldc=d, beta=0.\n  - SGEMM 2: opA=N, opB=T, m=d, n=16, k=d, A=X, B=B, C=U, lda=d, ldb=16, ldc=d, U shape {d,16}, beta=0.\n  - SGEMM 3: opA=N, opB=N, m=d, n=d, k=16, A=U, B=A, C=Y, lda=d, ldb=16, ldc=d, beta=1.\n- Flag opA=T/opB=T in SGEMM 1 or SGEMM 3 as blocking for qyh-style candidates. Flag m=16, n=d or U leading dimension 16 as blocking unless the candidate gives a convincing, shape-general proof.\n- Treat missing CUDA/cuBLAS headers, wrong cuBLAS op flags, m/n/k dimensions, leading dimensions, alpha/beta values, or stream binding as high-risk or blocking issues.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "f3e89a9f5222a610f68fab969bf90d29e617600efb90d2f073cfe84d59f46040",
+    "user_chars": 5868,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 1,\n  \"llm_generated\": true,\n  \"name\": \"pure_cublas_three_sgemm\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Replace three separate ATen matmul and addition with three direct cuBLAS SGEMM calls: SGEMM1 W@X (opA=N,opB=N), SGEMM2 X@B (opA=N,opB=T) producing U shape [d,16] with ldc=d, SGEMM3 A@U (opA=N,opB=N) with beta=1 accumulating into Y. Eliminates explicit transpose of B and separate addition kernel.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <ATen/cuda/CUDAContext.h>\n#include <cublas_v2.h>\n#include <cuda_runtime.h>\n\nnamespace {\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"All inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"All inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"All inputs must be rank-2 tensors\");\n    int64_t d = W.size(0);\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16 &&\n                B.size(0) == d && B.size(1) == 16,\n                \"A and B must be d x 16\");\n}\n\n} // anonymous namespace\n\ntorch::Tensor forward(torch::Tensor W,\n                      torch::Tensor X,\n                      torch::Tensor A,\n                      torch::Tensor B) {\n    check_inputs(W, X, A, B);\n\n    // Ensure contiguous and get dimensions\n    auto Wc = W.contiguous();\n    auto Xc = X.contiguous();\n    auto Ac = A.contiguous();\n    auto Bc = B.contiguous();\n\n    int64_t d = Wc.size(0);\n\n    // Allocate output Y with shape (d, d), initially uninitialized (we set beta=0 in SGEMM1)\n    auto Y = torch::empty({d, d}, torch::TensorOptions().dtype(torch::kFloat32).device(Wc.device()));\n\n    // Get cuBLAS handle and bind to current PyTorch stream\n    cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();\n    cudaStream_t stream = at::cuda::getCurrentCUDAStream();\n    cublasSetStream(handle, stream);\n\n    const float alpha = 1.0f;\n    const float beta0 = 0.0f;\n    const float beta1 = 1.0f;\n\n    // Pointer to raw float data\n    const float* pW = Wc.data_ptr<float>();\n    const float* pX = Xc.data_ptr<float>();\n    const float* pA = Ac.data_ptr<float>();\n    const float* pB = Bc.data_ptr<float>();\n    float* pY = Y.data_ptr<float>();\n\n    // SGEMM 1: Y = W @ X   (row-major)\n    // cuBLAS column-major view: C_op = X * W  => C == Y\n    cublasStatus_t stat;\n    stat = cublasSgemm(handle,\n                       CUBLAS_OP_N, CUBLAS_OP_N,  // op(A)=N, op(B)=N\n                       d, d, d,                    // m=n=k=d\n                       &alpha,\n                       pX, d,                      // A = X, lda = d\n                       pW, d,                      // B = W, ldb = d\n                       &beta0,\n                       pY, d);                     // C = Y, ldc = d\n    TORCH_CHECK(stat == CUBLAS_STATUS_SUCCESS, \"cublasSgemm1 failed\");\n\n    // SGEMM 2: U = X @ B.T   (row-major intermediate, size [d,16])\n    // cuBLAS column-major: U_op = (B) * X  => we set op(A)=N, op(B)=T, A=X, B=B\n    auto U = torch::empty({d, 16}, torch::TensorOptions().dtype(torch::kFloat32).device(Wc.device()))\n...<trimmed>...",
+    "user_sha256": "cdf5ea910a928ec1cefb4cffc7ee085fa758d0a669a3f95bb8880bd37b45a721"
+  },
+  "response": {
+    "content_chars": 810,
+    "content_preview": "{\n  \"pass\": false,\n  \"risk_level\": \"high\",\n  \"errors\": [\n    \"cuBLAS SGEMM2 and SGEMM3 parameterization for row-major tensors is incorrect: SGEMM2 uses op(B)=T with m=d, n=16, ldc=d, which produces the transpose of the desired intermediate (X @ B.T). This causes SGEMM3 to accumulate the wrong low-rank product, yielding an incorrect Y.\"\n  ],\n  \"warnings\": [],\n  \"suggested_fixes\": [\n    \"Use explicit transpose of B (B.t().contiguous()) and standard op=N, op=N cuBLAS calls with proper dimension ordering, or adopt the common pattern: cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_T, 16, d, d, &alpha, B, 16, X, d, &beta, U, 16) for the intermediate, then cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, d, d, 16, &alpha, U, d, A, 16, &beta, Y, d) for accumulation, adjusting leading dimensions accordingly.\"\n  ]\n}",
+    "content_sha256": "c87099a8849616944929db7bea8b2b53a9816b39abb80cb5b62d04da8eeabbdd",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260509T053527Z_pid155",
+  "started_ts": 1778305246.999709,
+  "status": "success"
+}
