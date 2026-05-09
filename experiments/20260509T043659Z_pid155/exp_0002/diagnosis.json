@@ -1,0 +1,38 @@
+{
+  "avoid": [
+    "Using handwritten rank-16 kernels or shared memory optimizations until the pure cuBLAS baseline is validated",
+    "Explicitly materializing B.T by copying; use cuBLAS transpose flag instead",
+    "Adding shape-specific hacks or dispatch before the baseline works correctly for all d in [3584, 4608]",
+    "Relying on benchmark speed from a candidate that fails correctness"
+  ],
+  "bottleneck": "incorrect_computation",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed for all tested shapes (3584, 4096, 4608) with large absolute errors (up to 15530) and relative L2 errors near 1.0",
+    "No benchmark data because correctness check was not passed",
+    "Candidate uses a custom rank-16 update kernel which is likely buggy or mismatched with the cuBLAS portion",
+    "Static review and compilation succeeded, indicating no syntax or compile-time issues"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 1731.228759765625, \"passed\": false, \"rel_l2_err\": 0.9709694981575012}, \"4096\": {\"finite\": true, \"max_abs_err\": 1.957722544670105, \"passed\": false, \"rel_l2_err\": 0.3730641305446625}, \"4608\": {\"finite\": true, \"max_abs_err\": 15530.5302734375, \"passed\": false, \"rel_l2_err\": 0.9923720359802246}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 15530.5302734375, \"rel_l2_err\": 0.9923720359802246}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Replace the hybrid cuBLAS+custom rank-16 kernel with a pure cuBLAS three-SGEMM implementation",
+    "Use cuBLAS for all three gemms: W @ X (size d x d), B.T @ X (size d x 16), then A @ (B.T @ X) and add to Y with beta=1",
+    "Ensure the temporary U for the low-rank result has shape {d, 16} row-major (leading dimension d) and the final accumulation uses m=d, n=d, k=16, beta=1",
+    "Double-check cuBLAS operation flags (CUBLAS_OP_N vs CUBLAS_OP_T) for each matrix operand, m/n/k dimensions, and leading dimensions; reference the qyh-style mapping"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 1,
+  "llm_generated": true,
+  "name": "pure_cublas_three_sgemm",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Reduce kernel launch overhead and eliminate explicit transpose by using three direct cuBLAS SGEMM calls with beta=1 accumulation for the low-rank update.",
+  "use_fast_math": false,
+  "vector_width": 4
+}

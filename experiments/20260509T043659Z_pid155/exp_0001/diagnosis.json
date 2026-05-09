@@ -1,0 +1,38 @@
+{
+  "avoid": [
+    "Do not introduce explicit transpose or copy of B",
+    "Do not replace the three-SGEMM approach with handwritten kernels or ATen matmul",
+    "Do not use result caching or assume repeated identical inputs",
+    "Do not hardcode d values or add shape dispatch unless a specific shape continues to fail after fixing the general cuBLAS setup"
+  ],
+  "bottleneck": "incorrect_cublas_setup",
+  "confidence": "high",
+  "evidence": [
+    "All three shapes fail correctness with very high relative L2 error (\u22481.0\u20131.5) and large absolute errors (up to 16163)",
+    "Static review passed with low risk, compile succeeded, no benchmark data available; error is likely logical",
+    "No explicit transpose or handwritten kernels used, so the fault must be in cuBLAS SGEMM parameterization (dimensions, leading dimension, trans flags, or U layout)",
+    "The low-rank term computation (A @ (B.T @ X)) typically requires a temporary U that should be row-major {d,16} (or {16,d} depending on nomenclature); the candidate may have used a correct dimension set but the wrong order or stored it as column-major"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 1765.760498046875, \"passed\": false, \"rel_l2_err\": 1.0283865928649902}, \"4096\": {\"finite\": true, \"max_abs_err\": 5.538784027099609, \"passed\": false, \"rel_l2_err\": 1.4835829734802246}, \"4608\": {\"finite\": true, \"max_abs_err\": 16163.3544921875, \"passed\": false, \"rel_l2_err\": 1.0075387954711914}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 16163.3544921875, \"rel_l2_err\": 1.4835829734802246}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Adjust the temporary U to be row-major with shape {d,16} (d rows, 16 columns) and leading dimension d",
+    "In the low-rank intermediate SGEMM (compute something that yields d\u00d716), use cublasSgemm with m=d, n=16, k=d, ldc=d, and correct trans flags; refer to the qyh-style mapping described in the diagnosis rules",
+    "In the final accumulation SGEMM (add low-rank term to W@X result), use cublasSgemm with m=d, n=d, k=16, ldc=d, beta=1, and ensure the result pointer is the same as the output of the first SGEMM",
+    "Double-check that the first SGEMM (W@X) is correct: m=d, n=d, k=d, row-major storages, alpha=1, beta=0"
+  ]
+}

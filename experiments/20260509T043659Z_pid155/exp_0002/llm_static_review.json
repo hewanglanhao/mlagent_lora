@@ -1,0 +1,13 @@
+{
+  "errors": [
+    "Incorrect cuBLAS products: SGEMM2 computes (B X)^T instead of B^T X; SGEMM3 leading dimensions and product order are incorrect; Y output is transposed due to column-major write to row-major tensor."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Redesign cuBLAS kernel to correctly compute Y = W @ X + A @ (B.T @ X) using proper column-major equivalence. For example, use SGEMM1 with CUBLAS_OP_N on both to compute W@X but using transposed accesses? Alternatively, allocate Y as column-major and transpose at the end. For low-rank, compute Z = B^T X using cublasSgemm with transa=CUBLAS_OP_T, transb=CUBLAS_OP_N, m=r, n=d, k=d, lda=d, ldb=d, ldc=r, then compute A*Z with transa=CUBLAS_OP_N, transb=CUBLAS_OP_N, m=d, n=d, k=r, lda=d, ldb=r, ldc=d, then add to Y with beta=1."
+  ],
+  "warnings": [
+    "Consider using cuBLAS transposed flags to avoid manual transpose of intermediate results."
+  ]
+}

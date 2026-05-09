@@ -1,0 +1,28 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_three_sgemm"
+    ],
+    "priority_order": [
+      "implement three cuBLAS SGEMMs using cuBLAS handle, with transpose flags for B (CUBLAS_OP_T) and beta=1 for final accumulation, and row-major U shape {d,16} with leading dimension d"
+    ],
+    "rationale": "The ATen baseline is correct but not faster due to overhead from multiple GEMM and addition launches. A pure cuBLAS three-SGEMM implementation eliminates ATen wrapper overhead, uses transpose flags to avoid explicit B.T materialization, and accumulates the low-rank term with beta=1, matching the row-major/column-major mapping described in the qyh-style approach. This should provide significant speedup for the given d range.",
+    "risk_controls": [
+      "add CUDA error checking after each cuBLAS call",
+      "verify correctness for all d in [3584, 4096, 4608]",
+      "include fallback to ATen if cuBLAS handle initialization fails"
+    ],
+    "stop_conditions": [
+      "speedup > 1.1 relative to torch baseline on aggregate",
+      "max absolute error > 1e-5 for any d",
+      "time budget exhausted (e.g., more than 1 hour of cumulative compile+test)"
+    ],
+    "strategy": "cublas_three_sgemm"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "cublas_three_sgemm"
+}
