@@ -1,0 +1,48 @@
+{
+  "avoid": [
+    "Do not promote based on any speed result while correctness fails.",
+    "Do not keep the custom scalar rank-16 update unless it is proven bitwise or tolerance-correct across all d.",
+    "Do not materialize B.T as an explicit transpose-copy.",
+    "Do not treat U as column-major [16, d] or launch SGEMM2 with m=16, n=d for U.",
+    "Do not use U leading dimension 16.",
+    "Do not use opA=T/opB=T in SGEMM1 or SGEMM3 unless the full row-major/column-major mapping has been re-derived and validated.",
+    "Do not hardcode hidden dimensions or assume only one d value.",
+    "Do not use ATen matmul as a fallback optimization path."
+  ],
+  "bottleneck": "incorrect_rank16_path",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed for all tested shapes: d=3584, 4096, and 4608.",
+    "Outputs are finite but consistently outside tolerance, with rel_l2_err around 2.94e-4 for every shape.",
+    "The similar relative error across all shapes suggests a systematic low-rank term issue rather than random numerical instability.",
+    "Benchmark is unavailable, so no performance claim can be trusted.",
+    "Candidate family uses cuBLAS plus a custom rank-16 update; the main W @ X path is likely not the issue if the residual error magnitude resembles a missing or miscomputed LoRA contribution."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.4868316650390625, \"passed\": false, \"rel_l2_err\": 0.00029400744824670255}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0011764764785766602, \"passed\": false, \"rel_l2_err\": 0.0002929688198491931}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.72607421875, \"passed\": false, \"rel_l2_err\": 0.0002941317798104137}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.72607421875, \"rel_l2_err\": 0.0002941317798104137}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this candidate until correctness is fixed.",
+    "Replace the handwritten rank-16 path with the pure cuBLAS three-SGEMM implementation.",
+    "Use direct cuBLAS SGEMM for the main term W @ X; do not implement a custom full GEMM.",
+    "Use the qyh-style mapping exactly: SGEMM1 computes Y = W @ X via row-major-compatible cuBLAS mapping with opA=N, opB=N, A=X, B=W.",
+    "Compute the intermediate U with shape {d, 16}, avoiding explicit B.T materialization: SGEMM2 opA=N, opB=T, A=X, B=B, m=d, n=16, k=d, ldc=d.",
+    "Accumulate the low-rank term into Y using SGEMM3 with opA=N, opB=N, A=U, B=A, m=d, n=d, k=16, beta=1.",
+    "Verify leading dimensions carefully: U must use leading dimension d, not 16.",
+    "Check alpha and beta settings: SGEMM1 should overwrite Y, SGEMM3 should accumulate into existing Y with beta=1.",
+    "After correctness passes, benchmark all supported d values before considering promotion."
+  ]
+}

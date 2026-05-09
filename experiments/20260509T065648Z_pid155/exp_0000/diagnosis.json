@@ -1,0 +1,49 @@
+{
+  "avoid": [
+    "Do not promote this baseline as an optimized implementation.",
+    "Do not write a custom CUDA kernel for the full W @ X GEMM; cuBLAS should handle the dominant term.",
+    "Do not materialize B.T as a separate transpose/copy.",
+    "Do not use fragile handwritten rank-16 kernels before validating the simpler cuBLAS low-rank SGEMM sequence.",
+    "Do not use opA=T/opB=T in SGEMM1 or SGEMM3 unless the full row-major/column-major mapping is re-derived and tested.",
+    "Do not treat U as column-major [16,d], do not use m=16,n=d for U, and do not use leading dimension 16 for the qyh-style U contract.",
+    "Do not hardcode hidden dimensions beyond the runtime d and rank=16 contract.",
+    "Do not use result caching as an optimization unless the benchmark explicitly uses repeated identical tensor inputs as a valid workload."
+  ],
+  "bottleneck": "aten_reference_no_optimization",
+  "confidence": "high",
+  "evidence": [
+    "Candidate is correct for all tested d values: 3584, 4096, and 4608 with max_abs_err=0 and rel_l2_err=0.",
+    "Aggregate speedup is effectively 1.0, matching the PyTorch/ATen baseline rather than improving it.",
+    "Per-shape latency is indistinguishable from torch baseline: 3584 is 3.724 ms vs 3.723 ms, 4096 is 5.819 ms vs 5.821 ms, 4608 is 7.452 ms vs 7.452 ms.",
+    "Profile identifies multiple ATen GEMM/add launches, so the implementation is still paying ATen dispatch/intermediate overhead and is not using a direct optimized cuBLAS sequence.",
+    "The dominant cost is the full d x d term W @ X, so the main term should remain a direct cuBLAS SGEMM rather than a custom CUDA GEMM."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0000230844526454, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.724287986755371, \"4096\": 5.819392204284668, \"4608\": 7.452160120010376}, \"speedup\": {\"3584\": 0.9997250460219825, \"4096\": 1.0002639266151268, \"4608\": 1.0}, \"torch_ms\": {\"3584\": 3.72326397895813, \"4096\": 5.82092809677124, \"4608\": 7.452160120010376}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this as an optimization candidate; it is only a correctness baseline.",
+    "Implement and validate a pure cuBLAS three-SGEMM path with no ATen matmul calls.",
+    "Use direct cuBLAS SGEMM for the main term W @ X; do not attempt a handwritten full GEMM.",
+    "Use the qyh-style mapping exactly: SGEMM1 opA=N/opB=N with A=X and B=W to produce Y = W @ X under the row-major-to-column-major cuBLAS mapping.",
+    "Avoid explicit B.T materialization. Compute the low-rank intermediate directly with SGEMM2 opA=N/opB=T using A=X and B=B, with m=d, n=16, k=d, output U shape {d,16}, and ldc=d.",
+    "Accumulate the low-rank term into Y with SGEMM3 opA=N/opB=N using A=U and B=A, with m=d, n=d, k=16, and beta=1 so the result becomes Y = W @ X + A @ (B.T @ X).",
+    "After implementing the pure cuBLAS path, validate correctness on all runtime d values before considering any rank-16 custom kernel alternatives.",
+    "If future variants show improvement for only one d while regressing another, use shape-aware dispatch or reject promotion."
+  ]
+}

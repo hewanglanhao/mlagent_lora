@@ -1,0 +1,19 @@
+{
+  "errors": [
+    "Missing same-device validation for W, X, A, and B. The code only checks is_cuda(), but X/A/B may reside on different CUDA devices than W, leading to invalid cuBLAS pointer usage or execution on the wrong device.",
+    "Missing CUDA device guard for the device of the input/output tensors. cublasHandle_t is obtained for the current CUDA device, which may not match W.device(); Y and U are allocated on W.device(), but cuBLAS may execute on a different current device."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Add TORCH_CHECK(W.device() == X.device() && W.device() == A.device() && W.device() == B.device(), \"all inputs must be on the same CUDA device\");",
+    "Add a CUDA device guard before allocations and cuBLAS handle retrieval, e.g. c10::cuda::CUDAGuard device_guard(W.device()); and include the appropriate header such as <c10/cuda/CUDAGuard.h> or the PyTorch equivalent available in the build environment.",
+    "After adding the device guard, obtain the cuBLAS handle and current stream on the guarded device."
+  ],
+  "warnings": [
+    "The core three-SGEMM cuBLAS layout appears correct for row-major PyTorch tensors using column-major cuBLAS conventions.",
+    "The qyh-style SGEMM parameter patterns are matched: SGEMM1 uses opN/opN with A=X, B=W; SGEMM2 uses opN/opT with m=d,n=16,k=d, ldc=d; SGEMM3 uses opN/opN with m=d,n=d,k=16 and beta=1.",
+    "No ATen mm/matmul/addmm or handwritten CUDA kernels are used for the LoRA computation.",
+    "Inputs are made contiguous before cuBLAS use, so non-contiguous inputs are handled by copying."
+  ]
+}

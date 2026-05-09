@@ -1,0 +1,48 @@
+{
+  "avoid": [
+    "Do not promote this candidate despite successful compilation.",
+    "Do not optimize performance or tune block_size/vector_width until correctness passes.",
+    "Avoid handwritten rank-16 kernels for now; they are a likely source of indexing or layout error.",
+    "Avoid opA=T/opB=T mappings in SGEMM1 or SGEMM3 unless the row-major/column-major transformation is proven correct.",
+    "Avoid treating U as m=16,n=d or using leading dimension 16.",
+    "Avoid explicit B.T materialization.",
+    "Do not recommend a custom full GEMM for W @ X; use direct cuBLAS SGEMM for the dominant main term.",
+    "Do not hardcode hidden dimensions or shape-specific assumptions beyond runtime d and rank=16."
+  ],
+  "bottleneck": "correctness_failure_rank16_path",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed for every tested shape: d=3584, 4096, and 4608.",
+    "Outputs are finite, but max_abs_err reaches 4.726 at d=4608 and rel_l2_err is consistently about 2.94e-4, indicating a systematic math/layout issue rather than instability or NaNs.",
+    "No benchmark data is available, and correctness failure dominates any performance consideration.",
+    "Candidate uses a cuBLAS plus custom rank-16 update strategy, so the likely fault is in the low-rank path: B.T @ X layout handling, U temporary layout, accumulation into Y, or custom vectorized update indexing.",
+    "Static review and compilation passed, so this is likely a runtime GEMM/layout/accumulation correctness bug rather than a build issue."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.4868316650390625, \"passed\": false, \"rel_l2_err\": 0.00029400744824670255}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0011764764785766602, \"passed\": false, \"rel_l2_err\": 0.0002929688198491931}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.72607421875, \"passed\": false, \"rel_l2_err\": 0.0002941317798104137}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.72607421875, \"rel_l2_err\": 0.0002941317798104137}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this candidate until correctness is fixed.",
+    "Replace the handwritten rank-16 update with the pure cuBLAS three-SGEMM sequence before pursuing further custom optimization.",
+    "Use the exact qyh-style mapping: SGEMM1 computes the main term with opA=N, opB=N, A=X, B=W, producing Y.",
+    "Use SGEMM2 for the low-rank intermediate with opA=N, opB=T, A=X, B=B, m=d, n=16, k=d, producing U with shape {d,16} and ldc=d.",
+    "Use SGEMM3 to accumulate the low-rank term with opA=N, opB=N, A=U, B=A, m=d, n=d, k=16, beta=1 so the result is added into the existing Y.",
+    "Ensure there is no explicit B.T materialization or transpose-copy; rely on the cuBLAS opB=T flag for SGEMM2.",
+    "Verify leading dimensions carefully: U should not be treated as column-major [16,d] with leading dimension 16; use U shape {d,16} with ldc=d.",
+    "Check alpha and beta settings, especially beta=0 for the initial W @ X output and beta=1 for the final low-rank accumulation.",
+    "After validating the pure cuBLAS path, benchmark it against the last known-good candidate before considering any custom rank-16 kernel."
+  ]
+}

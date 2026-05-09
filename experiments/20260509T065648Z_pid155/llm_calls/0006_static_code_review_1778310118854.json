@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0006_static_code_review_1778310118854",
+  "duration_sec": 28.40624499320984,
+  "finished_ts": 1778310147.260548,
+  "llm_status": "LLM enabled with model gpt-5.5 from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 1,
+      "llm_generated": true,
+      "name": "pure_cublas_three_sgemm_qyh",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Removes ATen matmul/add dispatch and explicit B.T transpose-copy while keeping all heavy work in cuBLAS; final SGEMM uses beta=1 to accumulate the rank-16 update directly into Y. Expected modest but real improvement over baseline, especially from eliminating intermediate add and transpose overhead.",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T065648Z_pid155/exp_0001/candidate.cu"
+  },
+  "model": "gpt-5.5",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778310147.2622716
+    }
+  ],
+  "request": {
+    "system_chars": 2830,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- If it calls cuBLAS or PyTorch CUDA stream/handle helpers, it includes the required CUDA/cuBLAS headers, for example <ATen/cuda/CUDAContext.h>, <ATen/cuda/CUDAContextLight.h>, and <cublas_v2.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nPure cuBLAS three-SGEMM review focus:\n\n- If the candidate claims a pure cuBLAS three-SGEMM strategy, verify that the core computation does not call ATen `mm`, `matmul`, or `addmm`.\n- Verify that the preferred strategy does not use handwritten CUDA kernels for the LoRA computation.\n- Verify that it avoids explicit B.T transpose-copy materialization when cuBLAS operation flags can express the same math.\n- Check that the row-major PyTorch tensors are correctly interpreted through cuBLAS column-major conventions.\n- Check the three SGEMMs separately: main W @ X term, temporary U with shape {d, 16} for the low-rank intermediate, and final low-rank accumulation into Y with beta = 1.\n- For qyh-style candidates, require these exact cuBLAS parameter patterns:\n  - SGEMM 1: opA=N, opB=N, m=d, n=d, k=d, A=X, B=W, C=Y, lda=ldb=ldc=d, beta=0.\n  - SGEMM 2: opA=N, opB=T, m=d, n=16, k=d, A=X, B=B, C=U, lda=d, ldb=16, ldc=d, U shape {d,16}, beta=0.\n  - SGEMM 3: opA=N, opB=N, m=d, n=d, k=16, A=U, B=A, C=Y, lda=d, ldb=16, ldc=d, beta=1.\n- Flag opA=T/opB=T in SGEMM 1 or SGEMM 3 as blocking for qyh-style candidates. Flag m=16, n=d or U leading dimension 16 as blocking unless the candidate gives a convincing, shape-general proof.\n- Treat missing CUDA/cuBLAS headers, wrong cuBLAS op flags, m/n/k dimensions, leading dimensions, alpha/beta values, or stream binding as high-risk or blocking issues.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "f3e89a9f5222a610f68fab969bf90d29e617600efb90d2f073cfe84d59f46040",
+    "user_chars": 5462,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 1,\n  \"llm_generated\": true,\n  \"name\": \"pure_cublas_three_sgemm_qyh\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Removes ATen matmul/add dispatch and explicit B.T transpose-copy while keeping all heavy work in cuBLAS; final SGEMM uses beta=1 to accumulate the rank-16 update directly into Y. Expected modest but real improvement over baseline, especially from eliminating intermediate add and transpose overhead.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <ATen/cuda/CUDAContext.h>\n#include <ATen/cuda/CUDAContextLight.h>\n#include <c10/cuda/CUDAGuard.h>\n#include <cublas_v2.h>\n\nnamespace {\n\n#define CHECK_CUBLAS(call)                                                   \\\n    do {                                                                     \\\n        cublasStatus_t status_ = (call);                                     \\\n        TORCH_CHECK(status_ == CUBLAS_STATUS_SUCCESS,                        \\\n                    \"cuBLAS call failed with status \", (int)status_);        \\\n    } while (0)\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.device() == X.device() && W.device() == A.device() && W.device() == B.device(),\n                \"all inputs must be on the same CUDA device\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat &&\n                X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat &&\n                B.scalar_type() == at::kFloat,\n                \"all inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be rank-2 tensors\");\n\n    const int64_t d = W.size(0);\n    TORCH_CHECK(d >= 3584 && d <= 4608, \"d must be in [3584, 4608]\");\n    TORCH_CHECK(W.size(1) == d, \"W must be d x d\");\n    TORCH_CHECK(X.size(0) == d && X.size(1) == d, \"X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16, \"A must be d x 16\");\n    TORCH_CHECK(B.size(0) == d && B.size(1) == 16, \"B must be d x 16\");\n}\n\n}  // namespace\n\ntorch::Tensor forward(torch::Tensor W,\n                      torch::Tensor X,\n                      torch::Tensor A,\n                      torch::Tensor B) {\n    check_inputs(W, X, A, B);\n\n    c10::cuda::CUDAGuard device_guard(W.device());\n\n    auto Wc = W.contiguous();\n    auto Xc = X.contiguous();\n    auto Ac = A.contiguous();\n    auto Bc = B.contiguous();\n\n    const int d = static_cast<int>(Wc.size(0));\n    auto Y = torch::empty({d, d}, Wc.options());\n    auto U = torch::empty({d, 16}, Wc.options());\n\n    cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();\n    auto stream = at::cuda::getCurrentCUDAStream();\n    CHECK_CUBLAS(cublasSetStream(handle, stream.stream()));\n\n    const float alpha = 1.0f;\n    const float beta0 = 0.0f;\n    const float beta1 = 1.0f;\n\n    // Row-major Y = W @ X as column-major Y^T = X^T @ W^T.\n    CHECK_CUBLAS(cublasSgemm(handle,\n                             CUBLAS_OP_N, CUBLAS_OP_N,\n                             d, d, d,\n                             &alpha,\n                             Xc.data_ptr<float>(), d,\n                             Wc.data_ptr<float>(), d,\n                             &beta0,\n                             Y.data_ptr<float>(), d));\n\n    // U is row-major {d,16}; its column-major view stores (B.T @ X)^T with\n...<trimmed>...",
+    "user_sha256": "f9a785bf7b25b2de4f0c6b23f00fcce5b0b46c24823ea9eeca64f69b24d3b12a"
+  },
+  "response": {
+    "content_chars": 596,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [\n    \"Non-contiguous inputs are handled by creating contiguous copies, which is safe but may add allocation/copy overhead.\",\n    \"cublasSetStream is called explicitly on the PyTorch cuBLAS handle; this is acceptable for stream binding, though PyTorch usually manages the current stream for its cuBLAS handle.\"\n  ],\n  \"suggested_fixes\": [\n    \"No blocking fixes required. Candidate matches the required pure cuBLAS three-SGEMM qyh-style parameter patterns and avoids ATen matmul/addmm and explicit B.T materialization.\"\n  ]\n}",
+    "content_sha256": "d4c41ea23e1b3e7dae46977547e73ff2a87c882def16c25357429a56be4d2f79",
+    "model": "gpt-5.5"
+  },
+  "run_id": "20260509T065648Z_pid155",
+  "started_ts": 1778310118.8543031,
+  "status": "success"
+}

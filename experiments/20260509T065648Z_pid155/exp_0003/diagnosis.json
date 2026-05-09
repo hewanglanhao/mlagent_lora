@@ -1,0 +1,44 @@
+{
+  "avoid": [
+    "Do not promote based on passing only d=4096 and d=4608.",
+    "Do not optimize or benchmark further before repairing correctness.",
+    "Do not replace the main W @ X GEMM with a custom full GEMM; use direct cuBLAS SGEMM.",
+    "Do not use a fragile custom scalar rank-16 update when the cuBLAS low-rank SGEMM sequence is simpler and more reliable.",
+    "Do not use U as column-major [16,d], m=16,n=d for SGEMM2, or leading dimension 16; use U shape {d,16} with ldc=d.",
+    "Do not use opA=T/opB=T in SGEMM1 or SGEMM3 unless the full row-major/column-major mapping has been proven correct.",
+    "Do not hardcode hidden dimensions or rely on shape-specific assumptions."
+  ],
+  "bottleneck": "correctness_failed_shape_3584",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed for d=3584 despite finite output: max_abs_err=0.00146484375, rel_l2_err=7.91e-07.",
+    "Correctness passed for d=4096 and d=4608, so the implementation is shape-sensitive or relies on assumptions that do not hold for all runtime d values.",
+    "No benchmark data is available, and correctness failure dominates any performance consideration.",
+    "Candidate family uses cuBLAS plus a custom rank-16 update; the low-rank custom path is a likely source of small numerical or indexing/layout discrepancies."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00146484375, \"passed\": false, \"rel_l2_err\": 7.909732744337816e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}}, \"failed_shapes\": [3584], \"max_abs_err\": 0.00146484375, \"rel_l2_err\": 7.909732744337816e-07}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this candidate until it passes all required d values, including d=3584.",
+    "Replace the handwritten rank-16 update with the pure cuBLAS three-SGEMM implementation.",
+    "Use the exact qyh-style cuBLAS mapping: SGEMM1 computes the main term with opA=N, opB=N, A=X, B=W, producing Y.",
+    "Use SGEMM2 for the low-rank intermediate with opA=N, opB=T, A=X, B=B, m=d, n=16, k=d, output U shaped {d,16}, and ldc=d.",
+    "Use SGEMM3 to accumulate the low-rank term with opA=N, opB=N, A=U, B=A, m=d, n=d, k=16, and beta=1 so the result is added into Y.",
+    "Avoid explicit materialization of B.T; rely on the SGEMM opB=T flag.",
+    "If retaining any custom rank-16 code for experimentation, add shape-specific validation for d=3584 and inspect boundary handling, grid coverage, leading dimensions, and accumulation order."
+  ]
+}

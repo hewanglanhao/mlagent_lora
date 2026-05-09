@@ -1,0 +1,44 @@
+{
+  "avoid": [
+    "Do not promote this candidate while any supported d fails correctness.",
+    "Do not replace the main W @ X term with a handwritten custom GEMM; keep it as direct cuBLAS SGEMM.",
+    "Do not introduce explicit B.T materialization or ATen matmul/add dispatch.",
+    "Do not treat U as column-major [16, d], use m=16,n=d for U, or set U leading dimension to 16.",
+    "Do not hardcode only the passing dimensions or ignore d=3584.",
+    "Do not use result caching as an optimization direction."
+  ],
+  "bottleneck": "correctness_failure",
+  "confidence": "high",
+  "evidence": [
+    "Candidate compiled and passed static review, but correctness failed for d=3584.",
+    "Failure is finite and numerically small: max_abs_err=0.00146484375, rel_l2_err=7.91e-7, but correctness failure dominates performance considerations.",
+    "d=4096 and d=4608 passed exactly, suggesting the overall three-SGEMM approach is plausible but there may be a shape-sensitive layout, leading-dimension, op-flag, or numerical-mode issue.",
+    "No benchmark data is available because the candidate was not correct."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00146484375, \"passed\": false, \"rel_l2_err\": 7.909732744337816e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}}, \"failed_shapes\": [3584], \"max_abs_err\": 0.00146484375, \"rel_l2_err\": 7.909732744337816e-07}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Repair and revalidate the pure cuBLAS three-SGEMM implementation before considering performance.",
+    "Audit the implementation against the exact qyh-style mapping: SGEMM1 opA=N/opB=N with A=X and B=W to compute Y = W @ X under the row-major/column-major reinterpretation.",
+    "Use a temporary U with logical shape {d, 16}, not {16, d}. For SGEMM2 use opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, and ldc=d.",
+    "For SGEMM3 accumulate the low-rank term directly into Y with opA=N/opB=N, A=U, B=A, m=d, n=d, k=16, and beta=1.",
+    "Check all leading dimensions carefully: Y and X/W outputs should use leading dimension d; U should use leading dimension d, not 16.",
+    "Verify alpha=1 and beta settings for all three SGEMMs, especially beta=1 only on the final low-rank accumulation into Y.",
+    "Check cuBLAS pointer ordering and row-major reasoning for the d=3584 case specifically; a subtle lda/ldb/ldc or op-flag mistake can pass some square sizes while failing others.",
+    "If the remaining mismatch is purely numerical, ensure the cuBLAS math mode matches the correctness reference expectations, for example by disabling TF32 if the harness expects strict FP32 behavior."
+  ]
+}

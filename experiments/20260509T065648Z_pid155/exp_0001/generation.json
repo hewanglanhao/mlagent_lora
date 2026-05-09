@@ -1,0 +1,17 @@
+{
+  "bytes": 4048,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": true,
+    "name": "pure_cublas_three_sgemm_qyh",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Removes ATen matmul/add dispatch and explicit B.T transpose-copy while keeping all heavy work in cuBLAS; final SGEMM uses beta=1 to accumulate the rank-16 update directly into Y. Expected modest but real improvement over baseline, especially from eliminating intermediate add and transpose overhead.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "enabled": true,
+  "origin": "llm"
+}

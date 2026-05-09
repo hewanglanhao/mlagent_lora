@@ -1,0 +1,37 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_three_sgemm_qyh"
+    ],
+    "priority_order": [
+      "Implement a single optimized_lora.cu using direct cuBLAS SGEMM calls on the current PyTorch CUDA stream, with no ATen mm/matmul and no explicit transpose-copy materialization.",
+      "Use the exact qyh-style row-major-to-column-major mapping: SGEMM1 opA=N/opB=N with A=X, B=W, m=d, n=d, k=d, output Y; SGEMM2 opA=N/opB=T with A=X, B=B, m=d, n=16, k=d, output U allocated as torch empty {d,16} with ldc=d; SGEMM3 opA=N/opB=N with A=U, B=A, m=d, n=d, k=16, beta=1 to accumulate into Y.",
+      "Add robust tensor checks for CUDA, float32, contiguous layout, W/X square dxd, A/B dx16, shared d, and optionally d in [3584,4608]; use at::cuda::getCurrentCUDABlasHandle and at::cuda::getCurrentCUDAStream, set handle stream if needed."
+    ],
+    "rationale": "The previous candidate is only an ATen reference with no real speedup and pays extra dispatch/intermediate overhead. The next lowest-risk optimization is the pure cuBLAS three-SGEMM path, keeping the dominant W@X GEMM in cuBLAS while computing the rank-16 LoRA update through cuBLAS transpose flags and accumulating directly into Y with beta=1. The qyh mapping avoids explicit B.T materialization and avoids fragile custom kernels while remaining shape-general for d in [3584,4608].",
+    "risk_controls": [
+      "Correctness is the hard gate: do not promote unless all tested d values pass finite/max_abs/rel_l2 correctness checks.",
+      "Do not use ATen mm, matmul, addmm, or torch-level transpose materialization in the optimized path.",
+      "Do not use handwritten CUDA kernels as the primary implementation for this candidate.",
+      "Do not switch to generic row-major opA=T/opB=T recipes; preserve the specified qyh mapping.",
+      "Do not treat U as column-major [16,d] or use leading dimension 16; allocate U as {d,16} and use ldc=d for SGEMM2.",
+      "Use beta=1 in SGEMM3 so the low-rank term accumulates directly into Y and avoids a separate add kernel.",
+      "Validate on multiple d values across the runtime range, at minimum 3584, 4096, and 4608.",
+      "Keep the existing ATen baseline as fallback if compile, static review, correctness, or benchmark fails."
+    ],
+    "stop_conditions": [
+      "Stop and reject the candidate if it fails to compile or misses required PYBIND11_MODULE/export signature.",
+      "Stop and reject if any ATen main matrix multiplication or explicit B.transpose(...).contiguous() is present.",
+      "Stop and reject if any correctness test fails for any required d.",
+      "Stop and reject or revise if the SGEMM argument mapping deviates from the qyh constraints without strong correctness evidence across all d.",
+      "Promote only after correctness passes and aggregate latency is better than the current ATen baseline without severe per-shape regressions."
+    ],
+    "strategy": "pure_cublas_qyh_three_sgemm"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_qyh_three_sgemm"
+}
