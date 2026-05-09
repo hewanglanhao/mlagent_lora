@@ -1,0 +1,46 @@
+{
+  "avoid": [
+    "Do not promote this candidate as an optimization; it is only a correctness-preserving ATen baseline.",
+    "Do not write a custom kernel for the full W @ X GEMM, since that term dominates and cuBLAS is the appropriate backend.",
+    "Do not materialize B.T as a separate tensor copy.",
+    "Do not use fragile handwritten rank-16 kernels before validating the simpler cuBLAS low-rank SGEMM sequence.",
+    "Do not use opA=T/opB=T in SGEMM1 or SGEMM3 unless the row-major/column-major mapping is rigorously verified.",
+    "Do not store U as column-major [16,d], use m=16,n=d for U, or set U leading dimension to 16; the recommended contract is U shape {d,16} with ldc=d.",
+    "Do not hardcode a single hidden dimension because d is runtime-selected in [3584, 4608]."
+  ],
+  "bottleneck": "aten_reference_no_speedup",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested dimensions 3584, 4096, and 4608 with max_abs_err=0 and rel_l2_err=0.",
+    "Aggregate speedup is 0.99993x, effectively identical to the PyTorch/ATen baseline.",
+    "Per-shape speedups are neutral: 0.9996x at d=3584, 1.0001x at d=4096, and 1.0001x at d=4608.",
+    "Profile labels the bottleneck as multiple ATen GEMM and add launches, indicating the candidate is essentially the reference implementation rather than a lower-overhead optimized path.",
+    "The dominant term is W @ X, a large d x d SGEMM, so performance should rely on cuBLAS rather than a custom full GEMM."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "custom full GEMM without evidence"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 0.9999321719378358, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.729408025741577, \"4096\": 5.82809591293335, \"4608\": 7.460864067077637}, \"speedup\": {\"3584\": 0.9995881352522278, \"4096\": 1.0000878714275745, \"4608\": 1.0000686093037923}, \"torch_ms\": {\"3584\": 3.7278720140457153, \"4096\": 5.82860803604126, \"4608\": 7.461375951766968}}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "try vector width 4",
+      "vary block size",
+      "keep W @ X in cuBLAS"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Replace ATen matmul/add composition with an explicit pure cuBLAS three-SGEMM implementation.",
+    "Keep the main W @ X term as direct cuBLAS SGEMM; do not attempt a handwritten full d x d GEMM.",
+    "Use the exact reference cuBLAS mapping: SGEMM1 computes Y = X @ W in row-major-equivalent storage using opA=N, opB=N with A=X and B=W.",
+    "Compute the rank-16 intermediate U with shape {d,16}: SGEMM2 opA=N, opB=T with A=X and B=B, m=d, n=16, k=d, ldc=d.",
+    "Accumulate the low-rank term directly into Y using SGEMM3 opA=N, opB=N with A=U and B=A, m=d, n=d, k=16, beta=1.",
+    "Avoid explicit B.T materialization; use the cuBLAS transpose flag for B in SGEMM2.",
+    "Benchmark the pure cuBLAS candidate across all supported d values before considering promotion, because this baseline provides correctness but no performance gain."
+  ]
+}

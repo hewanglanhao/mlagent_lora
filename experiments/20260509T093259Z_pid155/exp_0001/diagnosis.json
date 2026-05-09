@@ -1,0 +1,47 @@
+{
+  "avoid": [
+    "Do not promote this candidate based on correctness alone; all benchmarked shapes regress.",
+    "Avoid handwritten scalar rank-16 update kernels unless profiling proves they beat the cuBLAS SGEMM2+SGEMM3 low-rank path.",
+    "Avoid custom full d x d GEMM implementations for W @ X; cuBLAS should be used for the dominant main term.",
+    "Avoid explicit transpose-copy materialization of B.T.",
+    "Avoid treating U as column-major [16,d], using m=16,n=d for U, or using leading dimension 16; the safer contract is U shape {d,16} with ldc=d.",
+    "Avoid result caching or hardcoding dimensions/tensors as an optimization direction."
+  ],
+  "bottleneck": "custom_rank16_update_overhead",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested d values with max_abs_err=0 and rel_l2_err=0, so the implementation is functionally valid.",
+    "Performance regresses consistently on every shape: speedup is 0.9848 at d=3584, 0.9854 at d=4096, and 0.9828 at d=4608.",
+    "Aggregate speedup is 0.9844, meaning the candidate is about 1.6% slower than the torch baseline.",
+    "The main W @ X term is a large d x d SGEMM and likely dominates total runtime; replacing only the rank-16 path with a scalar custom update is not enough to overcome overhead and may be slower than cuBLAS/ATen handling.",
+    "The candidate family uses cuBLAS plus a custom rank-16 update; the profile labels the bottleneck as rank16_update_or_memory_bandwidth, consistent with the handwritten low-rank path adding memory traffic or launch overhead.",
+    "No shape benefits from this implementation, so shape-aware dispatch would not help for this candidate as measured."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "custom full GEMM without evidence"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 0.9844345907990693, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.783679962158203, \"4096\": 5.912064075469971, \"4608\": 7.584255933761597}, \"speedup\": {\"3584\": 0.9848443947739066, \"4096\": 0.9853641534131112, \"4608\": 0.9827853700055091}, \"torch_ms\": {\"3584\": 3.7263360023498535, \"4096\": 5.825536012649536, \"4608\": 7.453695774078369}}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "try vector width 4",
+      "vary block size",
+      "keep W @ X in cuBLAS"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this candidate for promotion because it is correct but consistently slower than the baseline.",
+    "Prioritize validating a pure cuBLAS three-SGEMM implementation with no handwritten rank-16 kernel and no ATen matmul calls.",
+    "Use the exact reference cuBLAS mapping: SGEMM1 computes the main term with opA=N/opB=N using A=X and B=W.",
+    "Compute the low-rank temporary U with shape {d,16} using SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, and ldc=d.",
+    "Accumulate the low-rank contribution into Y using SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, and beta=1.",
+    "Ensure the implementation avoids explicit B.T materialization and uses cuBLAS transpose flags instead.",
+    "Keep the main W @ X path as direct cuBLAS SGEMM; do not attempt a custom full GEMM for d in this range.",
+    "If experimenting further with custom rank-16 code, compare it directly against the cuBLAS low-rank SGEMM sequence, because the scalar custom update appears memory/launch-bound and does not improve any tested shape."
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 2,
+  "llm_generated": true,
+  "name": "pure_cublas_three_sgemm_exact_mapping",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Replace ATen matmul/add sequence and explicit B.T materialization with direct cuBLAS SGEMMs; eliminate separate add launch by accumulating rank-16 term into Y with beta=1 while keeping dominant W@X on cuBLAS.",
+  "use_fast_math": false,
+  "vector_width": 1
+}

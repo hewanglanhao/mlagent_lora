@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0010_static_code_review_1778320314113",
+  "duration_sec": 30.24765157699585,
+  "finished_ts": 1778320344.360928,
+  "llm_status": "LLM enabled with model gpt-5.5 from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": true,
+      "name": "pure_cublas_three_sgemm_exact_mapping",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Replace ATen matmul/add sequence and explicit B.T materialization with direct cuBLAS SGEMMs; eliminate separate add launch by accumulating rank-16 term into Y with beta=1 while keeping dominant W@X on cuBLAS.",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T093259Z_pid155/exp_0002/candidate.cu"
+  },
+  "model": "gpt-5.5",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778320344.3746219
+    }
+  ],
+  "request": {
+    "system_chars": 2854,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- If it calls cuBLAS or PyTorch CUDA stream/handle helpers, it includes the required CUDA/cuBLAS headers, for example <ATen/cuda/CUDAContext.h>, <ATen/cuda/CUDAContextLight.h>, and <cublas_v2.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nPure cuBLAS three-SGEMM review focus:\n\n- If the candidate claims a pure cuBLAS three-SGEMM strategy, verify that the core computation does not call ATen `mm`, `matmul`, or `addmm`.\n- Verify that the preferred strategy does not use handwritten CUDA kernels for the LoRA computation.\n- Verify that it avoids explicit B.T transpose-copy materialization when cuBLAS operation flags can express the same math.\n- Check that the row-major PyTorch tensors are correctly interpreted through cuBLAS column-major conventions.\n- Check the three SGEMMs separately: main W @ X term, temporary U with shape {d, 16} for the low-rank intermediate, and final low-rank accumulation into Y with beta = 1.\n- For reference three-SGEMM candidates, require these exact cuBLAS parameter patterns:\n  - SGEMM 1: opA=N, opB=N, m=d, n=d, k=d, A=X, B=W, C=Y, lda=ldb=ldc=d, beta=0.\n  - SGEMM 2: opA=N, opB=T, m=d, n=16, k=d, A=X, B=B, C=U, lda=d, ldb=16, ldc=d, U shape {d,16}, beta=0.\n  - SGEMM 3: opA=N, opB=N, m=d, n=d, k=16, A=U, B=A, C=Y, lda=d, ldb=16, ldc=d, beta=1.\n- Flag opA=T/opB=T in SGEMM 1 or SGEMM 3 as blocking for reference three-SGEMM candidates. Flag m=16, n=d or U leading dimension 16 as blocking unless the candidate gives a convincing, shape-general proof.\n- Treat missing CUDA/cuBLAS headers, wrong cuBLAS op flags, m/n/k dimensions, leading dimensions, alpha/beta values, or stream binding as high-risk or blocking issues.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "4954f7a94a61e118154fbad19a29a16c074e13224fd36d31843d6435c246a294",
+    "user_chars": 6413,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": true,\n  \"name\": \"pure_cublas_three_sgemm_exact_mapping\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Replace ATen matmul/add sequence and explicit B.T materialization with direct cuBLAS SGEMMs; eliminate separate add launch by accumulating rank-16 term into Y with beta=1 while keeping dominant W@X on cuBLAS.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <ATen/cuda/CUDAContext.h>\n#include <ATen/cuda/CUDAContextLight.h>\n#include <c10/cuda/CUDAGuard.h>\n#include <cublas_v2.h>\n\nnamespace {\n\nconst char* cublas_status_string(cublasStatus_t status) {\n    switch (status) {\n        case CUBLAS_STATUS_SUCCESS: return \"CUBLAS_STATUS_SUCCESS\";\n        case CUBLAS_STATUS_NOT_INITIALIZED: return \"CUBLAS_STATUS_NOT_INITIALIZED\";\n        case CUBLAS_STATUS_ALLOC_FAILED: return \"CUBLAS_STATUS_ALLOC_FAILED\";\n        case CUBLAS_STATUS_INVALID_VALUE: return \"CUBLAS_STATUS_INVALID_VALUE\";\n        case CUBLAS_STATUS_ARCH_MISMATCH: return \"CUBLAS_STATUS_ARCH_MISMATCH\";\n        case CUBLAS_STATUS_MAPPING_ERROR: return \"CUBLAS_STATUS_MAPPING_ERROR\";\n        case CUBLAS_STATUS_EXECUTION_FAILED: return \"CUBLAS_STATUS_EXECUTION_FAILED\";\n        case CUBLAS_STATUS_INTERNAL_ERROR: return \"CUBLAS_STATUS_INTERNAL_ERROR\";\n#if defined(CUBLAS_STATUS_NOT_SUPPORTED)\n        case CUBLAS_STATUS_NOT_SUPPORTED: return \"CUBLAS_STATUS_NOT_SUPPORTED\";\n#endif\n#if defined(CUBLAS_STATUS_LICENSE_ERROR)\n        case CUBLAS_STATUS_LICENSE_ERROR: return \"CUBLAS_STATUS_LICENSE_ERROR\";\n#endif\n        default: return \"CUBLAS_STATUS_UNKNOWN\";\n    }\n}\n\nvoid check_cublas(cublasStatus_t status, const char* where) {\n    TORCH_CHECK(status == CUBLAS_STATUS_SUCCESS, where, \" failed: \", cublas_status_string(status));\n}\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"all inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be rank-2 tensors\");\n    TORCH_CHECK(W.get_device() == X.get_device() &&\n                W.get_device() == A.get_device() &&\n                W.get_device() == B.get_device(),\n                \"all inputs must be on the same CUDA device\");\n\n    const int64_t d = W.size(0);\n    TORCH_CHECK(d >= 3584 && d <= 4608, \"d must be in [3584, 4608]\");\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16 &&\n                B.size(0) == d && B.size(1) == 16,\n                \"A and B must be d x 16\");\n}\n\n}  // namespace\n\ntorch::Tensor forward(torch::Tensor W,\n                      torch::Tensor X,\n                      torch::Tensor A,\n                      torch::Tensor B) {\n    check_inputs(W, X, A, B);\n    c10::cuda::CUDAGuard device_guard(W.device());\n\n    auto Wc = W.contiguous();\n    auto Xc = X.contiguous();\n    auto Ac = A.contiguous();\n    auto Bc = B.contiguous();\n\n    const int d = static_cast<int>(Wc.size(0));\n    auto Y = torch::empty({d, d}, Wc.options());\n    auto U = torch::empty({d, 16}, Wc.options());\n\n    cublasHandle_t handle = at::cuda::getCurrentCUDABla\n...<trimmed>...",
+    "user_sha256": "c5caf717548f1bad41ce4c1027fefd8d91874c1514a118536ee2fd429651814b"
+  },
+  "response": {
+    "content_chars": 717,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [\n    \"The function silently makes contiguous copies of non-contiguous inputs, which is safe but may add allocation/copy overhead.\",\n    \"Calling cublasSetStream on the PyTorch-provided cuBLAS handle is generally acceptable here, but PyTorch's getCurrentCUDABlasHandle normally already binds the current stream; the explicit call may be redundant.\"\n  ],\n  \"suggested_fixes\": [\n    \"Optionally require inputs to be contiguous with TORCH_CHECK if avoiding hidden copies is desired.\",\n    \"Optionally rely on at::cuda::getCurrentCUDABlasHandle stream binding instead of calling cublasSetStream manually, unless explicit rebinding is required.\"\n  ]\n}",
+    "content_sha256": "a0829dd1622aab058cc366b768ed629dfb7ea598e5def9bdbfdf7280c4459df3",
+    "model": "gpt-5.5"
+  },
+  "run_id": "20260509T093259Z_pid155",
+  "started_ts": 1778320314.1132765,
+  "status": "success"
+}

@@ -1,0 +1,52 @@
+{
+  "avoid": [
+    "Do not pursue a custom CUDA kernel for the full W @ X GEMM; cuBLAS is the right path for the dominant computation.",
+    "Do not replace the rank-16 cuBLAS sequence with handwritten kernels unless there is strong profiling evidence and correctness validation, because the current cuBLAS path is correct and stable.",
+    "Do not materialize B.T explicitly as a separate transpose tensor.",
+    "Do not change U to a column-major [16,d] contract or use leading dimension 16; that is a common source of correctness failure.",
+    "Do not use opA=T/opB=T variants in SGEMM1 or SGEMM3 unless the full row-major/column-major mapping is rederived and revalidated.",
+    "Do not hardcode hidden dimensions; d is runtime-selected in [3584, 4608].",
+    "Do not use result caching as an optimization direction unless the benchmark explicitly validates repeated identical inputs as the target workload.",
+    "Do not overfit with shape-specific dispatch at this stage, since all tested shapes improve by a similar amount."
+  ],
+  "bottleneck": "main_sgemm_dominates_with_small_low_rank_overhead",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passed for all tested d values: 3584, 4096, and 4608.",
+    "Numerical error is very small: max_abs_err 0.00146484375 and rel_l2_err 7.9e-07, within tolerance.",
+    "The candidate implements the preferred pure cuBLAS three-SGEMM strategy and avoids ATen matmul/add overhead.",
+    "Speedup is consistent but modest across all shapes: 1.036x at d=3584, 1.029x at d=4096, 1.028x at d=4608.",
+    "Latency scales primarily with the d x d SGEMM size, indicating W @ X remains the dominant cost.",
+    "No static review warnings or compile errors were reported.",
+    "The low-rank path is already handled through cuBLAS SGEMMs rather than handwritten rank-16 kernels, reducing fragility.",
+    "The improvement likely comes from eliminating explicit B.T materialization and separate add/ATen overhead, plus accumulating the rank-16 term into Y with beta=1."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0308729180707747, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.5942399501800537, \"4096\": 5.657599925994873, \"4608\": 7.247359991073608}, \"speedup\": {\"3584\": 1.035897444401733, \"4096\": 1.02895932834195, \"4608\": 1.028399844711583}, \"torch_ms\": {\"3584\": 3.72326397895813, \"4096\": 5.82144021987915, \"4608\": 7.453183889389038}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "promote",
+  "recommended_actions": [
+    "Promote this as a validated baseline implementation because it is correct and improves every tested shape.",
+    "Keep the exact pure cuBLAS three-SGEMM mapping: SGEMM1 computes W @ X into Y, SGEMM2 computes U = B.T @ X using U shape {d,16}, and SGEMM3 accumulates A @ U into Y with beta=1.",
+    "Continue using direct cuBLAS SGEMM for the dominant W @ X term; do not replace it with a custom full GEMM.",
+    "Preserve the temporary U contract: U has logical shape {d,16}, SGEMM2 uses m=d, n=16, k=d, ldc=d, and SGEMM3 uses m=d, n=d, k=16.",
+    "Avoid explicit B.T transpose-copy materialization; keep using cuBLAS transpose flags for the low-rank projection.",
+    "If further optimization is attempted, focus on reducing overhead around cuBLAS calls and temporary allocation rather than rewriting the GEMMs.",
+    "Consider reusing a cuBLAS handle and minimizing per-call setup overhead if the implementation currently creates handles or allocates workspace repeatedly.",
+    "Use this candidate as the reference correctness/performance baseline for future experiments, especially against custom rank-16 kernels."
+  ]
+}

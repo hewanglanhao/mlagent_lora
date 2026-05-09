@@ -1,0 +1,37 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_three_sgemm"
+    ],
+    "priority_order": [
+      "Implement a single-file optimized_lora.cu using explicit cuBLAS SGEMM calls only for the three matrix multiplications, with no ATen mm/matmul in the main path.",
+      "Use the required reference row-major-to-column-major mapping: SGEMM1 opA=N/opB=N with A=X and B=W to compute Y, SGEMM2 opA=N/opB=T with A=X and B=B to compute U shape {d,16} using m=d,n=16,k=d,ldc=d, and SGEMM3 opA=N/opB=N with A=U and B=A using m=d,n=d,k=16,beta=1 to accumulate into Y.",
+      "Add robust input validation and stream/device handling around cuBLAS: CUDA float32 tensors, contiguous layout, shapes W/X={d,d}, A/B={d,16}, d in [3584,4608], same CUDA device, and bind cuBLAS to at::cuda::getCurrentCUDAStream()."
+    ],
+    "rationale": "The current valid candidate is only an ATen reference with essentially 1.0x speedup. The next lowest-risk optimization is the required pure cuBLAS three-SGEMM implementation, which keeps the dominant W @ X term in cuBLAS, avoids explicit B.T materialization, computes the rank-16 intermediate U with the verified {d,16} layout, and accumulates the low-rank update directly into Y with beta=1 to remove the separate add path.",
+    "risk_controls": [
+      "Do not promote unless correctness passes for all tested d values, especially 3584, 4096, and 4608.",
+      "Do not use ATen matmul/mm/addmm for the main computation path; only tensor allocation and validation may use ATen/Torch APIs.",
+      "Do not materialize B.transpose(0,1).contiguous(); SGEMM2 must use the cuBLAS transpose flag.",
+      "Do not switch to generic opA=T/opB=T row-major recipes; keep the exact reference mapping.",
+      "Do not use an alternative U layout such as column-major [16,d] with leading dimension 16.",
+      "Allocate Y as torch::empty_like(W) or equivalent contiguous {d,d} CUDA tensor and U as contiguous {d,16} CUDA float32 tensor.",
+      "Check all cublasStatus_t return values and fail with TORCH_CHECK on errors.",
+      "Ensure alpha=1.0f for all SGEMMs, beta=0.0f for SGEMM1 and SGEMM2, and beta=1.0f for SGEMM3.",
+      "Benchmark across multiple d values after correctness; avoid optimizing for only one hidden dimension."
+    ],
+    "stop_conditions": [
+      "Stop and keep the ATen baseline if the pure cuBLAS candidate fails compile, static review, or correctness on any tested dimension.",
+      "Stop exploring layout mutations if the reference three-SGEMM mapping compiles and is correct but speedup is neutral; only then consider low-risk cuBLAS handle/stream/allocation refinements.",
+      "Do not consider handwritten CUDA kernels or rank-16 custom fusion until the pure cuBLAS three-SGEMM candidate has been validated and benchmarked.",
+      "Reject any candidate that hardcodes a single hidden dimension or relies on hidden benchmark-specific shapes."
+    ],
+    "strategy": "pure_cublas_three_sgemm_reference_mapping"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_three_sgemm_reference_mapping"
+}
