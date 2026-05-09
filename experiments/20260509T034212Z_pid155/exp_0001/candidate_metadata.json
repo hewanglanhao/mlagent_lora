@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 1,
+  "llm_generated": true,
+  "name": "pure_cublas_three_sgemm_qyh_u_d16",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Removes ATen matmul/add overhead and explicit B.T copy while keeping all three products on cuBLAS; final rank-16 contribution is accumulated into Y with beta=1, potentially giving modest speedup over baseline without custom GEMM risk.",
+  "use_fast_math": false,
+  "vector_width": 4
+}

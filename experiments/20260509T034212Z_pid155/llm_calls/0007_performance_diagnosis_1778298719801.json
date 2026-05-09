@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0007_performance_diagnosis_1778298719801",
+  "duration_sec": 14.064697027206421,
+  "finished_ts": 1778298733.8663929,
+  "llm_status": "LLM enabled with model gpt-5.5 from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 1,
+      "llm_generated": true,
+      "name": "pure_cublas_three_sgemm_qyh_u_d16",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Removes ATen matmul/add overhead and explicit B.T copy while keeping all three products on cuBLAS; final rank-16 contribution is accumulated into Y with beta=1, potentially giving modest speedup over baseline without custom GEMM risk.",
+      "use_fast_math": false,
+      "vector_width": 4
+    }
+  },
+  "model": "gpt-5.5",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778298733.867896
+    }
+  ],
+  "request": {
+    "system_chars": 2335,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- Prefer analysis that moves the system toward a pure cuBLAS three-SGEMM implementation when that candidate has not yet been validated.\n- If W @ X dominates time, do not recommend a custom full GEMM; recommend direct cuBLAS SGEMM for the main term.\n- If the rank-16 path is slow or fragile, consider replacing handwritten rank-16 kernels with the cuBLAS low-rank SGEMM sequence.\n- Check whether the candidate avoids explicit B.T materialization, uses a temporary U with shape {d, 16}, and accumulates the low-rank term into Y with beta = 1.\n- If a pure cuBLAS candidate is incorrect, suspect row-major/column-major reasoning, cuBLAS op flags, m/n/k dimensions, leading dimensions, or alpha/beta settings before suggesting unrelated optimizations.\n- When repairing a failed pure cuBLAS candidate, steer it back to the qyh-style mapping: U is row-major {d,16}, the low-rank intermediate SGEMM uses m=d, n=16, k=d, ldc=d, and the final accumulation uses m=d, n=d, k=16 with beta=1.\n- If a candidate treats U as column-major [16,d] or uses U leading dimension 16, call that out as a likely cause of shape-dependent correctness failure and recommend the qyh-style U mapping instead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n- Do not recommend result caching as an optimization direction unless the benchmark explicitly evaluates repeated identical tensor inputs as a valid workload.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "a0667207c982d19a19af0c4a9e17fcc3e5ca1e401e0378f97f9f0edd15c8bd31",
+    "user_chars": 2544,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 1,\n  \"llm_generated\": true,\n  \"name\": \"pure_cublas_three_sgemm_qyh_u_d16\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Removes ATen matmul/add overhead and explicit B.T copy while keeping all three products on cuBLAS; final rank-16 contribution is accumulated into Y with beta=1, potentially giving modest speedup over baseline without custom GEMM risk.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 219.69475459400564,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_1_1778298499974\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.00146484375,\n      \"passed\": false,\n      \"rel_l2_err\": 7.909732744337816e-07\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    }\n  },\n  \"failed_shapes\": [\n    3584\n  ],\n  \"max_abs_err\": 0.00146484375,\n  \"rel_l2_err\": 7.909732744337816e-07\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nDiagnosis emphasis:\n\n- Prefer recommendations that improve or repair the pure cuBLAS three-SGEMM path: direct cuBLAS for all multiplications, no ATen matrix multiply, no handwritten kernels, no explicit B.T transpose-copy, correct temporary U layout, and beta = 1 accumulation.\n- If correctness fails with small relative error or only some d values fail, first recommend the qyh-style U contract: U shape {d,16}, second SGEMM m=d/n=16/k=d/ldc=d, third SGEMM m=d/n=d/k=16/beta=1.\n- If the candidate is fast only because of result caching or repeated identical inputs, flag that as benchmark-specific rather than a general LoRA operator improvement.\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "b2a28b1f2cefbc018ed97fb959f7b2b261cb8513464d4db21170f3f78dbbd1b1"
+  },
+  "response": {
+    "content_chars": 2176,
+    "content_preview": "{\n  \"bottleneck\": \"correctness_shape_3584\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Correctness failed, so performance cannot be considered for promotion.\",\n    \"Only d=3584 failed: max_abs_err=0.00146484375, rel_l2_err=7.91e-07; d=4096 and d=4608 passed exactly.\",\n    \"Benchmark data is unavailable, so there is no validated speed evidence.\",\n    \"The implementation strategy is the preferred direction: pure cuBLAS three-SGEMM, no explicit B.T materialization, and beta=1 accumulation into Y. The issue is likely a shape/layout/detail bug rather than a need for a different algorithm.\"\n  ],\n  \"recommended_actions\": [\n    \"Repair and revalidate the pure cuBLAS three-SGEMM path before benchmarking.\",\n    \"Audit row-major/column-major reasoning, cuBLAS op flags, m/n/k dimensions, leading dimensions, and alpha/beta values for all three SGEMMs.\",\n    \"Use the qyh-style U contract explicitly: allocate U as row-major logical {d,16}; compute the low-rank intermediate with SGEMM m=d, n=16, k=d, ldc=d; then accumulate A @ U.T or equivalent into Y with SGEMM m=d, n=d, k=16 and beta=1.\",\n    \"Check that U is not accidentally treated as column-major [16,d] and that no SGEMM uses leading dimension 16 for U where ldc=d is required.\",\n    \"Confirm the final low-rank SGEMM accumulates into the existing Y from W @ X using beta=1, not beta=0 or a separate add with mismatched layout.\",\n    \"Test all target shapes, especially d=3584, after the layout fix; only benchmark once correctness passes for every required d.\"\n  ],\n  \"avoid\": [\n    \"Do not promote this candidate while any shape fails correctness.\",\n    \"Do not switch to a handwritten full GEMM; W @ X should remain direct cuBLAS SGEMM.\",\n    \"Do not add custom rank-16 kernels unless the pure cuBLAS low-rank SGEMM sequence is first validated and shown to be too slow.\",\n    \"Do not hardcode a single hidden dimension or special-case only the passing shapes.\",\n    \"Do not use explicit B.T materialization as the first repair path.\",\n    \"Do not rely on result caching or repeated identical inputs as an optimization unless the benchmark explicitly validates that workload.\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "ace05f54b59f832f16e8225d3c86aeb74eb6c7323eb35a0ea3c91dd227bb0f34",
+    "model": "gpt-5.5"
+  },
+  "run_id": "20260509T034212Z_pid155",
+  "started_ts": 1778298719.8016958,
+  "status": "success"
+}

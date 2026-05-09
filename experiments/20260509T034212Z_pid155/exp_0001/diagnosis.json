@@ -1,0 +1,42 @@
+{
+  "avoid": [
+    "Do not promote this candidate while any shape fails correctness.",
+    "Do not switch to a handwritten full GEMM; W @ X should remain direct cuBLAS SGEMM.",
+    "Do not add custom rank-16 kernels unless the pure cuBLAS low-rank SGEMM sequence is first validated and shown to be too slow.",
+    "Do not hardcode a single hidden dimension or special-case only the passing shapes.",
+    "Do not use explicit B.T materialization as the first repair path.",
+    "Do not rely on result caching or repeated identical inputs as an optimization unless the benchmark explicitly validates that workload."
+  ],
+  "bottleneck": "correctness_shape_3584",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed, so performance cannot be considered for promotion.",
+    "Only d=3584 failed: max_abs_err=0.00146484375, rel_l2_err=7.91e-07; d=4096 and d=4608 passed exactly.",
+    "Benchmark data is unavailable, so there is no validated speed evidence.",
+    "The implementation strategy is the preferred direction: pure cuBLAS three-SGEMM, no explicit B.T materialization, and beta=1 accumulation into Y. The issue is likely a shape/layout/detail bug rather than a need for a different algorithm."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00146484375, \"passed\": false, \"rel_l2_err\": 7.909732744337816e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}}, \"failed_shapes\": [3584], \"max_abs_err\": 0.00146484375, \"rel_l2_err\": 7.909732744337816e-07}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Repair and revalidate the pure cuBLAS three-SGEMM path before benchmarking.",
+    "Audit row-major/column-major reasoning, cuBLAS op flags, m/n/k dimensions, leading dimensions, and alpha/beta values for all three SGEMMs.",
+    "Use the qyh-style U contract explicitly: allocate U as row-major logical {d,16}; compute the low-rank intermediate with SGEMM m=d, n=16, k=d, ldc=d; then accumulate A @ U.T or equivalent into Y with SGEMM m=d, n=d, k=16 and beta=1.",
+    "Check that U is not accidentally treated as column-major [16,d] and that no SGEMM uses leading dimension 16 for U where ldc=d is required.",
+    "Confirm the final low-rank SGEMM accumulates into the existing Y from W @ X using beta=1, not beta=0 or a separate add with mismatched layout.",
+    "Test all target shapes, especially d=3584, after the layout fix; only benchmark once correctness passes for every required d."
+  ]
+}
