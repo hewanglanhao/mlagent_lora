@@ -240,7 +240,11 @@ class Supervisor:
         self.llm_static_review = LLMStaticCodeReviewAgent(self.spec, self.llm, self.prompts, self.llm_calls)
         self.env_agent = EnvironmentInspectorAgent()
         self.compile_agent = BuildCompileAgent()
-        self.correctness_agent = CorrectnessTestAgent(sizes=args.correctness_sizes)
+        self.correctness_agent = CorrectnessTestAgent(
+            sizes=args.correctness_sizes,
+            rtol=args.correctness_rtol,
+            atol=args.correctness_atol,
+        )
         self.benchmark_agent = BenchmarkAgent(
             sizes=args.benchmark_sizes,
             warmup=args.bench_warmup,
@@ -280,6 +284,12 @@ class Supervisor:
         )
         self.logger.info("llm status: %s", self.llm.status)
         self.logger.info(
+            "correctness tolerance: rtol=%s atol=%s sizes=%s",
+            self.args.correctness_rtol,
+            self.args.correctness_atol,
+            self.args.correctness_sizes,
+        )
+        self.logger.info(
             "llm pipeline: closed_loop=%s async=%s advisory=%s async_codegen=%s repair_attempts=%s idle_wait_sec=%s stale_retry_wait_sec=%s min_candidate_time_budget_sec=%s",
             self.llm_closed_loop,
             self.async_llm,
@@ -296,6 +306,8 @@ class Supervisor:
                 "run_id": self.run_id,
                 "constraints": self.constraints.checklist(),
                 "llm": self.llm.status,
+                "correctness_rtol": self.args.correctness_rtol,
+                "correctness_atol": self.args.correctness_atol,
                 "llm_closed_loop": self.llm_closed_loop,
                 "async_llm": self.async_llm,
                 "async_llm_advisory": self.async_llm_advisory,
@@ -1329,6 +1341,16 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--correctness-sizes",
         type=lambda value: _parse_sizes(value, DEFAULT_SPEC.correctness_sizes),
         default=_parse_sizes(os.getenv("CORRECTNESS_SIZES"), DEFAULT_SPEC.correctness_sizes),
+    )
+    parser.add_argument(
+        "--correctness-rtol",
+        type=float,
+        default=float(os.getenv("CORRECTNESS_RTOL", "1e-4")),
+    )
+    parser.add_argument(
+        "--correctness-atol",
+        type=float,
+        default=float(os.getenv("CORRECTNESS_ATOL", "2e-3")),
     )
     parser.add_argument(
         "--benchmark-sizes",

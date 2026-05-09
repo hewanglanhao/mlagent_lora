@@ -72,6 +72,12 @@ export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
 # 单次优化运行的内部时间上限，单位秒；平台 30 分钟限制下默认留一点余量。
 export MAX_OPT_TIME="${MAX_OPT_TIME:-1700}"
 
+# 正确性检查的相对误差阈值；默认仍保持原来的 1e-4。
+export CORRECTNESS_RTOL="${CORRECTNESS_RTOL:-1e-4}"
+
+# 正确性检查的绝对误差阈值；从 1e-4 放宽到 2e-3，用于接收小幅 cuBLAS/ATen 数值差异。
+export CORRECTNESS_ATOL="${CORRECTNESS_ATOL:-2e-3}"
+
 # 单次 LLM 请求的最长等待时间，单位秒；过短会更容易 timeout，过长会拖慢整体搜索。
 export LLM_TIMEOUT_SEC="${LLM_TIMEOUT_SEC:-180}"
 

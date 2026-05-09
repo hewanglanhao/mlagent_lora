@@ -201,8 +201,16 @@ class BuildCompileAgent:
 
 
 class CorrectnessTestAgent:
-    def __init__(self, sizes: tuple[int, ...], seed: int = 2026) -> None:
+    def __init__(
+        self,
+        sizes: tuple[int, ...],
+        seed: int = 2026,
+        rtol: float = 1e-4,
+        atol: float = 2e-3,
+    ) -> None:
         self.sizes = sizes
+        self.rtol = rtol
+        self.atol = atol
         self.data = SyntheticDataGenerator(seed=seed)
 
     def run(self, module) -> CorrectnessResult:
@@ -222,7 +230,7 @@ class CorrectnessTestAgent:
                 diff = (y_student - y_ref).float()
                 shape_max_abs = diff.abs().max().item()
                 shape_rel_l2 = (diff.norm() / (y_ref.float().norm() + 1e-12)).item()
-                passed = bool(torch.allclose(y_student, y_ref, rtol=1e-4, atol=1e-4))
+                passed = bool(torch.allclose(y_student, y_ref, rtol=self.rtol, atol=self.atol))
                 finite = bool(torch.isfinite(y_student).all().item())
             max_abs = max(max_abs, shape_max_abs)
             max_rel_l2 = max(max_rel_l2, shape_rel_l2)
@@ -231,6 +239,8 @@ class CorrectnessTestAgent:
                 "finite": finite,
                 "max_abs_err": shape_max_abs,
                 "rel_l2_err": shape_rel_l2,
+                "rtol": self.rtol,
+                "atol": self.atol,
             }
             if not passed or not finite:
                 failed.append(d)

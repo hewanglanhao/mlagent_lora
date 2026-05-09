@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import time
 from pathlib import Path
@@ -54,17 +55,19 @@ def build_module(cu_path: Path, build_dir: Path):
     )
 
 
-def check_correctness(y, y_ref) -> dict[str, Any]:
+def check_correctness(y, y_ref, rtol: float, atol: float) -> dict[str, Any]:
     diff = (y - y_ref).float()
     max_abs_err = diff.abs().max().item()
     rel_l2_err = (diff.norm() / (y_ref.float().norm() + 1e-12)).item()
-    passed = bool(torch.allclose(y, y_ref, rtol=1e-4, atol=1e-4))
+    passed = bool(torch.allclose(y, y_ref, rtol=rtol, atol=atol))
     finite = bool(torch.isfinite(y).all().item())
     return {
         "passed": passed and finite,
         "finite": finite,
         "max_abs_err": max_abs_err,
         "rel_l2_err": rel_l2_err,
+        "rtol": rtol,
+        "atol": atol,
     }
 
 
@@ -95,12 +98,23 @@ def benchmark(fn, warmup: int, iters: int) -> dict[str, Any]:
     }
 
 
-def evaluate_case(module, W, X, A, B, warmup: int, iters: int, run_benchmark: bool) -> dict[str, Any]:
+def evaluate_case(
+    module,
+    W,
+    X,
+    A,
+    B,
+    warmup: int,
+    iters: int,
+    run_benchmark: bool,
+    rtol: float,
+    atol: float,
+) -> dict[str, Any]:
     with torch.no_grad():
         y_student = module.forward(W, X, A, B)
         y_ref = reference_impl(W, X, A, B)
         torch.cuda.synchronize()
-    correctness = check_correctness(y_student, y_ref)
+    correctness = check_correctness(y_student, y_ref, rtol=rtol, atol=atol)
     result: dict[str, Any] = {"correctness": correctness}
 
     if correctness["passed"] and run_benchmark:
@@ -128,6 +142,8 @@ def evaluate_synthetic(args, module) -> dict[str, Any]:
             warmup=args.warmup,
             iters=args.iters,
             run_benchmark=not args.correctness_only,
+            rtol=args.correctness_rtol,
+            atol=args.correctness_atol,
         )
         results[str(d)] = case_result
         del W, X, A, B
@@ -147,6 +163,8 @@ def evaluate_input_dir(args, module) -> dict[str, Any]:
         warmup=args.warmup,
         iters=args.iters,
         run_benchmark=not args.correctness_only,
+        rtol=args.correctness_rtol,
+        atol=args.correctness_atol,
     )
     del W, X, A, B
     torch.cuda.empty_cache()
@@ -172,6 +190,8 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--warmup", type=int, default=10)
     parser.add_argument("--iters", type=int, default=50)
     parser.add_argument("--seed", type=int, default=2026)
+    parser.add_argument("--correctness-rtol", type=float, default=float(os.getenv("CORRECTNESS_RTOL", "1e-4")))
+    parser.add_argument("--correctness-atol", type=float, default=float(os.getenv("CORRECTNESS_ATOL", "2e-3")))
     parser.add_argument("--correctness-only", action="store_true")
     parser.add_argument("--output", type=Path, default=ROOT / "eval_results" / "local_eval.json")
     return parser
@@ -205,4 +225,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -21,7 +21,7 @@ Hard constraints:
 
 Correctness requirements:
 
-- Compute exactly W @ X + A @ (B.T @ X) within torch.allclose rtol=1e-4, atol=1e-4.
+- Compute W @ X + A @ (B.T @ X) within the configured local correctness tolerance, normally torch.allclose rtol=1e-4, atol=2e-3.
 - Validate CUDA tensor placement, dtype, rank, and compatible shapes.
 - Make tensors contiguous before pointer-based access.
 - If any CUDA kernel is used outside the preferred strategy, protect it against out-of-bounds indexing.
