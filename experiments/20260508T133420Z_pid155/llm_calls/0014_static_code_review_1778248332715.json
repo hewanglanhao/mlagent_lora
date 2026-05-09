@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0014_static_code_review_1778248332715",
+  "duration_sec": 69.45244216918945,
+  "finished_ts": 1778248402.167962,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 3,
+      "llm_generated": true,
+      "name": "rank16_scalar_b128",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T133420Z_pid155/exp_0003/candidate.cu"
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778248402.1700664
+    }
+  ],
+  "request": {
+    "system_chars": 1482,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It may equivalently compute this as `Weff = W + A @ B.T` followed by `Weff @ X`, as in the `candidate_002_precompute.cu` strategy.\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Precompute candidates must not mutate `W`, `A`, `B`, or `X` in-place; they should build a temporary `Weff`.\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "d7c86298d120a6bc858e6671bc384dc571a72f4d1f5c11010cd6fc6d3530a07a",
+    "user_chars": 4435,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 3,\n  \"llm_generated\": true,\n  \"name\": \"rank16_scalar_b128\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n\n// Block size for tile-based outer product kernel\nconstexpr int BLOCK_SIZE = 128;\nconstexpr int RANK = 16;\n\n// CUDA kernel: add A @ B.T to Weff (d x d), tile-based with shared memory\n__global__ void outer_add_kernel(\n    const float* __restrict__ A,\n    const float* __restrict__ B,\n    float* __restrict__ Weff,\n    int d) {\n    // Shared memory for B tile: 128 columns x 16 rank\n    __shared__ float sB[BLOCK_SIZE][RANK];\n\n    int tile_row = blockIdx.y * BLOCK_SIZE;\n    int tile_col = blockIdx.x * BLOCK_SIZE;\n    int local_idx = threadIdx.x;  // 0..127\n\n    // Load B tile: each thread loads one column (local_idx) for all ranks\n    int global_col = tile_col + local_idx;\n    if (global_col < d) {\n        for (int k = 0; k < RANK; ++k) {\n            sB[local_idx][k] = B[global_col * RANK + k];\n        }\n    } else {\n        // Out-of-range columns: fill with zeros (safe)\n        for (int k = 0; k < RANK; ++k) {\n            sB[local_idx][k] = 0.0f;\n        }\n    }\n    __syncthreads();\n\n    // Each thread handles one row of the tile\n    int global_row = tile_row + local_idx;\n    if (global_row >= d) return;\n\n    // Load the entire row of A (16 floats) into registers\n    float a_row[RANK];\n    for (int k = 0; k < RANK; ++k) {\n        a_row[k] = A[global_row * RANK + k];\n    }\n\n    // Iterate over all columns in the tile and compute the outer product contribution\n    for (int j = 0; j < BLOCK_SIZE; ++j) {\n        if (tile_col + j >= d) break;\n        float sum = 0.0f;\n        // Unrolled loop over rank\n        #pragma unroll\n        for (int k = 0; k < RANK; ++k) {\n            sum += a_row[k] * sB[j][k];\n        }\n        Weff[global_row * d + (tile_col + j)] += sum;\n    }\n}\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"All inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"All inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"All inputs must be 2D tensors\");\n    int64_t d = W.size(0);\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == RANK &&\n                B.size(0) == d && B.size(1) == RANK,\n                \"A and B must be d x 16\");\n}\n\ntorch::Tensor forward(torch::Tensor W,\n                      torch::Tensor X,\n                      torch::Tensor A,\n                      torch::Tensor B) {\n    check_inputs(W, X, A, B);\n\n    // Make sure all tensors are contiguous\n    auto W_cont = W.contiguous();\n    auto X_cont = X.contiguous();\n    auto A_cont = A.contiguous();\n    auto B_cont = B.contiguous();\n\n    int64_t d = W_cont.size(0);\n\n    // Precompute Weff = W + A @ B.T using a custom outer product kernel\n    auto Weff = W_cont.clone();  // d x d, initialized with W\n\n    // Launch kernel\n    dim3 grid((d + BLOCK_SIZE - 1) / BLOCK_SIZE, (d + BLOCK_SIZE - 1) / BLOCK_SIZE);\n    dim3 block(BLOCK_SIZE);\n    outer_add_kernel<<<grid, block>>>(\n       \n...<trimmed>...",
+    "user_sha256": "3cf040436c9aa952c1fe90d07170c17980e12fe242645b8e7bf03b09926606c5"
+  },
+  "response": {
+    "content_chars": 213,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [\"No explicit check that d is within [3584, 4608]; code works for any d.\"],\n  \"suggested_fixes\": [\"Add TORCH_CHECK for d range if desired.\"]\n}",
+    "content_sha256": "5bf0794c7de4a82ec84c36762b5ca1e20cec23ca0869812237396a4915b0c2c9",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T133420Z_pid155",
+  "started_ts": 1778248332.71552,
+  "status": "success"
+}

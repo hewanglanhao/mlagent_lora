@@ -1,0 +1,11 @@
+{
+  "errors": [
+    "Kernel 'add_rank16_update_kernel' does not write to shared memory T_sh; the loading block is incomplete (only declares an unused variable and contains a comment). This leaves T_sh uninitialized, causing undefined behavior and incorrect results."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Replace the incomplete loading block with actual assignments: for each thread (tx,ty), assign T_sh[threadIdx.x][threadIdx.y] = T[threadIdx.y * d + j] where j = blockIdx.x * blockDim.x + threadIdx.x, before __syncthreads()."
+  ],
+  "warnings": []
+}

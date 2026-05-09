@@ -1,0 +1,39 @@
+{
+  "avoid": [
+    "Investing further effort in a custom GEMM for A @ Z that directly competes with cuBLAS; it is high risk and unlikely to yield meaningful speedups.",
+    "Hardcoding hidden dimensions or tensors, as d is runtime-selected."
+  ],
+  "bottleneck": "rank16_update_or_memory_bandwidth",
+  "confidence": "medium",
+  "evidence": [
+    "Aggregate speedup is only 1.0129x, with per-shape speedups between 1.011x and 1.015x, indicating marginal improvement over baseline.",
+    "Profile summary identifies the rank-16 update as the bottleneck, suggesting the custom kernel is not significantly outperforming cuBLAS.",
+    "The custom kernel computes A @ Z (d\u00d716 \u00d7 16\u00d7d) as a full GEMM, directly competing with cuBLAS's highly optimized GEMM, which likely already supports fused addition (beta=1.0).",
+    "Correctness is perfect (max_abs_err=0.0, rel_l2_err=0.0), so no numerical issues, but performance gain is negligible.",
+    "Static review and compilation passed without warnings, indicating a clean but underperforming implementation."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.012930727272821, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.668992042541504, \"4096\": 5.751296043395996, \"4608\": 7.358975887298584}, \"speedup\": {\"3584\": 1.0147920561798307, \"4096\": 1.0118401418349634, \"4608\": 1.0125235122829546}, \"torch_ms\": {\"3584\": 3.72326397895813, \"4096\": 5.819392204284668, \"4608\": 7.451136112213135}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Profile the custom kernel against a pure cuBLAS implementation of the rank-16 update (cublasSgemm with beta=1.0) to confirm the performance gap.",
+    "If the custom kernel cannot beat cuBLAS, revert to using cuBLAS for all three GEMMs (W@X, B.T@X, A@Z with accumulation) to reduce code complexity.",
+    "Explore fusing B.T @ X and the A @ Z update into a single kernel that avoids materializing the intermediate Z (16\u00d7d) to save memory bandwidth, though Z is small so gains may be limited.",
+    "Consider more aggressive tiling, double buffering, or tuning block sizes only if profiling shows the custom kernel has potential, but given the tiny speedup, this is low priority."
+  ]
+}

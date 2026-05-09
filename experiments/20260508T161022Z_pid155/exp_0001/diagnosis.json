@@ -1,0 +1,41 @@
+{
+  "avoid": [
+    "Do not hardcode hidden dimensions or leading dimensions based on trial-and-error without understanding the layout.",
+    "Do not revert to ATen GEMM or handwritten kernels unless cuBLAS fix is ruled out.",
+    "Do not consider result caching as a solution since benchmark does not use repeated identical inputs.",
+    "Do not ignore correctness: do not promote this candidate as-is."
+  ],
+  "bottleneck": "correctness",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed for all tested shapes (d=3584, 4096, 4608) with max_abs_err up to 15516.8 and rel_l2_err close to 1.0.",
+    "Static review and compile passed, so the error is likely in cuBLAS API usage (dimensions, leading dimensions, transposes, or alpha/beta).",
+    "No benchmark data available to assess performance; correctness dominates.",
+    "Candidate strategy claims to use three direct cuBLAS SGEMMs, but results show wrong numerical output."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 1741.5260009765625, \"passed\": false, \"rel_l2_err\": 0.9712008833885193}, \"4096\": {\"finite\": true, \"max_abs_err\": 3.4671401977539062, \"passed\": false, \"rel_l2_err\": 0.6922467947006226}, \"4608\": {\"finite\": true, \"max_abs_err\": 15516.8115234375, \"passed\": false, \"rel_l2_err\": 0.9923923015594482}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 15516.8115234375, \"rel_l2_err\": 0.9923923015594482}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Verify cuBLAS handle creation and destruction.",
+    "Fix cuBLAS SGEMM calls for row-major tensors: For each multiplication, use the pattern cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_T, m, n, k, &alpha, A_ptr, k, B_ptr, n, &beta, C_ptr, m) where m/n/k are the row-major matrix dimensions and leading dimensions equal the number of columns of the row-major matrix.",
+    "For temp = B.T @ X: m=16, n=d, k=d, A=B_ptr (lda=16), B=X_ptr (ldb=d), out=temp_ptr (ldc=16).",
+    "For Y = W @ X (first term): m=d, n=d, k=d, A=W_ptr (lda=d), B=X_ptr (ldb=d), out=Y_ptr (ldc=d), beta=0.",
+    "For accumulation of low-rank term: Y = A @ temp + Y: m=d, n=d, k=16, A=A_ptr (lda=16), B=temp_ptr (ldb=d), out=Y_ptr (ldc=d), beta=1.0.",
+    "Allocate temporary buffer U with shape (16, d) (row-major) and ensure its leading dimension for column-major usage is d.",
+    "Add shape-agnostic debug print or compare intermediate results to reference for a small dimension to isolate the bug."
+  ]
+}

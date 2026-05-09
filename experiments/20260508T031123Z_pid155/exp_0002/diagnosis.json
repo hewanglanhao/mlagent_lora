@@ -1,0 +1,35 @@
+{
+  "avoid": [
+    "promoting without fixing correctness",
+    "ignoring large max_abs_err as acceptable"
+  ],
+  "bottleneck": "correctness",
+  "confidence": "high",
+  "evidence": [
+    "correctness fails for all tested shapes (3584, 4096, 4608)",
+    "max absolute error up to 4.77 at d=4608",
+    "rel_l2 error ~0.0003"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.50091552734375, \"passed\": false, \"rel_l2_err\": 0.00028545944951474667}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0005447864532470703, \"passed\": false, \"rel_l2_err\": 0.00010944990208372474}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.7734375, \"passed\": false, \"rel_l2_err\": 0.0002918986137956381}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.7734375, \"rel_l2_err\": 0.0002918986137956381}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "inspect custom rank-16 kernel for indexing errors or incorrect accumulation",
+    "verify that the kernel computes A @ (B.T @ X) correctly, especially the reduction for the outer product",
+    "test with smaller d to debug and compare against reference",
+    "consider using float32 for intermediate accumulations if using lower precision"
+  ]
+}

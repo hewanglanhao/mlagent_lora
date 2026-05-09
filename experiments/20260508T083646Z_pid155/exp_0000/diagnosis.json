@@ -1,0 +1,39 @@
+{
+  "avoid": [
+    "Replacing the W@X cuBLAS call with a custom GEMM; it is high risk and unlikely to yield speedups.",
+    "Hardcoding hidden dimensions or baking tensor shapes into the kernel; the operator must remain dynamic.",
+    "Overlooking launch overhead for small rank-16 operations; even a simple fused kernel can yield significant gains."
+  ],
+  "bottleneck": "multiple_aten_gemm_and_add_launches",
+  "confidence": "high",
+  "evidence": [
+    "Baseline aten implementation uses separate cuBLAS calls for W@X, B.T@X, and A@(B.T@X), plus an elementwise add, causing multiple kernel launch overheads.",
+    "Benchmark shows speedup ~1.0 across all shapes, confirming no performance gain over the reference PyTorch path.",
+    "Profile summary explicitly identifies the bottleneck as multiple aten gemm and add launches.",
+    "Correctness is perfect (max_abs_err=0.0, rel_l2_err=0.0), so no correctness issues mask performance."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0000994253343547, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.724287986755371, \"4096\": 5.824000120162964, \"4608\": 7.4547200202941895}, \"speedup\": {\"3584\": 1.0, \"4096\": 1.0003516100847618, \"4608\": 0.9998626043348332}, \"torch_ms\": {\"3584\": 3.724287986755371, \"4096\": 5.826047897338867, \"4608\": 7.453695774078369}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Keep cuBLAS for the large W@X GEMM; it is already highly optimized and unlikely to be beaten by a custom kernel.",
+    "Fuse the rank-16 update (B.T@X followed by A@result and addition to W@X) into a single custom kernel to reduce launch overhead and improve memory locality.",
+    "Implement the fused rank-16 kernel with scalar or vectorized loads/stores, ensuring coalesced access and sufficient unrolling to hide latency.",
+    "Consider shape-aware dispatch if a single fused kernel does not perform uniformly across d \u2208 [3584, 4608]; tune block sizes per shape if necessary."
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "errors": [
+    "First cuBLAS Sgemm computes X * W instead of W @ X (incorrect operation flags and matrix order for row-major tensors).",
+    "Second cuBLAS Sgemm has dimension mismatch: m=d, n=16, k=d with OP_N on X (d\u00d7d) and OP_T on B (originally d\u00d716, transposed to 16\u00d7d) gives incompatible inner dimension d vs 16; intended B.T @ X is not achieved.",
+    "Third cuBLAS Sgemm uses temp (intended as 16\u00d7d row-major) with leading dimension d, but cuBLAS interpretation is inconsistent; also accumulation with beta=1 requires correct prior content of Y from first Sgemm (which is wrong anyway).",
+    "Overall the three Sgemm calls do not implement Y = W @ X + A @ (B.T @ X) correctly; the mathematical mapping from row-major to cuBLAS column-major conventions is flawed."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Correct the first Sgemm to compute W @ X (row-major) by using CUBLAS_OP_T on both X and W, or equivalently compute X^T * W^T with appropriate dimensions.",
+    "Correct the second Sgemm to compute B.T @ X: set op(A)=CUBLAS_OP_T on X, op(B)=CUBLAS_OP_N on B, dimensions m=d, n=16, k=d, leading dimensions: lda=d (for X), ldb=16 (for B), ldc=d (for temp).",
+    "Correct the third Sgemm to accumulate A @ temp: set op(A)=CUBLAS_OP_N on temp (interpreted as column-major of size d\u00d716), op(B)=CUBLAS_OP_N on A (size 16\u00d7d), dimensions m=d, n=d, k=16, leading dimensions: lda=d, ldb=16, ldc=d.",
+    "Verify all leading dimensions match the column-major sizes of the stored matrices."
+  ],
+  "warnings": [
+    "Candidate uses only cuBLAS and no custom kernels, but the cuBLAS usage is incorrect.",
+    "Check for potential shape mismatch when d is variable (e.g., d=3584 or 4608) \u2013 the current wrong logic would fail regardless."
+  ]
+}

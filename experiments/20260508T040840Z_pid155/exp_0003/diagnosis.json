@@ -1,0 +1,40 @@
+{
+  "avoid": [
+    "Hardcoding hidden dimension d",
+    "Replacing cuBLAS for W@X with a custom GEMM",
+    "Using fast math if not necessary (risk of numerical changes)"
+  ],
+  "bottleneck": "rank16_update_or_memory_bandwidth",
+  "confidence": "medium",
+  "evidence": [
+    "Correctness: exact match (max_abs_err=0.0, rel_l2_err=0.0) for all shapes",
+    "Benchmark: aggregate speedup 0.9995, essentially identical to PyTorch baseline at all three shapes",
+    "Profile bottleneck suggests rank16_update is the target, but custom kernel provides no speedup",
+    "Static review and compile passed with no errors, risk low",
+    "Vector width 4 and block size 256 used"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "custom full GEMM without evidence"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 0.9995355200308232, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.7247999906539917, \"4096\": 5.8219521045684814, \"4608\": 7.453695774078369}, \"speedup\": {\"3584\": 0.9994501676332632, \"4096\": 0.9995602611192244, \"4608\": 0.9995878843105152}, \"torch_ms\": {\"3584\": 3.7227519750595093, \"4096\": 5.819391965866089, \"4608\": 7.450623989105225}}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "try vector width 4",
+      "vary block size",
+      "keep W @ X in cuBLAS"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Vary block size (e.g., 128, 512) to find better occupancy",
+    "Try vector width 2 or 8 to see if memory bandwidth improves",
+    "Profile memory bandwidth utilization and compare to theoretical peak",
+    "Consider shape-aware dispatch if only some shapes benefit",
+    "Experiment with manual unrolling of the rank-16 reduction loop"
+  ]
+}

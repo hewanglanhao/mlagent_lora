@@ -1,0 +1,15 @@
+{
+  "errors": [
+    "Y from matmul may be non-contiguous; kernel add_A_T_kernel assumes row-major layout and would write to wrong memory if Y is non-contiguous."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Call Y = Y.contiguous() before the add_A_T_kernel launch to ensure row-major contiguous layout.",
+    "Consider adding cudaDeviceSynchronize() before each cudaGetLastError() for more reliable error detection."
+  ],
+  "warnings": [
+    "cudaGetLastError() is called after kernel launch without synchronization; asynchronous errors may be missed.",
+    "Kernels use scalar loads; vectorized loads could improve performance but are not required for correctness."
+  ]
+}

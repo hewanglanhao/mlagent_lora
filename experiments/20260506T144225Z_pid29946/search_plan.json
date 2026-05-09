@@ -1,0 +1,30 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "fused_rank16_kernel"
+    ],
+    "priority_order": [
+      "fused_rank16_kernel_scalar",
+      "fused_rank16_kernel_vectorized",
+      "fused_rank16_kernel_tuned_block_size"
+    ],
+    "rationale": "Baseline ATen achieves no speedup; bottleneck is multiple kernel launches for W@X, B.T@X, A@(B.T@X), and add. Fusing the rank-16 path (B.T@X, A@result, and addition) into a single custom kernel while leaving the large W@X to cuBLAS reduces launch overhead and improves memory locality. Scalar, vectorized, and block-size variants will be explored sequentially.",
+    "risk_controls": [
+      "keep_cublas_for_WX",
+      "validate_correctness_on_all_d",
+      "no_hardcoded_shapes",
+      "static_review_before_benchmark"
+    ],
+    "stop_conditions": [
+      "aggregate_speedup_above_1.2",
+      "three_consecutive_candidates_without_improvement"
+    ],
+    "strategy": "fuse_rank16_update"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fuse_rank16_update"
+}

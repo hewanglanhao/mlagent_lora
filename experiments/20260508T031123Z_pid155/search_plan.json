@@ -1,0 +1,30 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "fused_rank16_kernel"
+    ],
+    "priority_order": [
+      "fused_rank16_float4",
+      "fused_rank16_scalar",
+      "tuning_block_size"
+    ],
+    "rationale": "Baseline is purely ATen, bottleneck is multiple kernel launches. Fuse the rank-16 path (B.T@X and A@result) into a single custom kernel to reduce launch overhead and improve memory locality. Start with vectorized float4 version, fall back to scalar, then tune block size.",
+    "risk_controls": [
+      "keep cuBLAS for W@X",
+      "validate correctness for all d",
+      "no hardcoding of d",
+      "use template for vector width"
+    ],
+    "stop_conditions": [
+      "speedup >= 1.2 on all benchmarked d values",
+      "5 consecutive failures in same family"
+    ],
+    "strategy": "fuse_rank16_update"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fuse_rank16_update"
+}

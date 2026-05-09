@@ -1,0 +1,35 @@
+{
+  "avoid": [
+    "Deploying an incorrect kernel even if it reduces launch overhead",
+    "Ignoring correctness errors in favor of potential performance gains"
+  ],
+  "bottleneck": "correctness_error",
+  "confidence": "high",
+  "evidence": [
+    "Correctness fails for all shapes (3584, 4096, 4608) with max_abs_err up to 4.77 and rel_l2_err around 0.0003",
+    "Benchmark unavailable, performance unknown, but correctness dominates",
+    "Static review passed with low risk, but runtime errors indicate implementation bugs"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.50091552734375, \"passed\": false, \"rel_l2_err\": 0.00028545944951474667}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0005447864532470703, \"passed\": false, \"rel_l2_err\": 0.00010944990208372474}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.7734375, \"passed\": false, \"rel_l2_err\": 0.0002918986137956381}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.7734375, \"rel_l2_err\": 0.0002918986137956381}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Debug the two custom kernels for low-rank update: B.T @ X and A @ result",
+    "Verify that matrix dimensions and transpose handling are correct",
+    "Compare intermediate results with a reference implementation (e.g., PyTorch) for specific sizes",
+    "Consider using a single fused kernel for the entire low-rank update to avoid intermediate storage issues"
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "avoid": [
+    "Do not promote this as an optimization; it is effectively the baseline.",
+    "Do not replace W @ X with a handwritten full GEMM as a first step; this is high risk and unlikely to beat cuBLAS.",
+    "Do not hardcode any specific hidden dimension or tensor layout assumptions beyond runtime-checked contiguity/strides.",
+    "Do not accept tiny noise-level wins on one shape as evidence of real improvement without broad consistency."
+  ],
+  "bottleneck": "multiple_aten_gemm_and_add_launches",
+  "confidence": "high",
+  "evidence": [
+    "Correctness is perfect on all tested shapes with zero error, so behavior is a valid baseline.",
+    "Aggregate speedup is 1.00012, effectively identical to torch reference performance.",
+    "Per-shape speedups are flat: 1.00054 at d=3584, 0.99986 at d=4096, and 1.00005 at d=4608, indicating no meaningful optimization benefit.",
+    "Profile identifies the bottleneck as multiple ATen GEMM and add launches rather than any custom fused low-rank path.",
+    "The dominant cost likely remains W @ X, and this candidate does not change that path.",
+    "Because the low-rank term is rank 16, the best optimization opportunity is reducing overhead and improving bandwidth efficiency for the update, not replacing the full d x d GEMM."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0001210307755304, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.7329277992248535, \"4096\": 7.143424034118652, \"4608\": 9.538047790527344}, \"speedup\": {\"3584\": 1.0005409207177873, \"4096\": 0.9998566169093521, \"4608\": 1.000053692654845}, \"torch_ms\": {\"3584\": 4.735487937927246, \"4096\": 7.142399787902832, \"4608\": 9.538559913635254}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Keep cuBLAS or ATen matmul for W @ X; do not attempt a custom full GEMM unless there is strong profiling evidence and extensive tuning budget.",
+    "Optimize the rank-16 path specifically: compute B.T @ X and A @ (...) with a custom kernel or fused sequence that minimizes intermediate traffic and launch overhead.",
+    "Fuse the low-rank update directly into the output tensor Y so the final add does not require a separate pass over a d x d tensor.",
+    "Evaluate both scalar and vectorized implementations for the rank-16 update, with attention to coalesced loads/stores, register reuse across the 16-rank dimension, and loop unrolling over rank.",
+    "Consider kernels that tile X and reuse the 16-channel projection in shared memory or registers before accumulating through A.",
+    "Benchmark shape-consistent improvements across the full runtime range 3584 to 4608 before promotion."
+  ]
+}

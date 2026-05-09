@@ -1,0 +1,30 @@
+{
+  "correct": false,
+  "details": {
+    "3584": {
+      "finite": true,
+      "max_abs_err": 0.536468505859375,
+      "passed": false,
+      "rel_l2_err": 0.0002922355488408357
+    },
+    "4096": {
+      "finite": true,
+      "max_abs_err": 0.0011567473411560059,
+      "passed": false,
+      "rel_l2_err": 0.0002928708272520453
+    },
+    "4608": {
+      "finite": true,
+      "max_abs_err": 5.0849609375,
+      "passed": false,
+      "rel_l2_err": 0.00029321821057237685
+    }
+  },
+  "failed_shapes": [
+    3584,
+    4096,
+    4608
+  ],
+  "max_abs_err": 5.0849609375,
+  "rel_l2_err": 0.00029321821057237685
+}

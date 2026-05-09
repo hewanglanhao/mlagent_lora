@@ -1,0 +1,8 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "unknown",
+  "warnings": [
+    "LLM review parse failed"
+  ]
+}

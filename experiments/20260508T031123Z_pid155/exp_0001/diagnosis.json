@@ -1,0 +1,37 @@
+{
+  "avoid": [
+    "Hardcoding hidden dimension d in the custom kernel",
+    "Ignoring correctness for performance gains",
+    "Deploying a candidate that fails correctness for any shape"
+  ],
+  "bottleneck": "unknown",
+  "confidence": "high",
+  "evidence": [
+    "Correctness fails for all tested shapes: 3584, 4096, 4608",
+    "Max absolute error up to 4.77 at d=4608, rel L2 error ~0.0003",
+    "Benchmark data is empty, so performance cannot be assessed; correctness failure dominates",
+    "Static review passed with low risk, but runtime results show significant numerical errors"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.4996490478515625, \"passed\": false, \"rel_l2_err\": 0.0002854639897122979}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.000545501708984375, \"passed\": false, \"rel_l2_err\": 0.00010945051326416433}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.77294921875, \"passed\": false, \"rel_l2_err\": 0.00029189916676841676}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.77294921875, \"rel_l2_err\": 0.00029189916676841676}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Debug the custom fused kernel for the low-rank update, focusing on correct indexing and memory access patterns for arbitrary d",
+    "Verify grid/block dimensions are appropriately computed for all d in [3584, 4608]",
+    "Test with vector width 4 and ensure coalesced loads/stores for A, B.T, and output",
+    "Consider adding a small tolerance for float accuracy but prioritize exact correctness against cuBLAS baseline"
+  ]
+}

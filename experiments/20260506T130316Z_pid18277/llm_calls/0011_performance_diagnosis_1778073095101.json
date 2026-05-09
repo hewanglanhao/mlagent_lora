@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0011_performance_diagnosis_1778073095101",
+  "duration_sec": 17.590970516204834,
+  "finished_ts": 1778073112.692492,
+  "llm_status": "LLM enabled with model gpt-5.4 via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": false,
+      "name": "fused_rank16_update_scalar_bs128_safe",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Tests whether a lighter-weight, alignment-safe scalar fused rank-16 update with smaller launch geometry reduces overhead versus the slower float4 custom kernel while still eliminating the extra dxd add pass.",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "gpt-5.4",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778073112.6956866
+    }
+  ],
+  "request": {
+    "system_chars": 1215,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "8878a9be0a533cead46299fdae5996c8c11a2ff8a7ca72c4c833e98e4fd49f0e",
+    "user_chars": 2810,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": false,\n  \"name\": \"fused_rank16_update_scalar_bs128_safe\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Tests whether a lighter-weight, alignment-safe scalar fused rank-16 update with smaller launch geometry reduces overhead versus the slower float4 custom kernel while still eliminating the extra dxd add pass.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 53.52010772516951,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_2_1778073040882\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": true,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    }\n  },\n  \"failed_shapes\": [],\n  \"max_abs_err\": 0.0,\n  \"rel_l2_err\": 0.0\n}\n\nBenchmark result:\n\n{\n  \"aggregate_speedup\": 0.9875827636498109,\n  \"details\": {\n    \"iters\": 10,\n    \"warmup\": 3\n  },\n  \"latency_ms\": {\n    \"3584\": 4.788224220275879,\n    \"4096\": 7.230976104736328,\n    \"4608\": 9.671680450439453\n  },\n  \"speedup\": {\n    \"3584\": 0.9885585353937417,\n    \"4096\": 0.9878212578149852,\n    \"4608\": 0.9862889996856479\n  },\n  \"torch_ms\": {\n    \"3584\": 4.733439922332764,\n    \"4096\": 7.142911911010742,\n    \"4608\": 9.539072036743164\n  }\n}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"rank16_update_or_memory_bandwidth\",\n  \"evidence\": {\n    \"aggregate_speedup\": 0.9875827636498109,\n    \"details\": {\n      \"iters\": 10,\n      \"warmup\": 3\n    },\n    \"latency_ms\": {\n      \"3584\": 4.788224220275879,\n      \"4096\": 7.230976104736328,\n      \"4608\": 9.671680450439453\n    },\n    \"speedup\": {\n      \"3584\": 0.9885585353937417,\n      \"4096\": 0.9878212578149852,\n      \"4608\": 0.9862889996856479\n    },\n    \"torch_ms\": {\n      \"3584\": 4.733439922332764,\n      \"4096\": 7.142911911010742,\n      \"4608\": 9.539072036743164\n    }\n  },\n  \"suggested_actions\": [\n    \"vary block size\",\n    \"try float4 stores when d is divisible by 4\",\n    \"fall back to ATen if numerical error appears\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "674f32903abe36fdfe428b87bd01d0fdb4c537aefff7b380d976a6c0fe09ef72"
+  },
+  "response": {
+    "content_chars": 2981,
+    "content_preview": "{\n  \"bottleneck\": \"w_gemm_dominates_and_scalar_rank16_fusion_underdelivers\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Correctness is perfect on all tested shapes, so the candidate is functionally valid.\",\n    \"Aggregate speedup is 0.9876, meaning it is consistently slower than the torch baseline rather than showing noise-limited parity.\",\n    \"All three tested sizes regress similarly: 3584 speedup 0.9886, 4096 speedup 0.9878, 4608 speedup 0.9863.\",\n    \"Uniform regression across shapes suggests the issue is systemic overhead or lower efficiency, not a single bad shape.\",\n    \"This family keeps cuBLAS for W @ X, so the remaining opportunity is the rank-16 path and elimination of the extra add pass.\",\n    \"Because total runtime is still dominated by the large d x d GEMM, any custom fused update must be extremely efficient to win; this scalar version does not recover enough time.\",\n    \"Vector width is 1 and the strategy explicitly chose an alignment-safe scalar kernel, which likely sacrifices memory throughput versus vectorized loads/stores for the d x d output update.\",\n    \"The smaller block size 128 did not translate into lower end-to-end latency, indicating launch geometry reduction alone is insufficient.\",\n    \"The slight worsening at larger d is consistent with memory-bandwidth-limited scalar output writes becoming more visible as tensor size grows.\"\n  ],\n  \"recommended_actions\": [\n    \"Do not promote this candidate as a default path; keep it only as a correctness-safe reference if needed.\",\n    \"Focus optimization effort on the rank-16 update path only, not on replacing the full W @ X GEMM.\",\n    \"Add shape-aware dispatch so vectorized kernels are used when alignment permits, especially float4 loads/stores for d divisible by 4, while retaining a scalar fallback for safety.\",\n    \"Revisit launch geometry jointly with vectorization and memory coalescing; block size changes alone are unlikely to help.\",\n    \"Unroll the rank-16 accumulation aggressively and keep the 16 coefficients in registers to reduce loop/control overhead.\",\n    \"Minimize extra global memory traffic in the fused epilogue/update path, since the remaining opportunity is bandwidth-bound output read-modify-write work.\",\n    \"Benchmark specialized variants per shape class or alignment class rather than one universal kernel, because a safe scalar kernel is too conservative for all tested dimensions.\",\n    \"If future variants do not show a clear win on the rank-16 fused path, rely on cuBLAS plus standard library ops instead of forcing custom fusion.\"\n  ],\n  \"avoid\": [\n    \"Do not attempt a custom full d x d GEMM for W @ X; that is high risk and unlikely to beat cuBLAS here.\",\n    \"Do not promote a universally scalar kernel as the default optimization path.\",\n    \"Do not assume smaller block size automatically reduces overhead enough to matter end-to-end.\",\n    \"Do not hardcode specific hidden dimensions or tensor values.\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "f1bedbdb099dd52f67f5441df15d578d198f1028399a067656ce4b5b2182eb44",
+    "model": "gpt-5.4"
+  },
+  "run_id": "20260506T130316Z_pid18277",
+  "started_ts": 1778073095.1015215,
+  "status": "success"
+}

@@ -1,0 +1,11 @@
+{
+  "errors": [
+    "Cache key uses data pointers and version counters of contiguous copies (Wc, Xc, Ac, Bc) instead of the original input tensors. This causes two problems: (1) If original tensors are non-contiguous, the copies have different data pointers, so the cache will never hit on repeated calls with the same inputs, defeating caching. (2) The version counters of the copies are not tied to the original tensors; if the original tensors are modified in-place, the cache will not detect the change and may return stale results. The cache must key on the original tensors' data pointers and version counters."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Use the data pointers and version counters of the original input tensors (W, X, A, B) before calling .contiguous(). Ensure the tensors are contiguous for computation but key the cache on the original identity. For example: auto key_W_ptr = W.data_ptr(); auto key_W_ver = W.unsafeGetTensorImpl()->version_counter().current_version(); etc., then make contiguous copies for the matmul operations."
+  ],
+  "warnings": []
+}

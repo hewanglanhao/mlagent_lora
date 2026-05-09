@@ -1,0 +1,34 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0027_performance_diagnosis_1778077954530",
+  "duration_sec": 1.3107354640960693,
+  "error": "LLM request failed: APIConnectionError: Connection error.",
+  "finished_ts": 1778077955.8413672,
+  "llm_status": "LLM enabled with model gpt-5.4 via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 512,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 6,
+      "llm_generated": false,
+      "name": "rank16_vec4_b512",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 4
+    }
+  },
+  "model": "gpt-5.4",
+  "request": {
+    "system_chars": 1215,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "8878a9be0a533cead46299fdae5996c8c11a2ff8a7ca72c4c833e98e4fd49f0e",
+    "user_chars": 2607,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 512,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 6,\n  \"llm_generated\": false,\n  \"name\": \"rank16_vec4_b512\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 55.90121892490424,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_6_1778077897919\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": true,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    }\n  },\n  \"failed_shapes\": [],\n  \"max_abs_err\": 0.0,\n  \"rel_l2_err\": 0.0\n}\n\nBenchmark result:\n\n{\n  \"aggregate_speedup\": 0.985437040358063,\n  \"details\": {\n    \"iters\": 10,\n    \"warmup\": 3\n  },\n  \"latency_ms\": {\n    \"3584\": 4.791296005249023,\n    \"4096\": 7.259135961532593,\n    \"4608\": 9.696256160736084\n  },\n  \"speedup\": {\n    \"3584\": 0.9888865291225902,\n    \"4096\": 0.9838482074257309,\n    \"4608\": 0.9841059955033122\n  },\n  \"torch_ms\": {\n    \"3584\": 4.738048076629639,\n    \"4096\": 7.141887903213501,\n    \"4608\": 9.542143821716309\n  }\n}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"rank16_update_or_memory_bandwidth\",\n  \"evidence\": {\n    \"aggregate_speedup\": 0.985437040358063,\n    \"details\": {\n      \"iters\": 10,\n      \"warmup\": 3\n    },\n    \"latency_ms\": {\n      \"3584\": 4.791296005249023,\n      \"4096\": 7.259135961532593,\n      \"4608\": 9.696256160736084\n    },\n    \"speedup\": {\n      \"3584\": 0.9888865291225902,\n      \"4096\": 0.9838482074257309,\n      \"4608\": 0.9841059955033122\n    },\n    \"torch_ms\": {\n      \"3584\": 4.738048076629639,\n      \"4096\": 7.141887903213501,\n      \"4608\": 9.542143821716309\n    }\n  },\n  \"suggested_actions\": [\n    \"vary block size\",\n    \"try float4 stores when d is divisible by 4\",\n    \"fall back to ATen if numerical error appears\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "20609770f1d0925006bf347409b5eab7842f01c45624add8e4d9a5b61e62a25c"
+  },
+  "run_id": "20260506T141141Z_pid23682",
+  "started_ts": 1778077954.5306318,
+  "status": "error_or_empty"
+}

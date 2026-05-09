@@ -1,0 +1,17 @@
+{
+  "bytes": 7661,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": true,
+    "name": "pure_cublas_three_sgemm",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Eliminate explicit transpose of B via CUBLAS_OP_T, reduce kernel launch overhead by replacing three ATen mm calls with three direct cuBLAS SGEMM calls (W@X, B.T@X, A*U) and accumulate low-rank contribution into Y with beta=1, expected speedup >1.1 for larger d.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "enabled": true,
+  "origin": "llm"
+}

@@ -1,0 +1,17 @@
+{
+  "bytes": 2951,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 5,
+    "llm_generated": true,
+    "name": "fused_rank16_scalar_simple",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Slight latency reduction from fusing the rank-16 update (A @ (B.T @ X)) into a single lightweight kernel, reducing launch overhead and intermediate memory traffic.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "enabled": true,
+  "origin": "llm"
+}

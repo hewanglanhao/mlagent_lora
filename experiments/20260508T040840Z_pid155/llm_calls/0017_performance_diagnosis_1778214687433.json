@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0017_performance_diagnosis_1778214687433",
+  "duration_sec": 10.591640949249268,
+  "finished_ts": 1778214698.0251653,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 4,
+      "llm_generated": true,
+      "name": "block_size_128_float4",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Lower block size may improve occupancy for the fused rank-16 kernel, reducing memory latency and possibly outperforming baseline",
+      "use_fast_math": false,
+      "vector_width": 4
+    }
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778214698.0269718
+    }
+  ],
+  "request": {
+    "system_chars": 1215,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "8878a9be0a533cead46299fdae5996c8c11a2ff8a7ca72c4c833e98e4fd49f0e",
+    "user_chars": 1869,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 4,\n  \"llm_generated\": true,\n  \"name\": \"block_size_128_float4\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Lower block size may improve occupancy for the fused rank-16 kernel, reducing memory latency and possibly outperforming baseline\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 219.24840800394304,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_4_1778214466668\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.500091552734375,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00028546512476168573\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0005451440811157227,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00010945099347736686\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 4.773681640625,\n      \"passed\": false,\n      \"rel_l2_err\": 0.000291901349555701\n    }\n  },\n  \"failed_shapes\": [\n    3584,\n    4096,\n    4608\n  ],\n  \"max_abs_err\": 4.773681640625,\n  \"rel_l2_err\": 0.000291901349555701\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "bb2dcdcf4aff4493321ca9b36ae0878d2609ed09b667f7b3e95223cde0a7da76"
+  },
+  "response": {
+    "content_chars": 871,
+    "content_preview": "{\n  \"bottleneck\": \"correctness_failure\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"max_abs_err 0.5 at d=3584\",\n    \"max_abs_err 0.000545 at d=4096\",\n    \"max_abs_err 4.77 at d=4608\",\n    \"rel_l2_err non-zero across all shapes\",\n    \"all shapes failed correctness check\"\n  ],\n  \"recommended_actions\": [\n    \"Fix the custom rank-16 kernel to ensure numerical correctness\",\n    \"Verify float4 vectorization handles misaligned or non-multiple-of-4 dimensions\",\n    \"Check accumulation and reduction logic in the fused kernel\",\n    \"Test with a simpler vector width (e.g., 1 or 2) to isolate vectorization bugs\"\n  ],\n  \"avoid\": [\n    \"Using float4 without alignment guarantees\",\n    \"Hardcoding block size without considering dimension divisibility\",\n    \"Promoting a candidate that fails correctness even if performance might be good\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "b6afd0d1720ad6f4dacd2f743aac712230ec86eabf3258ccf051ca7711f0bcd7",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T040840Z_pid155",
+  "started_ts": 1778214687.4335244,
+  "status": "success"
+}

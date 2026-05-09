@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0010_static_code_review_1778251262946",
+  "duration_sec": 74.8196771144867,
+  "finished_ts": 1778251337.7663565,
+  "llm_status": "LLM enabled with model DeepSeek-V4-Pro from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": true,
+      "name": "rank16_scalar_b128",
+      "parent": 1,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T142048Z_pid155/exp_0002/candidate.cu"
+  },
+  "model": "DeepSeek-V4-Pro",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778251337.7685215
+    }
+  ],
+  "request": {
+    "system_chars": 1918,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nPreferred-design checks:\n\n- Prefer candidates that keep W @ X and B.T @ X on ATen/cuBLAS and fuse only the final Y += A @ Z rank-16 update.\n- Warn if the code materializes the full A @ Z tensor or launches a separate final add kernel without a clear reason.\n- Check that the fused update treats A as d x 16 and Z as 16 x d, covers all rows and columns, and unrolls or cheaply loops over exactly 16 rank elements.\n- Check shared-memory staging and vectorized access assumptions for out-of-bounds or alignment bugs.\n- Do not reject a correct candidate solely for using a different safe strategy, but flag deviations from the preferred cuBLAS + fused rank update path as warnings.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "a97a8e9d80b71c33afb4b801ad02dfade05679f40e6a9799c70e0ac73231082a",
+    "user_chars": 5100,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": true,\n  \"name\": \"rank16_scalar_b128\",\n  \"parent\": 1,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <ATen/cuda/CUDAContext.h>\n\nnamespace {\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"all inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be rank-2 tensors\");\n    const int64_t d = W.size(0);\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16 &&\n                B.size(0) == d && B.size(1) == 16,\n                \"A and B must be d x 16\");\n}\n\n__global__ void fused_rank16_update_kernel(\n    float* __restrict__ Y,\n    const float* __restrict__ A,\n    const float* __restrict__ Z,\n    int d) {\n\n    // Block handles 8 rows and 128 columns.\n    int row_tile = blockIdx.y;\n    int col_tile = blockIdx.x;\n    int row_start = row_tile * 8;\n    int col_start = col_tile * 128;\n\n    int tid = threadIdx.x;\n    int row_in_block = tid / 16;   // 0..7\n    int col_group = tid % 16;      // 0..15\n\n    int global_row = row_start + row_in_block;\n    int global_col_base = col_start + col_group * 8;\n\n    __shared__ float As[8][16];\n    __shared__ float Zs[16][128];\n\n    // Load A tile (8x16): each thread loads one element\n    int a_row = row_start + (tid / 16);\n    int a_col = tid % 16;\n    if (a_row < d && a_col < 16) {\n        As[a_row - row_start][a_col] = A[a_row * 16 + a_col];\n    } else {\n        As[a_row - row_start][a_col] = 0.0f;\n    }\n\n    // Load Z tile (16x128): each thread loads 16 floats (scalar)\n    for (int i = 0; i < 16; ++i) {\n        int linear = tid * 16 + i;\n        int k = linear / 128;\n        int c = linear % 128;\n        int global_c = col_start + c;\n        if (global_c < d && k < 16) {\n            Zs[k][c] = Z[k * d + global_c];\n        } else {\n            Zs[k][c] = 0.0f;\n        }\n    }\n\n    __syncthreads();\n\n    // Compute rank-16 update for this thread's row and columns\n    if (global_row < d) {\n        float acc[8] = {0.0f};\n        int c_base = col_group * 8;\n\n        #pragma unroll\n        for (int k = 0; k < 16; ++k) {\n            float av = As[row_in_block][k];\n            acc[0] += av * Zs[k][c_base + 0];\n            acc[1] += av * Zs[k][c_base + 1];\n            acc[2] += av * Zs[k][c_base + 2];\n            acc[3] += av * Zs[k][c_base + 3];\n            acc[4] += av * Zs[k][c_base + 4];\n            acc[5] += av * Zs[k][c_base + 5];\n            acc[6] += av * Zs[k][c_base + 6];\n            acc[7] += av * Zs[k][c_base + 7];\n        }\n\n        // Scalar add to Y (read-modify-write)\n        float* y_row = Y + global_row * d;\n        for (int i = 0; i < 8; ++i) {\n            int col = global_col_base + i;\n            if (col < d) {\n                y_row[col] += acc[i];\n            }\n        }\n    }\n}\n\n}  // namespace\n\ntorch::Tensor forward(torch::Tensor W,\n                      torch::Tensor X,\n                      torch::Tensor A,\n                 \n...<trimmed>...",
+    "user_sha256": "f86ad072c688ee14df957ddec0976741ebd1617f3448f6c87ef56a4c1ceb07e0"
+  },
+  "response": {
+    "content_chars": 797,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [\n    \"Z tensor from torch::mm is not explicitly checked for contiguity; while torch::mm outputs are contiguous by default, adding Z = Z.contiguous() would make the intent clearer and guard against future changes.\",\n    \"Scalar loads for the Z tile (each thread loads 16 floats with a non-coalesced pattern) may reduce memory throughput; consider vectorized loads (e.g., float4) if performance is critical.\"\n  ],\n  \"suggested_fixes\": [\n    \"Optionally add Z = Z.contiguous() after the torch::mm call to guarantee contiguity before passing to the kernel.\",\n    \"For better memory coalescing, redesign the Z tile loading to use vectorized loads (e.g., float4) and ensure threads access contiguous global memory addresses.\"\n  ]\n}",
+    "content_sha256": "e35d26bf28d97f357b68c93fedfd14e3b2392f3900334aa979dffbafe6c47903",
+    "model": "DeepSeek-V4-Pro"
+  },
+  "run_id": "20260508T142048Z_pid155",
+  "started_ts": 1778251262.9466794,
+  "status": "success"
+}

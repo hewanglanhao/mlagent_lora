@@ -1,0 +1,17 @@
+{
+  "bytes": 4153,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": true,
+    "name": "pure_cublas_three_sgemm",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Replace three ATen GEMM calls with three direct cuBLAS SGEMM calls, eliminating kernel launch overhead and avoiding explicit transpose of B. Second SGEMM computes B.T@X via op(CUBLAS_OP_T) on B, third accumulates into Y with beta=1.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "enabled": true,
+  "origin": "llm"
+}

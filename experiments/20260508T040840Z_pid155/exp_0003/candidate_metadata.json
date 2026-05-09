@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 3,
+  "llm_generated": true,
+  "name": "fused_rank16_float4_repair1_repair2",
+  "parent": 2,
+  "shape_dispatch": false,
+  "strategy": "llm_cuda_repair_attempt:2",
+  "use_fast_math": false,
+  "vector_width": 4
+}

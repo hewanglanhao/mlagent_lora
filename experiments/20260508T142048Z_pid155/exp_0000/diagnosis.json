@@ -1,0 +1,41 @@
+{
+  "avoid": [
+    "Attempting to write a custom full GEMM for W @ X \u2013 cuBLAS is highly optimized and unlikely to be beaten.",
+    "Materializing the intermediate A @ Z tensor in global memory.",
+    "Using a separate kernel for the final addition Y += A @ Z.",
+    "Hardcoding hidden dimensions or tensor sizes."
+  ],
+  "bottleneck": "multiple_aten_gemm_and_add_launches",
+  "confidence": "high",
+  "evidence": [
+    "Correctness is perfect (max_abs_err=0.0, rel_l2_err=0.0) across all shapes.",
+    "Aggregate speedup is 1.00005, effectively identical to the PyTorch baseline.",
+    "Profile summary confirms bottleneck is multiple ATen GEMM and add launches, with no fusion.",
+    "Latency scales with d, but no improvement over reference."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0000497443111898, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.7263360023498535, \"4096\": 5.823488235473633, \"4608\": 7.456255912780762}, \"speedup\": {\"3584\": 1.0001374014308688, \"4096\": 1.0001758000252197, \"4608\": 0.999794012906137}, \"torch_ms\": {\"3584\": 3.726848006248474, \"4096\": 5.824512004852295, \"4608\": 7.4547200202941895}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Keep cuBLAS for the dominant W @ X GEMM.",
+    "Fuse the rank-16 update: compute Z = B.T @ X with cuBLAS, then launch a single custom kernel that performs Y += A @ Z directly into the output tensor.",
+    "In the custom kernel, stage tiles of A and Z in shared memory, reuse A across multiple columns of Z, and use vectorized float4 loads/stores.",
+    "Experiment with tile sizes (e.g., 128 columns, 8 rows per block) and adjust rows per thread to balance occupancy and register pressure.",
+    "Consider shape-aware dispatch if a single tile configuration does not perform well across all d in [3584, 4608]."
+  ]
+}

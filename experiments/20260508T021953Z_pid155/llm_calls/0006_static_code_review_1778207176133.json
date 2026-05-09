@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0006_static_code_review_1778207176133",
+  "duration_sec": 57.849756479263306,
+  "finished_ts": 1778207233.9827766,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 1,
+      "llm_generated": true,
+      "name": "fused_rank16_vector4",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Reduce launch overhead by fusing B.T@X and A@result into one kernel, and use vectorized loads for rank-16 update. Expect ~10-30% speedup.",
+      "use_fast_math": false,
+      "vector_width": 4
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T021953Z_pid155/exp_0001/candidate.cu"
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778207233.984822
+    }
+  ],
+  "request": {
+    "system_chars": 1239,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "c267bb4057c8aa1e9d6ff4a4a288dd7f56084b80c403f9a47c01f976fb923bf4",
+    "user_chars": 5958,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 1,\n  \"llm_generated\": true,\n  \"name\": \"fused_rank16_vector4\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Reduce launch overhead by fusing B.T@X and A@result into one kernel, and use vectorized loads for rank-16 update. Expect ~10-30% speedup.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n// -----------------------------------------------------------------------------\n// Helper: check inputs and ensure contiguous\n// -----------------------------------------------------------------------------\nstatic void check_inputs(const torch::Tensor& W,\n                         const torch::Tensor& X,\n                         const torch::Tensor& A,\n                         const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"all inputs must be float32\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be 2D\");\n    const int64_t d = W.size(0);\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be square d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16,\n                \"A must be d x 16\");\n    TORCH_CHECK(B.size(0) == d && B.size(1) == 16,\n                \"B must be d x 16\");\n}\n\n// -----------------------------------------------------------------------------\n// Kernel: compute C = B^T @ X, stored as d x 16 (row\u2011major)\n//   C[j][r] = sum_{k=0}^{d-1} B[k][r] * X[k][j]\n//   Each thread handles one element (j,r). GridDim = (16*d).\n// -----------------------------------------------------------------------------\n__global__ void compute_C_kernel(const float* __restrict__ B,\n                                 const float* __restrict__ X,\n                                 float* __restrict__ C,\n                                 int d) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx >= 16 * d) return;\n    int j = idx / 16;          // output row (column of X)\n    int r = idx % 16;          // rank index\n\n    float sum = 0.0f;\n    for (int k = 0; k < d; ++k) {\n        sum += B[k * 16 + r] * X[k * d + j];\n    }\n    C[j * 16 + r] = sum;\n}\n\n// -----------------------------------------------------------------------------\n// Kernel: add A @ C to WX (output)\n//   output[i*d + j] += dot(A[i,:], C[j,:])\n//   Each thread handles one output element (i,j). GridDim = (d, d).\n//   Fully unrolled over rank=16, using float4 loads.\n// -----------------------------------------------------------------------------\n__global__ void add_rank16_kernel(const float* __restrict__ A,\n                                  const float* __restrict__ C,\n                                  float* __restrict__ output,\n                                  int d) {\n    int i = blockIdx.y * blockDim.y + threadIdx.y;\n    int j = blockIdx.x * blockDim.x + threadIdx.x;\n    if (i >= d || j >= d) return;\n\n    // Load A[i,0:15] as 4 float4\n    const float4* A4 = reinterpret_cast<const float4*>(&A[i * 16]);\n    float4 a0 = A4[0];\n    float4 a1 = A4[1];\n    float4 a2 = A4[2];\n    float4 a3 = A4[3];\n\n    // Load C[j,0:15] as 4 float4\n    const float4* C4 = reinterpret_cast<const float4*>(&C[j * 16]);\n    float4 c0 = C4[0];\n    float4 c1 = C4[1];\n    float4 c2 = C4[2];\n    float4 c3 = C4[3];\n\n    // Dot produ\n...<trimmed>...",
+    "user_sha256": "264926ccc8886badb9b100404fc7911dd092a7dcc9923454d4884c4b17c702c4"
+  },
+  "response": {
+    "content_chars": 886,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [\n    \"No CUDA error checking after kernel launches (cudaGetLastError or cudaPeekAtLastError).\",\n    \"Reinterpret_cast to float4* assumes 16-byte alignment; although PyTorch tensors are aligned, no explicit check is performed.\",\n    \"Missing runtime check that dimension d is within the specified [3584, 4608] range; the code works for any d but does not enforce the constraint.\"\n  ],\n  \"suggested_fixes\": [\n    \"Add CUDA error checking after each kernel launch, e.g., TORCH_CHECK(cudaGetLastError() == cudaSuccess, \\\"Kernel launch failed\\\");\",\n    \"Optionally add TORCH_CHECK to ensure d >= 3584 and d <= 4608 if strict compliance is required.\",\n    \"Consider adding a static_assert or runtime alignment check for float4 pointer arithmetic, though it is generally safe given PyTorch's allocation guarantees.\"\n  ]\n}",
+    "content_sha256": "61a15e277233e83b1e06970ee027ac5af0e3ca1475a1202f6f95d4b522baa962",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T021953Z_pid155",
+  "started_ts": 1778207176.1330202,
+  "status": "success"
+}

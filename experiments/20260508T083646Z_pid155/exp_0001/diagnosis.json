@@ -1,0 +1,33 @@
+{
+  "avoid": [
+    "Do not promote or use this candidate.",
+    "Avoid further performance tuning until correctness is fixed."
+  ],
+  "bottleneck": "correctness_failure",
+  "confidence": "high",
+  "evidence": [
+    "All shapes failed correctness with max absolute error up to 2023897.5 and relative L2 error up to 127.4.",
+    "The fused kernel likely contains a fundamental algorithmic bug (e.g., incorrect indexing, race conditions, or missing synchronization)."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 106146.1953125, \"passed\": false, \"rel_l2_err\": 55.45514678955078}, \"4096\": {\"finite\": true, \"max_abs_err\": 11.737105369567871, \"passed\": false, \"rel_l2_err\": 2.285283088684082}, \"4608\": {\"finite\": true, \"max_abs_err\": 2023897.5, \"passed\": false, \"rel_l2_err\": 127.43508911132812}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 2023897.5, \"rel_l2_err\": 127.43508911132812}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this candidate due to incorrectness.",
+    "Debug the fused kernel: verify thread indexing, memory access patterns, and accumulation logic.",
+    "Consider reverting to a safe baseline using cuBLAS for W@X and a separate custom kernel for the rank-16 update, ensuring correctness first."
+  ]
+}

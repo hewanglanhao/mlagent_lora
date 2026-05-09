@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0011_performance_diagnosis_1778251560064",
+  "duration_sec": 47.77605628967285,
+  "finished_ts": 1778251607.8404944,
+  "llm_status": "LLM enabled with model DeepSeek-V4-Pro from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": true,
+      "name": "rank16_scalar_b128",
+      "parent": 1,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "DeepSeek-V4-Pro",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778251607.8550336
+    }
+  ],
+  "request": {
+    "system_chars": 1875,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, shared-memory staging, and launch overhead.\n- Prefer diagnosing candidates against the cuBLAS + fused rank update target:\n  Y = W @ X by cuBLAS/ATen, Z = B.T @ X by cuBLAS/ATen, one custom kernel for Y += A @ Z.\n- Reward evidence that the candidate avoided materializing A @ Z and avoided a separate final add kernel.\n- When fused update performance is weak, consider tile width, rows per block, vector width, shared-memory reuse of A/Z, occupancy, register pressure, and whether each thread computes multiple contiguous columns.\n- A 128-column tile with about 8 output columns per thread is a useful reference point, but benchmark data should decide whether to keep or mutate it.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "ab2195d168bccd824d27c5bcebf0dcaed58b37b5f0e8c2fab7ed5448db1f7397",
+    "user_chars": 1673,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": true,\n  \"name\": \"rank16_scalar_b128\",\n  \"parent\": 1,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 222.11739575397223,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_2_1778251337817\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.00146484375,\n      \"passed\": false,\n      \"rel_l2_err\": 7.909732744337816e-07\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    }\n  },\n  \"failed_shapes\": [\n    3584\n  ],\n  \"max_abs_err\": 0.00146484375,\n  \"rel_l2_err\": 7.909732744337816e-07\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "6a78e6ba0f54c164cd6f2617b3274de631472bff2e54ce98a812e563c1657885"
+  },
+  "response": {
+    "content_chars": 1239,
+    "content_preview": "{\n  \"bottleneck\": \"correctness\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Correctness test failed for d=3584 with max_abs_err=0.00146484375 and rel_l2_err=7.9e-7, while passing for d=4096 and d=4608.\",\n    \"The error is small but non-zero, indicating a subtle bug in the custom rank-16 update kernel, likely related to tile size, boundary conditions, or memory indexing for that specific dimension.\",\n    \"Benchmark data is unavailable, so performance cannot be evaluated, but correctness failure alone disqualifies the candidate.\"\n  ],\n  \"recommended_actions\": [\n    \"Debug the custom rank-16 update kernel for d=3584: check for race conditions, uninitialized memory, or incorrect loop bounds when d is exactly divisible by block_size (128).\",\n    \"Verify that all threads write their output correctly and that no partial sums are lost.\",\n    \"Consider adding a regression test for multiple d values to catch similar shape-dependent bugs early.\"\n  ],\n  \"avoid\": [\n    \"Promoting this candidate without fixing the correctness bug.\",\n    \"Assuming the kernel is correct for all shapes based on passing two out of three.\",\n    \"Making performance optimizations before correctness is fully verified.\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "dd9ac829b68167c4afa1859323ba9c217b4f9ecafc93bab0a4da105f39eda9c3",
+    "model": "DeepSeek-V4-Pro"
+  },
+  "run_id": "20260508T142048Z_pid155",
+  "started_ts": 1778251560.064438,
+  "status": "success"
+}

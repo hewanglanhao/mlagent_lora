@@ -1,0 +1,37 @@
+{
+  "avoid": [
+    "Promoting this candidate without fixing the numerical accuracy",
+    "Ignoring the correctness error even if performance might be attractive",
+    "Using fast math flags without understanding numerical implications",
+    "Hardcoding dimensions or tensor layouts that could mask the bug"
+  ],
+  "bottleneck": "numerical_accuracy",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed for all tested shapes (3584, 4096, 4608): max_abs_err up to 5.08, rel_l2_err ~0.00029",
+    "No performance benchmark data available",
+    "Static review passed with low risk, compilation succeeded"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.536956787109375, \"passed\": false, \"rel_l2_err\": 0.00029223773162811995}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0011546611785888672, \"passed\": false, \"rel_l2_err\": 0.0002928726898971945}, \"4608\": {\"finite\": true, \"max_abs_err\": 5.0849609375, \"passed\": false, \"rel_l2_err\": 0.00029321861802600324}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 5.0849609375, \"rel_l2_err\": 0.00029321861802600324}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Audit the custom rank-16 outer product kernel (A @ B.T) for numerical bugs, e.g., accumulation order, reduction loops, or uncoalesced memory access leading to errors",
+    "Verify that the precomputed Weff = W + A @ B.T is computed correctly by comparing elementwise with a host reference",
+    "Consider using double-precision accumulation or FMAs for the outer product to improve numerical fidelity",
+    "Test with a smaller d (e.g., d=16) to isolate the error source"
+  ]
+}

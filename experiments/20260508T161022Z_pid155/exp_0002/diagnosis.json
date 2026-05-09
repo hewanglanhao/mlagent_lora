@@ -1,0 +1,37 @@
+{
+  "avoid": [
+    "Any handwritten CUDA kernels for low-rank updates",
+    "Explicit transpose-copy of B to column-major",
+    "Hardcoding d or any dimension",
+    "Result caching or assuming repeated identical inputs"
+  ],
+  "bottleneck": "incorrect_custom_kernel",
+  "confidence": "high",
+  "evidence": [
+    "Correctness fails for all three shapes (3584, 4096, 4608) with rel_l2_err up to 0.992 and max_abs_err > 15516",
+    "Candidate uses a handwritten 'deterministic_rank16_update' kernel which is likely buggy",
+    "Static review passed and compilation succeeded, so the issue is algorithmic or implementation error in the custom kernel",
+    "No benchmark data available; profile suggests keeping last known-good candidate"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 1741.5260009765625, \"passed\": false, \"rel_l2_err\": 0.9712008833885193}, \"4096\": {\"finite\": true, \"max_abs_err\": 3.4671401977539062, \"passed\": false, \"rel_l2_err\": 0.6922467947006226}, \"4608\": {\"finite\": true, \"max_abs_err\": 15516.8115234375, \"passed\": false, \"rel_l2_err\": 0.9923923015594482}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 15516.8115234375, \"rel_l2_err\": 0.9923923015594482}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Replace the custom rank-16 update kernel with a pure cuBLAS three-SGEMM implementation: compute W @ X first, then compute temp = B.T @ X via cublasSgemm with CUBLAS_OP_T on B, then accumulate A @ temp into Y with beta=1",
+    "Ensure correct cuBLAS dimensions (m, n, k) and leading dimensions: for temp = B.T @ X, use m=16, n=d, k=d, lda=d, ldb=d, ldc=16; for accumulation, use m=d, n=d, k=16, lda=d, ldb=16, ldc=d",
+    "If the pure cuBLAS candidate is also incorrect, debug row-major/column-major assumptions, op flags, and alpha/beta settings"
+  ]
+}

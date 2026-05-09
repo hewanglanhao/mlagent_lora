@@ -1,0 +1,31 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_three_sgemm"
+    ],
+    "priority_order": [
+      "implement cublas_three_sgemm with proper row-major to column-major handling",
+      "test on all d values (3584, 4096, 4608) for correctness and speedup",
+      "if speedup < 1.0, adjust cuBLAS flags or use beta accumulation"
+    ],
+    "rationale": "Following the deterministic plan: the baseline ATen reference showed no speedup due to multiple kernel launches. The recommended next step is a pure cuBLAS three-SGEMM candidate that avoids ATen `mm`, uses cuBLAS transpose flags to handle row-major tensors without explicit B.T materialization, and accumulates the low-rank term with beta=1. This candidate will be tested on all three shapes. Risk controls prevent common pitfalls like incorrect flags or accidental ATen calls.",
+    "risk_controls": [
+      "ensure no ATen mm calls are used",
+      "verify cuBLAS handle and stream are correctly obtained from torch",
+      "avoid explicit transpose materialization of B",
+      "test correctness with relative L2 error < 1e-5"
+    ],
+    "stop_conditions": [
+      "speedup > 1.05 across all shapes",
+      "correctness failure for any shape",
+      "compile or runtime errors"
+    ],
+    "strategy": "pure_cublas_three_sgemm"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_three_sgemm"
+}

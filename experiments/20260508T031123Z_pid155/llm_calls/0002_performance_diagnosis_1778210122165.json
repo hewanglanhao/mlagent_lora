@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0002_performance_diagnosis_1778210122165",
+  "duration_sec": 21.27929139137268,
+  "finished_ts": 1778210143.4451268,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "aten_reference",
+      "id": 0,
+      "llm_generated": false,
+      "name": "baseline_aten",
+      "parent": null,
+      "shape_dispatch": false,
+      "strategy": "",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778210143.4626489
+    }
+  ],
+  "request": {
+    "system_chars": 1215,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "8878a9be0a533cead46299fdae5996c8c11a2ff8a7ca72c4c833e98e4fd49f0e",
+    "user_chars": 2547,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"aten_reference\",\n  \"id\": 0,\n  \"llm_generated\": false,\n  \"name\": \"baseline_aten\",\n  \"parent\": null,\n  \"shape_dispatch\": false,\n  \"strategy\": \"\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 221.64529612101614,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_0_1778209899452\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": true,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    }\n  },\n  \"failed_shapes\": [],\n  \"max_abs_err\": 0.0,\n  \"rel_l2_err\": 0.0\n}\n\nBenchmark result:\n\n{\n  \"aggregate_speedup\": 0.9998763556893003,\n  \"details\": {\n    \"iters\": 10,\n    \"warmup\": 3\n  },\n  \"latency_ms\": {\n    \"3584\": 3.7253119945526123,\n    \"4096\": 5.825535774230957,\n    \"4608\": 7.4552319049835205\n  },\n  \"speedup\": {\n    \"3584\": 0.9998625608004459,\n    \"4096\": 1.0,\n    \"4608\": 0.9997252914972218\n  },\n  \"torch_ms\": {\n    \"3584\": 3.7247999906539917,\n    \"4096\": 5.825535774230957,\n    \"4608\": 7.453183889389038\n  }\n}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"multiple_aten_gemm_and_add_launches\",\n  \"evidence\": {\n    \"aggregate_speedup\": 0.9998763556893003,\n    \"details\": {\n      \"iters\": 10,\n      \"warmup\": 3\n    },\n    \"latency_ms\": {\n      \"3584\": 3.7253119945526123,\n      \"4096\": 5.825535774230957,\n      \"4608\": 7.4552319049835205\n    },\n    \"speedup\": {\n      \"3584\": 0.9998625608004459,\n      \"4096\": 1.0,\n      \"4608\": 0.9997252914972218\n    },\n    \"torch_ms\": {\n      \"3584\": 3.7247999906539917,\n      \"4096\": 5.825535774230957,\n      \"4608\": 7.453183889389038\n    }\n  },\n  \"suggested_actions\": [\n    \"keep cuBLAS for W @ X\",\n    \"fuse rank-16 update into the output tensor\",\n    \"test scalar and vectorized rank-16 kernels\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "bf85d8f45b019011f56128c3c1003da6e3088a482caa21b6007b1ae4894edb0f"
+  },
+  "response": {
+    "content_chars": 982,
+    "content_preview": "{\n  \"bottleneck\": \"multiple_aten_gemm_and_add_launches\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"correctness is perfect with zero error across all shapes\",\n    \"speedup is ~1.0, identical to torch reference\",\n    \"benchmark latencies match torch baseline exactly\",\n    \"profile explicitly identifies multiple separate GEMM and add launches as the bottleneck\"\n  ],\n  \"recommended_actions\": [\n    \"keep cuBLAS for the full GEMM W @ X\",\n    \"fuse the rank-16 update (B.T @ X and A @ result) into a single custom kernel to reduce launch overhead and improve memory locality\",\n    \"use vectorized loads/stores (float4) for the small matrices\",\n    \"unroll the inner loop over rank 16 to reduce loop overhead\"\n  ],\n  \"avoid\": [\n    \"writing a custom full GEMM for W @ X, as cuBLAS is already optimal for this large matrix multiply\",\n    \"hardcoding the hidden dimension d\",\n    \"non-coalesced memory access patterns in the fused kernel\"\n  ],\n  \"promotion_advice\": \"needs_more_data\"\n}",
+    "content_sha256": "522fab115c8d06ba1a885226dd8f59e9c1296257fce168ff844d15563cc0c5f0",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T031123Z_pid155",
+  "started_ts": 1778210122.1658354,
+  "status": "success"
+}

@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0007_performance_diagnosis_1778207449358",
+  "duration_sec": 14.031047105789185,
+  "finished_ts": 1778207463.3897579,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 1,
+      "llm_generated": true,
+      "name": "fused_rank16_vector4",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Reduce launch overhead by fusing B.T@X and A@result into one kernel, and use vectorized loads for rank-16 update. Expect ~10-30% speedup.",
+      "use_fast_math": false,
+      "vector_width": 4
+    }
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778207463.3916526
+    }
+  ],
+  "request": {
+    "system_chars": 1215,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "8878a9be0a533cead46299fdae5996c8c11a2ff8a7ca72c4c833e98e4fd49f0e",
+    "user_chars": 1868,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 1,\n  \"llm_generated\": true,\n  \"name\": \"fused_rank16_vector4\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Reduce launch overhead by fusing B.T@X and A@result into one kernel, and use vectorized loads for rank-16 update. Expect ~10-30% speedup.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 215.21416672505438,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_1_1778207234006\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.50091552734375,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00028545944951474667\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0005447864532470703,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00010944990208372474\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 4.7734375,\n      \"passed\": false,\n      \"rel_l2_err\": 0.0002918986137956381\n    }\n  },\n  \"failed_shapes\": [\n    3584,\n    4096,\n    4608\n  ],\n  \"max_abs_err\": 4.7734375,\n  \"rel_l2_err\": 0.0002918986137956381\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "5ff42e9cfd04b71305a6b032e3823de9aae7be4fdfd5c9d7e9fd0e4f0b90646b"
+  },
+  "response": {
+    "content_chars": 925,
+    "content_preview": "{\n  \"bottleneck\": \"incorrectness\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Correctness failed for all tested shapes (3584, 4096, 4608) with max_abs_err up to 4.77\",\n    \"rel_l2_err ~0.0003, far above typical tolerance (e.g., 1e-6)\",\n    \"Custom fused rank-16 update kernel likely contains algorithmic or implementation errors\"\n  ],\n  \"recommended_actions\": [\n    \"Debug and fix the fused kernel for B.T@X and A@result, check indexing, synchronization, and vectorized load correctness\",\n    \"Test with simpler non-vectorized implementation to isolate the bug\",\n    \"Add unit tests for each sub-step (B.T@X and A@result) separately\"\n  ],\n  \"avoid\": [\n    \"Do not promote this candidate without a correct implementation\",\n    \"Avoid assuming d is always divisible by vector width even though it is \u2014 align and boundary handling must be correct\",\n    \"Do not hardcode tensor dimensions\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "baa22d74d638403b7d75a4bc0a9957ac0c68a4f8d8d903d72fa786cee6de88f9",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T021953Z_pid155",
+  "started_ts": 1778207449.3587108,
+  "status": "success"
+}

@@ -1,0 +1,36 @@
+{
+  "agent": "fake_agent",
+  "call_id": "0001_fake_agent_1778072274692",
+  "duration_sec": 0.015472412109375,
+  "finished_ts": 1778072274.7078614,
+  "llm_status": "fake enabled",
+  "metadata": {
+    "purpose": "smoke"
+  },
+  "model": "fake-model",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778072274.7238717
+    }
+  ],
+  "request": {
+    "system_chars": 13,
+    "system_preview": "system prompt",
+    "system_sha256": "e16202309c92180728dd7fd1c59f16004a6d5ee245538c28d2a9a22edf2dd2ab",
+    "user_chars": 11,
+    "user_preview": "user prompt",
+    "user_sha256": "3c05e0dd8ce331e0f88d615fa58c83c198b07dca2d80a9c8504cd7fbdcd0294f"
+  },
+  "response": {
+    "content_chars": 14,
+    "content_preview": "{ \"ok\": true }",
+    "content_sha256": "4300d4e45e836ccd4946ff5e566c14ed0f3cfe8be4c1f43966ff4ae0ae3bf9bb",
+    "model": "fake-model"
+  },
+  "run_id": "test_llm_call_logger_fake",
+  "started_ts": 1778072274.692389,
+  "status": "success"
+}

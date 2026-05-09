@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Add `y = y.contiguous();` after the matmul call and before passing y to launch_rank16_add."
+  ],
+  "warnings": [
+    "The tensor y returned by at::matmul is assumed contiguous, but contiguity is not explicitly enforced. If y were non-contiguous, the custom kernel would access memory incorrectly. Calling y.contiguous() before the kernel launch would guarantee safety."
+  ]
+}

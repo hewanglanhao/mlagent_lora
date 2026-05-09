@@ -1,0 +1,34 @@
+{
+  "avoid": [
+    "Promoting this candidate despite correctness failure",
+    "Using scalar block-128 kernel without thorough validation"
+  ],
+  "bottleneck": "correctness_failure",
+  "confidence": "high",
+  "evidence": [
+    "Correctness test failed for all shapes: d=3584 max_abs_err=0.5009, d=4096 max_abs_err=0.0005448, d=4608 max_abs_err=4.7734",
+    "Relative L2 error up to 2.9e-4, indicating systematic numerical error in the custom rank-16 update kernel",
+    "No benchmark data available, but correctness failure makes performance irrelevant"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.50091552734375, \"passed\": false, \"rel_l2_err\": 0.00028545944951474667}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0005447864532470703, \"passed\": false, \"rel_l2_err\": 0.00010944990208372474}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.7734375, \"passed\": false, \"rel_l2_err\": 0.0002918986137956381}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.7734375, \"rel_l2_err\": 0.0002918986137956381}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Debug the custom rank-16 update kernel (rank16_scalar_b128) for indexing, synchronization, and accumulation errors",
+    "Consider using cuBLAS for the rank-16 update (A @ (B.T @ X)) if custom kernel reliability cannot be guaranteed",
+    "Add unit tests with known reference outputs to isolate the bug"
+  ]
+}

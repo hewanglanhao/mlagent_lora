@@ -1,0 +1,14 @@
+{
+  "errors": [
+    "A tile loading in kernel only loads diagonal elements (As[ti][ti]), leading to incorrect computation of A @ (B.T @ X). The kernel will produce wrong results."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Fix A tile loading: each thread should load one element of A for its row and all ranks, e.g., using a loop over ranks with threadIdx.y or collaborative loading to fill the entire As[16][16] tile."
+  ],
+  "warnings": [
+    "Y tensor from matmul may not be contiguous; consider calling .contiguous() before passing to kernel to ensure correct data pointer.",
+    "No device synchronization after kernel launch; if Y is used on CPU immediately, results may be incomplete."
+  ]
+}

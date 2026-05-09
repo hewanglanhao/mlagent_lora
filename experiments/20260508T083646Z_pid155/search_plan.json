@@ -1,0 +1,32 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "fused_rank16_kernel"
+    ],
+    "priority_order": [
+      "simple_fused_rank16_kernel",
+      "vectorized_fused_rank16_kernel",
+      "tiled_fused_rank16_kernel"
+    ],
+    "rationale": "Baseline shows bottleneck from multiple kernel launches for rank-16 path. Fusing B.T@X, A@(result), and addition to W@X into a single custom kernel reduces launch overhead and improves memory locality, while keeping the large W@X GEMM on cuBLAS for optimal performance.",
+    "risk_controls": [
+      "keep_cuBLAS_for_WX",
+      "validate_correctness_against_aten_reference",
+      "avoid_hardcoding_d",
+      "ensure_coalesced_global_memory_access",
+      "use_dynamic_shared_memory_if_needed"
+    ],
+    "stop_conditions": [
+      "aggregate_speedup_exceeds_1.2",
+      "no_improvement_after_three_candidates",
+      "correctness_failure_on_any_shape"
+    ],
+    "strategy": "fuse_rank16_update"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fuse_rank16_update"
+}

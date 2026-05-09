@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 1,
+  "llm_generated": true,
+  "name": "fused_rank16_float4",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Fuse B.T @ X and A @ (B.T @ X) into one kernel with float4 vectorization to reduce launch overhead and intermediate memory traffic",
+  "use_fast_math": false,
+  "vector_width": 4
+}

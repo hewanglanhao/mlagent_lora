@@ -1,0 +1,40 @@
+{
+  "avoid": [
+    "Ignoring correctness failures for performance gains",
+    "Hardcoding hidden dimensions (d) or tensor sizes",
+    "Using scalar (vector_width=1) loads for large contiguous memory regions",
+    "Promoting any candidate that fails correctness on all tested shapes"
+  ],
+  "bottleneck": "correctness",
+  "confidence": "high",
+  "evidence": [
+    "Candidate failed correctness for all three shapes (3584, 4096, 4608)",
+    "Max absolute error is 5.08 at d=4608, far above acceptable tolerance",
+    "Relative L2 error ~0.00029 exceeds strict floating-point error bound",
+    "Static review and compilation passed, implying bug is in kernel logic, not interface",
+    "No benchmark data available, but correctness failure dominates"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.536468505859375, \"passed\": false, \"rel_l2_err\": 0.0002922355488408357}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0011567473411560059, \"passed\": false, \"rel_l2_err\": 0.0002928708272520453}, \"4608\": {\"finite\": true, \"max_abs_err\": 5.0849609375, \"passed\": false, \"rel_l2_err\": 0.00029321821057237685}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 5.0849609375, \"rel_l2_err\": 0.00029321821057237685}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Debug the custom rank-16 update kernel: verify indexing, boundary conditions, and shared memory usage",
+    "Use vectorized loads (float4) to improve memory coalescing and reduce instruction count",
+    "Test with a simple reference kernel (e.g., naive for-loop) for each shape to isolate the bug",
+    "Consider implementing the rank-16 update via a small GEMM (cuBLAS) to eliminate custom kernel risk",
+    "Add shape-aware handling if kernel assumes block-size alignment that fails for non-multiple dimensions"
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": false,
+    "name": "fused_rank16_two_kernels",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Fuse the rank-16 update into two custom kernels: one for B.T @ X (16xd) and one for Y += A @ C, using vectorized loads and tiled outer product for K=16. Keep cuBLAS for W @ X. Expect reduction in launch overhead and better memory locality, aiming for speedup >1.0.",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  "enabled": true,
+  "origin": "deterministic_fallback"
+}

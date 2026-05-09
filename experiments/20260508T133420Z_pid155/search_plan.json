@@ -1,0 +1,30 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "precompute",
+      "fusion_rank16"
+    ],
+    "priority_order": [
+      "precompute",
+      "fusion_rank16"
+    ],
+    "rationale": "Baseline reveals bottleneck is multiple ATen launches. Precomputing Weff = W + A @ B.T reduces to one cuBLAS GEMM, lowering launch overhead at cost of an extra outer product. This is the first recommended strategy. If precompute fails to benefit, the fallback is to fuse the rank-16 update (B.T @ X then A @ result) into a single custom kernel, keeping cuBLAS for W @ X. Both will be tested across all runtime shapes.",
+    "risk_controls": [
+      "ensure in-place mutation of W is avoided by allocating temporary Weff",
+      "validate correctness across all d in [3584,4608] with max absolute error < 1e-5",
+      "compare cost of forming Weff (A @ B.T) vs savings from single GEMM"
+    ],
+    "stop_conditions": [
+      "precompute candidate achieves aggregate speedup > 1.05",
+      "fusion candidate achieves aggregate speedup > 1.05",
+      "both fail to improve aggregate speedup beyond 1.01"
+    ],
+    "strategy": "precompute_Weff"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "precompute_Weff"
+}

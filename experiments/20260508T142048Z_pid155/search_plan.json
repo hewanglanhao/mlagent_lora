@@ -1,0 +1,31 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "fused_rank16_kernel"
+    ],
+    "priority_order": [
+      "128-column tile, 8 columns per thread, shared memory staging for A and Z tiles, vectorized float4 loads/stores, unrolled rank-16 FMAs",
+      "variations: 64-column tile, 4 columns per thread; 256-column tile, 16 columns per thread; adjust rows per block (e.g., 4, 8, 16) to balance occupancy and register pressure",
+      "shape-aware dispatch if a single tile configuration underperforms across d in [3584, 4608]"
+    ],
+    "rationale": "Baseline ATen reference shows no speedup due to multiple GEMM and add launches. The recommended path is to keep cuBLAS for W @ X and B.T @ X, then fuse Y += A @ Z into a single custom kernel exploiting the fixed rank-16. Starting with a 128-column tile, 8 columns per thread, shared memory staging, and vectorized float4 operations is a high-priority baseline that balances occupancy and register usage. Subsequent variations will explore tile sizes and rows per block to find the best configuration across the runtime shape range.",
+    "risk_controls": [
+      "correctness gate (max_abs_err=0, rel_l2_err=0) across all d",
+      "static review for safety and adherence to constraints",
+      "compile check with no errors",
+      "benchmark against baseline across all d before promotion"
+    ],
+    "stop_conditions": [
+      "aggregate speedup > 1.2x over baseline",
+      "after exploring 3 distinct tile configurations without improvement, fallback to best so far",
+      "if any candidate fails correctness, discard and revert to previous best"
+    ],
+    "strategy": "fused_rank16_kernel_family"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fused_rank16_kernel_family"
+}

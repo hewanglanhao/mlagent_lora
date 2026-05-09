@@ -1,0 +1,17 @@
+{
+  "bytes": 4495,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 2,
+    "llm_generated": true,
+    "name": "cublas_WX_BTX_fused_AC_add_vec4",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Reduces launch count from 4 to 3 by fusing A@C and addition into a single vectorized kernel, while keeping cuBLAS for W@X and B.T@X to ensure correctness. Vectorized loads (float4) improve memory throughput for the rank-16 update.",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  "enabled": true,
+  "origin": "llm"
+}

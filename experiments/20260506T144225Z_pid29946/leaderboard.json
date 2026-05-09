@@ -1,0 +1,684 @@
+[
+  {
+    "aggregate_speedup": 0.9999296177660677,
+    "benchmark": {
+      "aggregate_speedup": 0.9999296177660677,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 4.734463930130005,
+        "4096": 7.145472049713135,
+        "4608": 9.539584159851074
+      },
+      "speedup": {
+        "3584": 0.9997837119867522,
+        "4096": 0.9997850203745163,
+        "4608": 1.0002683200674518
+      },
+      "torch_ms": {
+        "3584": 4.733439922332764,
+        "4096": 7.143935918807983,
+        "4608": 9.542143821716309
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 55.30926898820326,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_0_1778078575101",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Replacing cuBLAS for the full W @ X GEMM with a custom kernel; high risk and unlikely to beat cuBLAS.",
+        "Hardcoding hidden dimensions or tensor sizes; the operator must remain shape-agnostic within the given range."
+      ],
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "confidence": "high",
+      "evidence": [
+        "Speedup is ~1.0 across all shapes, indicating no performance improvement over the PyTorch baseline.",
+        "Latency is identical to torch baseline within measurement noise.",
+        "Profile summary confirms bottleneck is multiple ATen kernel launches for W@X, B.T@X, A@(B.T@X), and the final add.",
+        "Correctness passes with zero error, so no correctness issues."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "custom full GEMM without evidence"
+        ],
+        "bottleneck": "multiple_aten_gemm_and_add_launches",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 0.9999296177660677, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.734463930130005, \"4096\": 7.145472049713135, \"4608\": 9.539584159851074}, \"speedup\": {\"3584\": 0.9997837119867522, \"4096\": 0.9997850203745163, \"4608\": 1.0002683200674518}, \"torch_ms\": {\"3584\": 4.733439922332764, \"4096\": 7.143935918807983, \"4608\": 9.542143821716309}}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "try vector width 4",
+          "vary block size",
+          "keep W @ X in cuBLAS"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Keep cuBLAS for the large W @ X GEMM; it is already optimal.",
+        "Fuse the rank-16 update (A @ (B.T @ X)) and the addition into a single custom kernel to reduce launch overhead and improve memory locality.",
+        "Explore vectorized loads/stores and unrolling in the fused rank-16 kernel to maximize bandwidth utilization.",
+        "Consider shape-aware dispatch if a single fused kernel does not perform uniformly across d in [3584, 4608]."
+      ]
+    },
+    "family": "aten_reference",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "aten_reference",
+        "id": 0,
+        "llm_generated": false,
+        "name": "baseline_aten",
+        "parent": null,
+        "shape_dispatch": false,
+        "strategy": "",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "origin": "deterministic_baseline"
+    },
+    "id": 0,
+    "latency_by_d": {
+      "3584": 4.734463930130005,
+      "4096": 7.145472049713135,
+      "4608": 9.539584159851074
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [],
+      "warnings": []
+    },
+    "name": "baseline_aten",
+    "parent": null,
+    "profile": {
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "evidence": {
+        "aggregate_speedup": 0.9999296177660677,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 4.734463930130005,
+          "4096": 7.145472049713135,
+          "4608": 9.539584159851074
+        },
+        "speedup": {
+          "3584": 0.9997837119867522,
+          "4096": 0.9997850203745163,
+          "4608": 1.0002683200674518
+        },
+        "torch_ms": {
+          "3584": 4.733439922332764,
+          "4096": 7.143935918807983,
+          "4608": 9.542143821716309
+        }
+      },
+      "suggested_actions": [
+        "keep cuBLAS for W @ X",
+        "fuse rank-16 update into the output tensor",
+        "test scalar and vectorized rank-16 kernels"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260506T144225Z_pid29946/exp_0000/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 0.9894446339180303,
+    "benchmark": {
+      "aggregate_speedup": 0.9894446339180303,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 4.775936126708984,
+        "4096": 7.218175888061523,
+        "4608": 9.648127555847168
+      },
+      "speedup": {
+        "3584": 0.9889579670810227,
+        "4096": 0.9902113688737695,
+        "4608": 0.988908987480719
+      },
+      "torch_ms": {
+        "3584": 4.723200082778931,
+        "4096": 7.147519826889038,
+        "4608": 9.541120052337646
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 55.21347187901847,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_1_1778078979345",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "custom full GEMM without evidence"
+      ],
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "confidence": "medium",
+      "evidence": [
+        "{\"aggregate_speedup\": 0.9894446339180303, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.775936126708984, \"4096\": 7.218175888061523, \"4608\": 9.648127555847168}, \"speedup\": {\"3584\": 0.9889579670810227, \"4096\": 0.9902113688737695, \"4608\": 0.988908987480719}, \"torch_ms\": {\"3584\": 4.723200082778931, \"4096\": 7.147519826889038, \"4608\": 9.541120052337646}}"
+      ],
+      "llm_parse_failed": true,
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "try vector width 4",
+        "vary block size",
+        "keep W @ X in cuBLAS"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 1,
+        "llm_generated": false,
+        "name": "fused_rank16_update_vec4",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "Fuse A @ (B.T @ X) and addition into a single vectorized kernel, reducing launch overhead and improving memory bandwidth utilization. Expected speedup >1.0.",
+        "use_fast_math": false,
+        "vector_width": 4
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 1,
+    "latency_by_d": {
+      "3584": 4.775936126708984,
+      "4096": 7.218175888061523,
+      "4608": 9.648127555847168
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "fused_rank16_update_vec4",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 0.9894446339180303,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 4.775936126708984,
+          "4096": 7.218175888061523,
+          "4608": 9.648127555847168
+        },
+        "speedup": {
+          "3584": 0.9889579670810227,
+          "4096": 0.9902113688737695,
+          "4608": 0.988908987480719
+        },
+        "torch_ms": {
+          "3584": 4.723200082778931,
+          "4096": 7.147519826889038,
+          "4608": 9.541120052337646
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260506T144225Z_pid29946/exp_0001/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "Fuse A @ (B.T @ X) and addition into a single vectorized kernel, reducing launch overhead and improving memory bandwidth utilization. Expected speedup >1.0.",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  {
+    "aggregate_speedup": 0.988039712791829,
+    "benchmark": {
+      "aggregate_speedup": 0.988039712791829,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 4.792831897735596,
+        "4096": 7.222271919250488,
+        "4608": 9.678336143493652
+      },
+      "speedup": {
+        "3584": 0.9887832386208466,
+        "4096": 0.9892244273514905,
+        "4608": 0.9857165675499294
+      },
+      "torch_ms": {
+        "3584": 4.739071846008301,
+        "4096": 7.1444478034973145,
+        "4608": 9.540096282958984
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 55.508958681020886,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_3_1778080127673",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Replacing cuBLAS for the full W@X GEMM, as it is already highly optimized and dominates runtime.",
+        "Hardcoding hidden dimensions or tensor sizes.",
+        "Using fast math flags that could compromise correctness."
+      ],
+      "bottleneck": "rank16_update_memory_bandwidth",
+      "confidence": "medium",
+      "evidence": [
+        "Candidate is 1.2-1.4% slower than baseline across all shapes (speedup 0.985-0.989).",
+        "Profile summary indicates bottleneck is rank16_update_or_memory_bandwidth.",
+        "Custom kernel uses scalar loads/stores (vector_width=1) and block size 256, likely underutilizing memory bandwidth.",
+        "No correctness issues, so performance loss is purely from kernel inefficiency."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "custom full GEMM without evidence"
+        ],
+        "bottleneck": "rank16_update_or_memory_bandwidth",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 0.988039712791829, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.792831897735596, \"4096\": 7.222271919250488, \"4608\": 9.678336143493652}, \"speedup\": {\"3584\": 0.9887832386208466, \"4096\": 0.9892244273514905, \"4608\": 0.9857165675499294}, \"torch_ms\": {\"3584\": 4.739071846008301, \"4096\": 7.1444478034973145, \"4608\": 9.540096282958984}}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "try vector width 4",
+          "vary block size",
+          "keep W @ X in cuBLAS"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Use vectorized loads/stores (e.g., float4) to improve memory throughput.",
+        "Experiment with different block sizes (e.g., 128, 512) to find optimal occupancy and coalescing.",
+        "Consider using shared memory to cache tiles of X or intermediate results for better data reuse.",
+        "Profile memory bandwidth utilization to confirm bottleneck."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 3,
+        "llm_generated": false,
+        "name": "rank16_scalar_b256",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 3,
+    "latency_by_d": {
+      "3584": 4.792831897735596,
+      "4096": 7.222271919250488,
+      "4608": 9.678336143493652
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "rank16_scalar_b256",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 0.988039712791829,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 4.792831897735596,
+          "4096": 7.222271919250488,
+          "4608": 9.678336143493652
+        },
+        "speedup": {
+          "3584": 0.9887832386208466,
+          "4096": 0.9892244273514905,
+          "4608": 0.9857165675499294
+        },
+        "torch_ms": {
+          "3584": 4.739071846008301,
+          "4096": 7.1444478034973145,
+          "4608": 9.540096282958984
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260506T144225Z_pid29946/exp_0003/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 0.9878051239588819,
+    "benchmark": {
+      "aggregate_speedup": 0.9878051239588819,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 4.790272235870361,
+        "4096": 7.2335357666015625,
+        "4608": 9.677311897277832
+      },
+      "speedup": {
+        "3584": 0.9897391769342586,
+        "4096": 0.9876840693735142,
+        "4608": 0.9860324770973286
+      },
+      "torch_ms": {
+        "3584": 4.741120100021362,
+        "4096": 7.1444480419158936,
+        "4608": 9.542143821716309
+      }
+    },
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 55.29703547596,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_2_1778079583103",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Replacing cuBLAS W@X with a custom full GEMM \u2013 high risk and unlikely to beat cuBLAS for large d",
+        "Hardcoding hidden dimensions or relying on shape-specific constants",
+        "Introducing fast-math approximations that could compromise deterministic correctness"
+      ],
+      "bottleneck": "rank16_update_memory_bandwidth",
+      "confidence": "high",
+      "evidence": [
+        "All shapes show ~1% slowdown vs PyTorch baseline, aggregate speedup 0.9878",
+        "Custom rank-16 update kernel uses scalar accesses (vector_width=1), limiting memory throughput",
+        "Profile summary identifies bottleneck as rank16_update_or_memory_bandwidth",
+        "d values (3584, 4096, 4608) are divisible by 4, enabling float4 vectorization",
+        "No correctness issues, so performance deficit is purely from kernel efficiency"
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "custom full GEMM without evidence"
+        ],
+        "bottleneck": "rank16_update_or_memory_bandwidth",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 0.9878051239588819, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.790272235870361, \"4096\": 7.2335357666015625, \"4608\": 9.677311897277832}, \"speedup\": {\"3584\": 0.9897391769342586, \"4096\": 0.9876840693735142, \"4608\": 0.9860324770973286}, \"torch_ms\": {\"3584\": 4.741120100021362, \"4096\": 7.1444480419158936, \"4608\": 9.542143821716309}}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "try vector width 4",
+          "vary block size",
+          "keep W @ X in cuBLAS"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Increase vector_width to 4 (float4) for global memory loads/stores in the rank-16 update kernel",
+        "Ensure coalesced memory access patterns for A, B, X, and output Y",
+        "Experiment with block sizes (e.g., 64, 256) to balance occupancy and instruction-level parallelism",
+        "Consider using shared memory to cache B.T @ X intermediate (16 x d) to reduce redundant global reads",
+        "Unroll inner loops over rank dimension (16) to expose ILP and reduce loop overhead"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 2,
+        "llm_generated": false,
+        "name": "rank16_scalar_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 2,
+    "latency_by_d": {
+      "3584": 4.790272235870361,
+      "4096": 7.2335357666015625,
+      "4608": 9.677311897277832
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "rank16_scalar_b128",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 0.9878051239588819,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 4.790272235870361,
+          "4096": 7.2335357666015625,
+          "4608": 9.677311897277832
+        },
+        "speedup": {
+          "3584": 0.9897391769342586,
+          "4096": 0.9876840693735142,
+          "4608": 0.9860324770973286
+        },
+        "torch_ms": {
+          "3584": 4.741120100021362,
+          "4096": 7.1444480419158936,
+          "4608": 9.542143821716309
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260506T144225Z_pid29946/exp_0002/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  }
+]

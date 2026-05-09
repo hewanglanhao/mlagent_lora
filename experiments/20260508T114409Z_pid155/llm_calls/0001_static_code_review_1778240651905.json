@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0001_static_code_review_1778240651905",
+  "duration_sec": 11.802484512329102,
+  "finished_ts": 1778240663.7075675,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "aten_reference",
+      "id": 0,
+      "llm_generated": false,
+      "name": "baseline_aten",
+      "parent": null,
+      "shape_dispatch": false,
+      "strategy": "",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T114409Z_pid155/exp_0000/candidate.cu"
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778240663.9797108
+    }
+  ],
+  "request": {
+    "system_chars": 1649,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- For final-output result caches, verify the cache key includes all four input data pointers, all four tensor version counters, runtime d, and CUDA device.\n- For final-output result caches, reject shape-only caching, pointer-only caching without version counters, or cross-device reuse.\n- For final-output result caches, verify cache hits return only the exact cached final output for unchanged input tensors.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "d9256f4b3968fcbf137278eab67eeebe41cfb683718a54f186b7fa87d89a2951",
+    "user_chars": 2451,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"aten_reference\",\n  \"id\": 0,\n  \"llm_generated\": false,\n  \"name\": \"baseline_aten\",\n  \"parent\": null,\n  \"shape_dispatch\": false,\n  \"strategy\": \"\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n\nnamespace {\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"all inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be rank-2 tensors\");\n    const int64_t d = W.size(0);\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16 &&\n                B.size(0) == d && B.size(1) == 16,\n                \"A and B must be d x 16\");\n}\n\n}  // namespace\n\ntorch::Tensor forward(torch::Tensor W,\n                      torch::Tensor X,\n                      torch::Tensor A,\n                      torch::Tensor B) {\n    check_inputs(W, X, A, B);\n    auto Wc = W.contiguous();\n    auto Xc = X.contiguous();\n    auto Ac = A.contiguous();\n    auto Bc = B.contiguous();\n\n    auto y = at::matmul(Wc, Xc);\n    auto t = at::matmul(Bc.transpose(0, 1).contiguous(), Xc);\n    y.add_(at::matmul(Ac, t));\n    return y;\n}\n\nPYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {\n    m.def(\"forward\", &forward, \"LoRA forward\");\n}\n\n\nCache review note:\n\nIf this candidate implements `optimized_lora_result_cache.cu` style final-output caching, check that it keys the cache by W/X/A/B data pointers, W/X/A/B version counters, runtime d, and CUDA device.\nFlag any stale-result risk as an error or high-risk warning.\n\nReview the candidate and return the JSON result.",
+    "user_sha256": "c7ae742317cf0d89b99ec23b2621ba4e082c907f37e977d1b94f33daca162912"
+  },
+  "response": {
+    "content_chars": 701,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [\n    \"The use of add_() modifies the result tensor in-place, which may break autograd if gradients are required. Consider using y = y + ... instead for full gradient support.\",\n    \"The candidate does not implement any custom CUDA kernel or result caching; performance may be suboptimal compared to fused approaches.\"\n  ],\n  \"suggested_fixes\": [\n    \"Replace y.add_(at::matmul(Ac, t)) with y = y + at::matmul(Ac, t) to support automatic differentiation if needed.\",\n    \"If performance is critical, consider implementing a custom CUDA kernel that fuses the operations to reduce memory bandwidth and kernel launch overhead.\"\n  ]\n}",
+    "content_sha256": "a6af09f91660e2b104070efa6654c81fa284bf13635682f7c00fb578fc88dc39",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T114409Z_pid155",
+  "started_ts": 1778240651.905083,
+  "status": "success"
+}

@@ -1,0 +1,605 @@
+[
+  {
+    "aggregate_speedup": 0.9994899547721481,
+    "benchmark": {
+      "aggregate_speedup": 0.9994899547721481,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.725823998451233,
+        "4096": 5.829119920730591,
+        "4608": 7.459327936172485
+      },
+      "speedup": {
+        "3584": 0.9998625796873837,
+        "4096": 0.9990338704069324,
+        "4608": 0.9997254423438671
+      },
+      "torch_ms": {
+        "3584": 3.7253119945526123,
+        "4096": 5.823488235473633,
+        "4608": 7.457279920578003
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 226.5475928839296,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_0_1778256639775",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Do not use handwritten rank-16 kernels unless cuBLAS path is proven insufficient",
+        "Do not hardcode hidden dimension sizes",
+        "Do not rely on result caching as a general optimization"
+      ],
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "confidence": "high",
+      "evidence": [
+        "aggregate_speedup 0.9995 indicates no performance improvement over torch",
+        "profile bottleneck identified as multiple ATen GEMM and add launches",
+        "candidate is exactly the ATen reference implementation"
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "custom full GEMM without evidence"
+        ],
+        "bottleneck": "multiple_aten_gemm_and_add_launches",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 0.9994899547721481, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.725823998451233, \"4096\": 5.829119920730591, \"4608\": 7.459327936172485}, \"speedup\": {\"3584\": 0.9998625796873837, \"4096\": 0.9990338704069324, \"4608\": 0.9997254423438671}, \"torch_ms\": {\"3584\": 3.7253119945526123, \"4096\": 5.823488235473633, \"4608\": 7.457279920578003}}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "try vector width 4",
+          "vary block size",
+          "keep W @ X in cuBLAS"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Implement pure cuBLAS three-SGEMM path: one SGEMM for W@X, one for B.T@X, one for A@(B.T@X) with beta=1 accumulation",
+        "Avoid ATen matrix multiply calls to reduce kernel launch overhead",
+        "Ensure correct row-major to column-major handling with cuBLAS op flags",
+        "Test on all shapes (3584, 4096, 4608) for consistent performance"
+      ]
+    },
+    "family": "aten_reference",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "aten_reference",
+        "id": 0,
+        "llm_generated": false,
+        "name": "baseline_aten",
+        "parent": null,
+        "shape_dispatch": false,
+        "strategy": "",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "origin": "deterministic_baseline"
+    },
+    "id": 0,
+    "latency_by_d": {
+      "3584": 3.725823998451233,
+      "4096": 5.829119920730591,
+      "4608": 7.459327936172485
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "Replace Bc.transpose(0, 1).contiguous() with Bc.t() and let ATen manage the transpose implicitly."
+      ],
+      "warnings": [
+        "Explicitly materializing B.transpose(0, 1).contiguous() creates a full transpose copy; can use Bc.t() to let ATen handle the layout internally, though not required for correctness."
+      ]
+    },
+    "name": "baseline_aten",
+    "parent": null,
+    "profile": {
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "evidence": {
+        "aggregate_speedup": 0.9994899547721481,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.725823998451233,
+          "4096": 5.829119920730591,
+          "4608": 7.459327936172485
+        },
+        "speedup": {
+          "3584": 0.9998625796873837,
+          "4096": 0.9990338704069324,
+          "4608": 0.9997254423438671
+        },
+        "torch_ms": {
+          "3584": 3.7253119945526123,
+          "4096": 5.823488235473633,
+          "4608": 7.457279920578003
+        }
+      },
+      "suggested_actions": [
+        "keep cuBLAS for W @ X",
+        "fuse rank-16 update into the output tensor",
+        "test scalar and vectorized rank-16 kernels"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T161022Z_pid155/exp_0000/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 214.83681439096108,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_1_1778257117086",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 1741.5260009765625,
+          "passed": false,
+          "rel_l2_err": 0.9712008833885193
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 3.4671401977539062,
+          "passed": false,
+          "rel_l2_err": 0.6922467947006226
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 15516.8115234375,
+          "passed": false,
+          "rel_l2_err": 0.9923923015594482
+        }
+      },
+      "failed_shapes": [
+        3584,
+        4096,
+        4608
+      ],
+      "max_abs_err": 15516.8115234375,
+      "rel_l2_err": 0.9923923015594482
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "Do not hardcode hidden dimensions or leading dimensions based on trial-and-error without understanding the layout.",
+        "Do not revert to ATen GEMM or handwritten kernels unless cuBLAS fix is ruled out.",
+        "Do not consider result caching as a solution since benchmark does not use repeated identical inputs.",
+        "Do not ignore correctness: do not promote this candidate as-is."
+      ],
+      "bottleneck": "correctness",
+      "confidence": "high",
+      "evidence": [
+        "Correctness failed for all tested shapes (d=3584, 4096, 4608) with max_abs_err up to 15516.8 and rel_l2_err close to 1.0.",
+        "Static review and compile passed, so the error is likely in cuBLAS API usage (dimensions, leading dimensions, transposes, or alpha/beta).",
+        "No benchmark data available to assess performance; correctness dominates.",
+        "Candidate strategy claims to use three direct cuBLAS SGEMMs, but results show wrong numerical output."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 1741.5260009765625, \"passed\": false, \"rel_l2_err\": 0.9712008833885193}, \"4096\": {\"finite\": true, \"max_abs_err\": 3.4671401977539062, \"passed\": false, \"rel_l2_err\": 0.6922467947006226}, \"4608\": {\"finite\": true, \"max_abs_err\": 15516.8115234375, \"passed\": false, \"rel_l2_err\": 0.9923923015594482}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 15516.8115234375, \"rel_l2_err\": 0.9923923015594482}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Verify cuBLAS handle creation and destruction.",
+        "Fix cuBLAS SGEMM calls for row-major tensors: For each multiplication, use the pattern cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_T, m, n, k, &alpha, A_ptr, k, B_ptr, n, &beta, C_ptr, m) where m/n/k are the row-major matrix dimensions and leading dimensions equal the number of columns of the row-major matrix.",
+        "For temp = B.T @ X: m=16, n=d, k=d, A=B_ptr (lda=16), B=X_ptr (ldb=d), out=temp_ptr (ldc=16).",
+        "For Y = W @ X (first term): m=d, n=d, k=d, A=W_ptr (lda=d), B=X_ptr (ldb=d), out=Y_ptr (ldc=d), beta=0.",
+        "For accumulation of low-rank term: Y = A @ temp + Y: m=d, n=d, k=16, A=A_ptr (lda=16), B=temp_ptr (ldb=d), out=Y_ptr (ldc=d), beta=1.0.",
+        "Allocate temporary buffer U with shape (16, d) (row-major) and ensure its leading dimension for column-major usage is d.",
+        "Add shape-agnostic debug print or compare intermediate results to reference for a small dimension to isolate the bug."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 4153,
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 1,
+        "llm_generated": true,
+        "name": "pure_cublas_three_sgemm",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "Replace three ATen GEMM calls with three direct cuBLAS SGEMM calls, eliminating kernel launch overhead and avoiding explicit transpose of B. Second SGEMM computes B.T@X via op(CUBLAS_OP_T) on B, third accumulates into Y with beta=1.",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 1,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "Add error checking for cuBLAS calls by checking the return value and printing error or throwing."
+      ],
+      "warnings": [
+        "Missing error checking on cuBLAS calls (cublasSgemm and cublasSetStream) which could lead to silent failures."
+      ]
+    },
+    "name": "pure_cublas_three_sgemm",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T161022Z_pid155/exp_0001/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "Replace three ATen GEMM calls with three direct cuBLAS SGEMM calls, eliminating kernel launch overhead and avoiding explicit transpose of B. Second SGEMM computes B.T@X via op(CUBLAS_OP_T) on B, third accumulates into Y with beta=1.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 223.0325687159784,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_2_1778257696120",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 1741.5260009765625,
+          "passed": false,
+          "rel_l2_err": 0.9712008833885193
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 3.4671401977539062,
+          "passed": false,
+          "rel_l2_err": 0.6922467947006226
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 15516.8115234375,
+          "passed": false,
+          "rel_l2_err": 0.9923923015594482
+        }
+      },
+      "failed_shapes": [
+        3584,
+        4096,
+        4608
+      ],
+      "max_abs_err": 15516.8115234375,
+      "rel_l2_err": 0.9923923015594482
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "Any handwritten CUDA kernels for low-rank updates",
+        "Explicit transpose-copy of B to column-major",
+        "Hardcoding d or any dimension",
+        "Result caching or assuming repeated identical inputs"
+      ],
+      "bottleneck": "incorrect_custom_kernel",
+      "confidence": "high",
+      "evidence": [
+        "Correctness fails for all three shapes (3584, 4096, 4608) with rel_l2_err up to 0.992 and max_abs_err > 15516",
+        "Candidate uses a handwritten 'deterministic_rank16_update' kernel which is likely buggy",
+        "Static review passed and compilation succeeded, so the issue is algorithmic or implementation error in the custom kernel",
+        "No benchmark data available; profile suggests keeping last known-good candidate"
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 1741.5260009765625, \"passed\": false, \"rel_l2_err\": 0.9712008833885193}, \"4096\": {\"finite\": true, \"max_abs_err\": 3.4671401977539062, \"passed\": false, \"rel_l2_err\": 0.6922467947006226}, \"4608\": {\"finite\": true, \"max_abs_err\": 15516.8115234375, \"passed\": false, \"rel_l2_err\": 0.9923923015594482}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 15516.8115234375, \"rel_l2_err\": 0.9923923015594482}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Replace the custom rank-16 update kernel with a pure cuBLAS three-SGEMM implementation: compute W @ X first, then compute temp = B.T @ X via cublasSgemm with CUBLAS_OP_T on B, then accumulate A @ temp into Y with beta=1",
+        "Ensure correct cuBLAS dimensions (m, n, k) and leading dimensions: for temp = B.T @ X, use m=16, n=d, k=d, lda=d, ldb=d, ldc=16; for accumulation, use m=d, n=d, k=16, lda=d, ldb=16, ldc=d",
+        "If the pure cuBLAS candidate is also incorrect, debug row-major/column-major assumptions, op flags, and alpha/beta settings"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 2931,
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 2,
+        "llm_generated": true,
+        "name": "rank16_scalar_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 2,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [
+        "First SGEMM (Y = W @ X) does not account for row-major to column-major conversion. Using opN/opN with leading dimensions d will compute X * W instead of W @ X.",
+        "Second SGEMM (U = B.T @ X) uses incorrect operation flags and dimension ordering. It computes X * B^T (invalid dimensions) instead of B^T * X. Should be opA=CUBLAS_OP_T, opB=CUBLAS_OP_N, with m=16, n=d, k=d.",
+        "Third SGEMM (Y += A @ U) has swapped A_ptr and B_ptr, computing U * A instead of A * U.",
+        "No CUDA error checking after cublasSgemm calls; missing cudaGetLastError or cublas status checks."
+      ],
+      "pass": false,
+      "risk_level": "high",
+      "suggested_fixes": [
+        "To compute Y = W @ X in row-major, use cublasSgemm with CUBLAS_OP_T for both A and B, and swap m,n: cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_T, d, d, d, &alpha, Xc.data_ptr<float>(), d, Wc.data_ptr<float>(), d, &beta0, Y.data_ptr<float>(), d).",
+        "For U = B.T @ X, call cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N, 16, d, d, &alpha, Bc.data_ptr<float>(), d, Xc.data_ptr<float>(), d, &beta0, U.data_ptr<float>(), 16).",
+        "For Y += A @ U, call cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, d, d, 16, &alpha, Ac.data_ptr<float>(), 16, U.data_ptr<float>(), d, &beta1, Y.data_ptr<float>(), d).",
+        "Add error checking after each cublasSgemm call, e.g., TORCH_CUDABLAS_CHECK(cublas_status);"
+      ],
+      "warnings": [
+        "U is allocated as {16, d} but its leading dimension is correctly set to 16 for the intended usage; however, due to SGEMM errors this becomes irrelevant."
+      ]
+    },
+    "name": "rank16_scalar_b128",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T161022Z_pid155/exp_0002/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 512,
+    "compile": {
+      "compile_time_sec": 227.9231206139084,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_3_1778258265467",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.00146484375,
+          "passed": false,
+          "rel_l2_err": 7.909732744337816e-07
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [
+        3584
+      ],
+      "max_abs_err": 0.00146484375,
+      "rel_l2_err": 7.909732744337816e-07
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "Hardcoding hidden dimensions or tensor shapes",
+        "Using handwritten kernels for rank-16 update unless proven correct and faster than cuBLAS",
+        "Result caching or assuming repeated identical inputs",
+        "Shape-agnostic custom kernel that passes some but not all shapes"
+      ],
+      "bottleneck": "correctness_failure",
+      "confidence": "medium",
+      "evidence": [
+        "Candidate failed correctness for d=3584 with max_abs_err 0.00146484375 while passing for d=4096 and 4608",
+        "Static review and compile succeeded; risk level low",
+        "Benchmark unavailable, but correctness issue dominates",
+        "Custom rank-16 update kernel is likely the source of error due to shape-specific bug or boundary condition"
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00146484375, \"passed\": false, \"rel_l2_err\": 7.909732744337816e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}}, \"failed_shapes\": [3584], \"max_abs_err\": 0.00146484375, \"rel_l2_err\": 7.909732744337816e-07}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Replace the custom deterministic_rank16_update kernel with a pure cuBLAS three-SGEMM sequence: compute tmp = B.T @ X (cuBLAS SGEMM with correct transa/transb), then low = A @ tmp (cuBLAS SGEMM), then Y = W @ X + low (cuBLAS SGEMM with beta=1 for accumulation)",
+        "Verify cuBLAS op flags (CUBLAS_OP_T for B.T, CUBLAS_OP_N for others) and leading dimensions match row-major storage (or adjust for column-major if using FORTRAN order)",
+        "Ensure temporary tensor U is allocated with shape [16, d] (or [d, 16] with correct layout) to avoid implicit transpose",
+        "Test pure cuBLAS candidate on all shapes (3584, 4096, 4608) to confirm correctness before optimizing further",
+        "If 3584 remains problematic with cuBLAS, double-check dimension handling: d is runtime-selected, cuBLAS calls must use d as m, n, k consistently"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 3406,
+      "candidate": {
+        "block_size": 512,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 3,
+        "llm_generated": true,
+        "name": "rank16_scalar_b512",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 3,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [
+        "First cuBLAS Sgemm computes X * W instead of W @ X (incorrect operation flags and matrix order for row-major tensors).",
+        "Second cuBLAS Sgemm has dimension mismatch: m=d, n=16, k=d with OP_N on X (d\u00d7d) and OP_T on B (originally d\u00d716, transposed to 16\u00d7d) gives incompatible inner dimension d vs 16; intended B.T @ X is not achieved.",
+        "Third cuBLAS Sgemm uses temp (intended as 16\u00d7d row-major) with leading dimension d, but cuBLAS interpretation is inconsistent; also accumulation with beta=1 requires correct prior content of Y from first Sgemm (which is wrong anyway).",
+        "Overall the three Sgemm calls do not implement Y = W @ X + A @ (B.T @ X) correctly; the mathematical mapping from row-major to cuBLAS column-major conventions is flawed."
+      ],
+      "pass": false,
+      "risk_level": "high",
+      "suggested_fixes": [
+        "Correct the first Sgemm to compute W @ X (row-major) by using CUBLAS_OP_T on both X and W, or equivalently compute X^T * W^T with appropriate dimensions.",
+        "Correct the second Sgemm to compute B.T @ X: set op(A)=CUBLAS_OP_T on X, op(B)=CUBLAS_OP_N on B, dimensions m=d, n=16, k=d, leading dimensions: lda=d (for X), ldb=16 (for B), ldc=d (for temp).",
+        "Correct the third Sgemm to accumulate A @ temp: set op(A)=CUBLAS_OP_N on temp (interpreted as column-major of size d\u00d716), op(B)=CUBLAS_OP_N on A (size 16\u00d7d), dimensions m=d, n=d, k=16, leading dimensions: lda=d, ldb=16, ldc=d.",
+        "Verify all leading dimensions match the column-major sizes of the stored matrices."
+      ],
+      "warnings": [
+        "Candidate uses only cuBLAS and no custom kernels, but the cuBLAS usage is incorrect.",
+        "Check for potential shape mismatch when d is variable (e.g., d=3584 or 4608) \u2013 the current wrong logic would fail regardless."
+      ]
+    },
+    "name": "rank16_scalar_b512",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T161022Z_pid155/exp_0003/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  }
+]

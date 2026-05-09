@@ -1,0 +1,31 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "fused_rank16_scalar",
+      "fused_rank16_vector4"
+    ],
+    "priority_order": [
+      "fused_rank16_scalar",
+      "fused_rank16_vector4"
+    ],
+    "rationale": "Baseline shows bottleneck is multiple ATen launches. Combining B.T @ X and A @ (result) into a single custom kernel reduces launch overhead and intermediate memory traffic. Starting with a scalar kernel (block_size=256, vector_width=1) minimizes risk, then vectorized (float4) version may improve bandwidth.",
+    "risk_controls": [
+      "keep cuBLAS for W @ X",
+      "validate correctness at d=3584, 4096, 4608",
+      "avoid hardcoding d",
+      "use deterministic baseline as reference"
+    ],
+    "stop_conditions": [
+      "significant speedup achieved (>1.05)",
+      "fused kernel fails correctness",
+      "diminishing returns after 3 consecutive candidates"
+    ],
+    "strategy": "fuse_rank16_scalar_first"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fuse_rank16_scalar_first"
+}

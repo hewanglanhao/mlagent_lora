@@ -1,0 +1,39 @@
+{
+  "avoid": [
+    "Hardcoding hidden dimensions or tensor shapes",
+    "Using handwritten kernels for rank-16 update unless proven correct and faster than cuBLAS",
+    "Result caching or assuming repeated identical inputs",
+    "Shape-agnostic custom kernel that passes some but not all shapes"
+  ],
+  "bottleneck": "correctness_failure",
+  "confidence": "medium",
+  "evidence": [
+    "Candidate failed correctness for d=3584 with max_abs_err 0.00146484375 while passing for d=4096 and 4608",
+    "Static review and compile succeeded; risk level low",
+    "Benchmark unavailable, but correctness issue dominates",
+    "Custom rank-16 update kernel is likely the source of error due to shape-specific bug or boundary condition"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00146484375, \"passed\": false, \"rel_l2_err\": 7.909732744337816e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}}, \"failed_shapes\": [3584], \"max_abs_err\": 0.00146484375, \"rel_l2_err\": 7.909732744337816e-07}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Replace the custom deterministic_rank16_update kernel with a pure cuBLAS three-SGEMM sequence: compute tmp = B.T @ X (cuBLAS SGEMM with correct transa/transb), then low = A @ tmp (cuBLAS SGEMM), then Y = W @ X + low (cuBLAS SGEMM with beta=1 for accumulation)",
+    "Verify cuBLAS op flags (CUBLAS_OP_T for B.T, CUBLAS_OP_N for others) and leading dimensions match row-major storage (or adjust for column-major if using FORTRAN order)",
+    "Ensure temporary tensor U is allocated with shape [16, d] (or [d, 16] with correct layout) to avoid implicit transpose",
+    "Test pure cuBLAS candidate on all shapes (3584, 4096, 4608) to confirm correctness before optimizing further",
+    "If 3584 remains problematic with cuBLAS, double-check dimension handling: d is runtime-selected, cuBLAS calls must use d as m, n, k consistently"
+  ]
+}

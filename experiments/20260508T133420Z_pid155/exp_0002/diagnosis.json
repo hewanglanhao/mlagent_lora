@@ -1,0 +1,35 @@
+{
+  "avoid": [
+    "Promoting this incorrect candidate without fixing the bug",
+    "Assuming the relative L2 error is acceptable; absolute error must be reduced to machine epsilon levels (~1e-7 for float32)"
+  ],
+  "bottleneck": "incorrectness",
+  "confidence": "high",
+  "evidence": [
+    "Candidate failed correctness for all shapes (3584, 4096, 4608)",
+    "Max absolute error up to 5.08 (unacceptably large for float32)",
+    "Relative l2 error ~3e-4 consistent across shapes, suggesting systematic error",
+    "Benchmark unavailable, so performance cannot be assessed"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.536468505859375, \"passed\": false, \"rel_l2_err\": 0.0002922355488408357}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0011567473411560059, \"passed\": false, \"rel_l2_err\": 0.0002928708272520453}, \"4608\": {\"finite\": true, \"max_abs_err\": 5.0849609375, \"passed\": false, \"rel_l2_err\": 0.00029321821057237685}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 5.0849609375, \"rel_l2_err\": 0.00029321821057237685}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Fix the precomputation of Weff = W + A @ B.T: ensure the matrix multiply and addition are performed in the correct order and with proper tensor shapes",
+    "Double-check the implementation of the custom kernel or ATen ops used for the elementwise add after the two GEMMs",
+    "Compare with the known-good precompute reference (candidate_002_precompute.cu) to identify implementation differences"
+  ]
+}

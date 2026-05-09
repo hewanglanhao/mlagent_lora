@@ -1,0 +1,16 @@
+{
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": false,
+    "name": "fused_rank16_update_float4_bs256",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Keep cuBLAS/ATen for W@X, then replace separate A@(B.T@X)+add sequence with a custom fused rank-16 float4 update kernel that writes directly into Y, reducing launch overhead and dxd intermediate traffic.",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  "enabled": true,
+  "origin": "deterministic_fallback"
+}

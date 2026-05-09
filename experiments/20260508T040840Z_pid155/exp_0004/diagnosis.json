@@ -1,0 +1,38 @@
+{
+  "avoid": [
+    "Using float4 without alignment guarantees",
+    "Hardcoding block size without considering dimension divisibility",
+    "Promoting a candidate that fails correctness even if performance might be good"
+  ],
+  "bottleneck": "correctness_failure",
+  "confidence": "high",
+  "evidence": [
+    "max_abs_err 0.5 at d=3584",
+    "max_abs_err 0.000545 at d=4096",
+    "max_abs_err 4.77 at d=4608",
+    "rel_l2_err non-zero across all shapes",
+    "all shapes failed correctness check"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.500091552734375, \"passed\": false, \"rel_l2_err\": 0.00028546512476168573}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0005451440811157227, \"passed\": false, \"rel_l2_err\": 0.00010945099347736686}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.773681640625, \"passed\": false, \"rel_l2_err\": 0.000291901349555701}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.773681640625, \"rel_l2_err\": 0.000291901349555701}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Fix the custom rank-16 kernel to ensure numerical correctness",
+    "Verify float4 vectorization handles misaligned or non-multiple-of-4 dimensions",
+    "Check accumulation and reduction logic in the fused kernel",
+    "Test with a simpler vector width (e.g., 1 or 2) to isolate vectorization bugs"
+  ]
+}

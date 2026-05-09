@@ -1,0 +1,16 @@
+{
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": false,
+    "name": "fused_rank16_update_vec4",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Fuse A @ (B.T @ X) and addition into a single vectorized kernel, reducing launch overhead and improving memory bandwidth utilization. Expected speedup >1.0.",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  "enabled": true,
+  "origin": "deterministic_fallback"
+}

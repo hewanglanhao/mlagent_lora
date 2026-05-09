@@ -1,0 +1,9 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [],
+  "warnings": [
+    "B.transpose(0,1).contiguous() creates an intermediate copy; for performance, consider using cuBLAS GEMM with transposed B flag."
+  ]
+}

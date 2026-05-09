@@ -1,0 +1,1086 @@
+[
+  {
+    "aggregate_speedup": 0.9998908574847356,
+    "benchmark": {
+      "aggregate_speedup": 0.9998908574847356,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.7253119945526123,
+        "4096": 5.827071905136108,
+        "4608": 7.459839820861816
+      },
+      "speedup": {
+        "3584": 0.9995876824013377,
+        "4096": 1.0000878459537936,
+        "4608": 0.9999313812760564
+      },
+      "torch_ms": {
+        "3584": 3.7237759828567505,
+        "4096": 5.8275837898254395,
+        "4608": 7.459327936172485
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 213.84715754003264,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_0_1778156037664",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "custom full GEMM without evidence"
+      ],
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "confidence": "medium",
+      "evidence": [
+        "{\"aggregate_speedup\": 0.9998908574847356, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.7253119945526123, \"4096\": 5.827071905136108, \"4608\": 7.459839820861816}, \"speedup\": {\"3584\": 0.9995876824013377, \"4096\": 1.0000878459537936, \"4608\": 0.9999313812760564}, \"torch_ms\": {\"3584\": 3.7237759828567505, \"4096\": 5.8275837898254395, \"4608\": 7.459327936172485}}"
+      ],
+      "llm_parse_failed": true,
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "try vector width 4",
+        "vary block size",
+        "keep W @ X in cuBLAS"
+      ]
+    },
+    "family": "aten_reference",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "aten_reference",
+        "id": 0,
+        "llm_generated": false,
+        "name": "baseline_aten",
+        "parent": null,
+        "shape_dispatch": false,
+        "strategy": "",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "origin": "deterministic_baseline"
+    },
+    "id": 0,
+    "latency_by_d": {
+      "3584": 3.7253119945526123,
+      "4096": 5.827071905136108,
+      "4608": 7.459839820861816
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "baseline_aten",
+    "parent": null,
+    "profile": {
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "evidence": {
+        "aggregate_speedup": 0.9998908574847356,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.7253119945526123,
+          "4096": 5.827071905136108,
+          "4608": 7.459839820861816
+        },
+        "speedup": {
+          "3584": 0.9995876824013377,
+          "4096": 1.0000878459537936,
+          "4608": 0.9999313812760564
+        },
+        "torch_ms": {
+          "3584": 3.7237759828567505,
+          "4096": 5.8275837898254395,
+          "4608": 7.459327936172485
+        }
+      },
+      "suggested_actions": [
+        "keep cuBLAS for W @ X",
+        "fuse rank-16 update into the output tensor",
+        "test scalar and vectorized rank-16 kernels"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260507T121353Z_pid155/exp_0000/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 0.9883053535835854,
+    "benchmark": {
+      "aggregate_speedup": 0.9883053535835854,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.7652480602264404,
+        "4096": 5.897727966308594,
+        "4608": 7.557119846343994
+      },
+      "speedup": {
+        "3584": 0.9891215471554865,
+        "4096": 0.988627499427575,
+        "4608": 0.9870596322196983
+      },
+      "torch_ms": {
+        "3584": 3.724287986755371,
+        "4096": 5.830656051635742,
+        "4608": 7.459327936172485
+      }
+    },
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 209.86761434795335,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_4_1778156894999",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "custom full GEMM without evidence"
+      ],
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "confidence": "medium",
+      "evidence": [
+        "{\"aggregate_speedup\": 0.9883053535835854, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.7652480602264404, \"4096\": 5.897727966308594, \"4608\": 7.557119846343994}, \"speedup\": {\"3584\": 0.9891215471554865, \"4096\": 0.988627499427575, \"4608\": 0.9870596322196983}, \"torch_ms\": {\"3584\": 3.724287986755371, \"4096\": 5.830656051635742, \"4608\": 7.459327936172485}}"
+      ],
+      "llm_parse_failed": true,
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "try vector width 4",
+        "vary block size",
+        "keep W @ X in cuBLAS"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 4,
+        "llm_generated": false,
+        "name": "rank16_vec4_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 4
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 4,
+    "latency_by_d": {
+      "3584": 3.7652480602264404,
+      "4096": 5.897727966308594,
+      "4608": 7.557119846343994
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "rank16_vec4_b128",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 0.9883053535835854,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.7652480602264404,
+          "4096": 5.897727966308594,
+          "4608": 7.557119846343994
+        },
+        "speedup": {
+          "3584": 0.9891215471554865,
+          "4096": 0.988627499427575,
+          "4608": 0.9870596322196983
+        },
+        "torch_ms": {
+          "3584": 3.724287986755371,
+          "4096": 5.830656051635742,
+          "4608": 7.459327936172485
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260507T121353Z_pid155/exp_0004/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  {
+    "aggregate_speedup": 0.9869066202832668,
+    "benchmark": {
+      "aggregate_speedup": 0.9869066202832668,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.777535915374756,
+        "4096": 5.895679950714111,
+        "4608": 7.5632641315460205
+      },
+      "speedup": {
+        "3584": 0.9859040576152663,
+        "4096": 0.9884498206385128,
+        "4608": 0.9858515824776062
+      },
+      "torch_ms": {
+        "3584": 3.724287986755371,
+        "4096": 5.8275837898254395,
+        "4608": 7.456255912780762
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 207.6620641220361,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_5_1778157109343",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "custom full GEMM without evidence"
+      ],
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "confidence": "medium",
+      "evidence": [
+        "{\"aggregate_speedup\": 0.9869066202832668, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.777535915374756, \"4096\": 5.895679950714111, \"4608\": 7.5632641315460205}, \"speedup\": {\"3584\": 0.9859040576152663, \"4096\": 0.9884498206385128, \"4608\": 0.9858515824776062}, \"torch_ms\": {\"3584\": 3.724287986755371, \"4096\": 5.8275837898254395, \"4608\": 7.456255912780762}}"
+      ],
+      "llm_parse_failed": true,
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "try vector width 4",
+        "vary block size",
+        "keep W @ X in cuBLAS"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 5,
+        "llm_generated": false,
+        "name": "rank16_vec4_b256",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 4
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 5,
+    "latency_by_d": {
+      "3584": 3.777535915374756,
+      "4096": 5.895679950714111,
+      "4608": 7.5632641315460205
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "rank16_vec4_b256",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 0.9869066202832668,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.777535915374756,
+          "4096": 5.895679950714111,
+          "4608": 7.5632641315460205
+        },
+        "speedup": {
+          "3584": 0.9859040576152663,
+          "4096": 0.9884498206385128,
+          "4608": 0.9858515824776062
+        },
+        "torch_ms": {
+          "3584": 3.724287986755371,
+          "4096": 5.8275837898254395,
+          "4608": 7.456255912780762
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260507T121353Z_pid155/exp_0005/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  {
+    "aggregate_speedup": 0.9846050945124597,
+    "benchmark": {
+      "aggregate_speedup": 0.9846050945124597,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.7847039699554443,
+        "4096": 5.908992052078247,
+        "4608": 7.584255933761597
+      },
+      "speedup": {
+        "3584": 0.9839015184325206,
+        "4096": 0.986396283199045,
+        "4608": 0.982920419010285
+      },
+      "torch_ms": {
+        "3584": 3.7237759828567505,
+        "4096": 5.828607797622681,
+        "4608": 7.4547200202941895
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 208.9560944600962,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_2_1778156467543",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "custom full GEMM without evidence"
+      ],
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "confidence": "medium",
+      "evidence": [
+        "{\"aggregate_speedup\": 0.9846050945124597, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.7847039699554443, \"4096\": 5.908992052078247, \"4608\": 7.584255933761597}, \"speedup\": {\"3584\": 0.9839015184325206, \"4096\": 0.986396283199045, \"4608\": 0.982920419010285}, \"torch_ms\": {\"3584\": 3.7237759828567505, \"4096\": 5.828607797622681, \"4608\": 7.4547200202941895}}"
+      ],
+      "llm_parse_failed": true,
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "try vector width 4",
+        "vary block size",
+        "keep W @ X in cuBLAS"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 2,
+        "llm_generated": false,
+        "name": "rank16_scalar_b256",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 2,
+    "latency_by_d": {
+      "3584": 3.7847039699554443,
+      "4096": 5.908992052078247,
+      "4608": 7.584255933761597
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "rank16_scalar_b256",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 0.9846050945124597,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.7847039699554443,
+          "4096": 5.908992052078247,
+          "4608": 7.584255933761597
+        },
+        "speedup": {
+          "3584": 0.9839015184325206,
+          "4096": 0.986396283199045,
+          "4608": 0.982920419010285
+        },
+        "torch_ms": {
+          "3584": 3.7237759828567505,
+          "4096": 5.828607797622681,
+          "4608": 7.4547200202941895
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260507T121353Z_pid155/exp_0002/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 0.984598778611161,
+    "benchmark": {
+      "aggregate_speedup": 0.984598778611161,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.7806079387664795,
+        "4096": 5.915647983551025,
+        "4608": 7.58732795715332
+      },
+      "speedup": {
+        "3584": 0.9851029376959187,
+        "4096": 0.9853730203249021,
+        "4608": 0.9830622972414148
+      },
+      "torch_ms": {
+        "3584": 3.724287986755371,
+        "4096": 5.829119920730591,
+        "4608": 7.458816051483154
+      }
+    },
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 207.07081166584976,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_1_1778156256269",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "custom full GEMM without evidence"
+      ],
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "confidence": "medium",
+      "evidence": [
+        "{\"aggregate_speedup\": 0.984598778611161, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.7806079387664795, \"4096\": 5.915647983551025, \"4608\": 7.58732795715332}, \"speedup\": {\"3584\": 0.9851029376959187, \"4096\": 0.9853730203249021, \"4608\": 0.9830622972414148}, \"torch_ms\": {\"3584\": 3.724287986755371, \"4096\": 5.829119920730591, \"4608\": 7.458816051483154}}"
+      ],
+      "llm_parse_failed": true,
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "try vector width 4",
+        "vary block size",
+        "keep W @ X in cuBLAS"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 1,
+        "llm_generated": false,
+        "name": "rank16_scalar_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 1,
+    "latency_by_d": {
+      "3584": 3.7806079387664795,
+      "4096": 5.915647983551025,
+      "4608": 7.58732795715332
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "rank16_scalar_b128",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 0.984598778611161,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.7806079387664795,
+          "4096": 5.915647983551025,
+          "4608": 7.58732795715332
+        },
+        "speedup": {
+          "3584": 0.9851029376959187,
+          "4096": 0.9853730203249021,
+          "4608": 0.9830622972414148
+        },
+        "torch_ms": {
+          "3584": 3.724287986755371,
+          "4096": 5.829119920730591,
+          "4608": 7.458816051483154
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260507T121353Z_pid155/exp_0001/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": 0.9821445080724234,
+    "benchmark": {
+      "aggregate_speedup": 0.9821445080724234,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.782655954360962,
+        "4096": 5.9443199634552,
+        "4608": 7.604736089706421
+      },
+      "speedup": {
+        "3584": 0.9848402919799675,
+        "4096": 0.9812231008910736,
+        "4608": 0.9806772670733457
+      },
+      "torch_ms": {
+        "3584": 3.7253119945526123,
+        "4096": 5.832704067230225,
+        "4608": 7.457791805267334
+      }
+    },
+    "block_size": 512,
+    "compile": {
+      "compile_time_sec": 209.10005228105,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_6_1778157321397",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "custom full GEMM without evidence"
+      ],
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "confidence": "medium",
+      "evidence": [
+        "{\"aggregate_speedup\": 0.9821445080724234, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.782655954360962, \"4096\": 5.9443199634552, \"4608\": 7.604736089706421}, \"speedup\": {\"3584\": 0.9848402919799675, \"4096\": 0.9812231008910736, \"4608\": 0.9806772670733457}, \"torch_ms\": {\"3584\": 3.7253119945526123, \"4096\": 5.832704067230225, \"4608\": 7.457791805267334}}"
+      ],
+      "llm_parse_failed": true,
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "try vector width 4",
+        "vary block size",
+        "keep W @ X in cuBLAS"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 512,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 6,
+        "llm_generated": false,
+        "name": "rank16_vec4_b512",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 4
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 6,
+    "latency_by_d": {
+      "3584": 3.782655954360962,
+      "4096": 5.9443199634552,
+      "4608": 7.604736089706421
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "rank16_vec4_b512",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 0.9821445080724234,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.782655954360962,
+          "4096": 5.9443199634552,
+          "4608": 7.604736089706421
+        },
+        "speedup": {
+          "3584": 0.9848402919799675,
+          "4096": 0.9812231008910736,
+          "4608": 0.9806772670733457
+        },
+        "torch_ms": {
+          "3584": 3.7253119945526123,
+          "4096": 5.832704067230225,
+          "4608": 7.457791805267334
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260507T121353Z_pid155/exp_0006/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  {
+    "aggregate_speedup": 0.9800403093489698,
+    "benchmark": {
+      "aggregate_speedup": 0.9800403093489698,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.8287360668182373,
+        "4096": 5.917184114456177,
+        "4608": 7.605760097503662
+      },
+      "speedup": {
+        "3584": 0.9729874113909417,
+        "4096": 0.9852037206646389,
+        "4608": 0.9802086588861056
+      },
+      "torch_ms": {
+        "3584": 3.7253119945526123,
+        "4096": 5.829631805419922,
+        "4608": 7.4552319049835205
+      }
+    },
+    "block_size": 512,
+    "compile": {
+      "compile_time_sec": 209.82661790400743,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_3_1778156680723",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "custom full GEMM without evidence"
+      ],
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "confidence": "medium",
+      "evidence": [
+        "{\"aggregate_speedup\": 0.9800403093489698, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.8287360668182373, \"4096\": 5.917184114456177, \"4608\": 7.605760097503662}, \"speedup\": {\"3584\": 0.9729874113909417, \"4096\": 0.9852037206646389, \"4608\": 0.9802086588861056}, \"torch_ms\": {\"3584\": 3.7253119945526123, \"4096\": 5.829631805419922, \"4608\": 7.4552319049835205}}"
+      ],
+      "llm_parse_failed": true,
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "try vector width 4",
+        "vary block size",
+        "keep W @ X in cuBLAS"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "candidate": {
+        "block_size": 512,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 3,
+        "llm_generated": false,
+        "name": "rank16_scalar_b512",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "deterministic_fallback"
+    },
+    "id": 3,
+    "latency_by_d": {
+      "3584": 3.8287360668182373,
+      "4096": 5.917184114456177,
+      "4608": 7.605760097503662
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "unknown",
+      "warnings": [
+        "LLM review parse failed"
+      ]
+    },
+    "name": "rank16_scalar_b512",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "rank16_update_or_memory_bandwidth",
+      "evidence": {
+        "aggregate_speedup": 0.9800403093489698,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.8287360668182373,
+          "4096": 5.917184114456177,
+          "4608": 7.605760097503662
+        },
+        "speedup": {
+          "3584": 0.9729874113909417,
+          "4096": 0.9852037206646389,
+          "4608": 0.9802086588861056
+        },
+        "torch_ms": {
+          "3584": 3.7253119945526123,
+          "4096": 5.829631805419922,
+          "4608": 7.4552319049835205
+        }
+      },
+      "suggested_actions": [
+        "vary block size",
+        "try float4 stores when d is divisible by 4",
+        "fall back to ATen if numerical error appears"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260507T121353Z_pid155/exp_0003/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  }
+]

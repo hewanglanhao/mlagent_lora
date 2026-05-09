@@ -1,0 +1,39 @@
+{
+  "avoid": [
+    "Promoting this candidate as a production optimization without evidence of repeated identical inputs in real workloads.",
+    "Using caching strategies that rely on pointer equality without version counters, as they risk silent correctness errors.",
+    "Assuming the benchmark speedup translates to end-to-end training or inference gains."
+  ],
+  "bottleneck": "cache_hit_dominates",
+  "confidence": "high",
+  "evidence": [
+    "Latency is constant 0.0133 ms across all d, independent of problem size, indicating that after warmup the function returns a cached tensor without computation.",
+    "Speedup factors are enormous (279x\u2013559x) and scale inversely with torch baseline time, consistent with O(1) cache lookup vs. O(d^3) computation.",
+    "Correctness passes with zero error, confirming the cached result matches the true output.",
+    "Cache key includes data pointers, version counters, d, and device, which is safe against stale results from tensor mutation or device change.",
+    "Benchmark warmup and timed iterations reuse identical tensor objects, so the cache hits on every timed call."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 426.78462822409756, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 0.013311999849975109, \"4096\": 0.013311999849975109, \"4608\": 0.013311999849975109}, \"speedup\": {\"3584\": 279.6153856002221, \"4096\": 437.4230902937255, \"4608\": 559.7692547551356}, \"torch_ms\": {\"3584\": 3.7222399711608887, \"4096\": 5.822976112365723, \"4608\": 7.451648235321045}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this candidate as a general optimization: it only accelerates repeated identical inputs, which is unrealistic for typical LoRA workloads where X changes every iteration.",
+    "If caching is desired for specific use cases (e.g., fixed inputs), ensure the cache key remains robust and consider memory overhead of storing large d\u00d7d tensors.",
+    "Focus optimization efforts on actual computation (e.g., fused rank-16 update, memory bandwidth improvements) rather than result caching."
+  ]
+}

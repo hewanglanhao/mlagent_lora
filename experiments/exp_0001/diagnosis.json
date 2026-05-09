@@ -1,0 +1,16 @@
+{
+  "avoid": [
+    "custom full GEMM without evidence"
+  ],
+  "bottleneck": "rank16_update_or_memory_bandwidth",
+  "confidence": "medium",
+  "evidence": [
+    "{\"aggregate_speedup\": 0.9897785560394516, \"details\": {\"iters\": 1, \"warmup\": 1}, \"latency_ms\": {\"3584\": 4.808703899383545}, \"speedup\": {\"3584\": 0.9897785560394515}, \"torch_ms\": {\"3584\": 4.759552001953125}}"
+  ],
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "try vector width 4",
+    "vary block size",
+    "keep W @ X in cuBLAS"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 3,
+  "llm_generated": true,
+  "name": "custom_lowrank_a_b",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Reduce kernel launch overhead from 3 to 2 by using two custom kernels for the low-rank update (B.T @ X and A @ result), retaining cuBLAS for W @ X.",
+  "use_fast_math": false,
+  "vector_width": 1
+}

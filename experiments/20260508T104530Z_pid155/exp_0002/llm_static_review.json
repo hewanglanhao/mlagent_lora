@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "After each kernel launch, call cudaDeviceSynchronize() and check cudaGetLastError() to detect launch errors. Alternatively, use a macro like CUDA_KERNEL_CHECK() to wrap kernel invocations."
+  ],
+  "warnings": [
+    "Missing CUDA error checking after custom kernel launches. Kernel failures (e.g., out-of-memory, invalid configuration) may go undetected, potentially leading to silent data corruption."
+  ]
+}

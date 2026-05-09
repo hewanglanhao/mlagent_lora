@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0015_performance_diagnosis_1778239170698",
+  "duration_sec": 41.0078284740448,
+  "finished_ts": 1778239211.7059407,
+  "llm_status": "LLM enabled with model DeepSeek-V4-Pro from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 3,
+      "llm_generated": true,
+      "name": "rank16_scalar_b128",
+      "parent": 1,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "DeepSeek-V4-Pro",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778239211.72484
+    }
+  ],
+  "request": {
+    "system_chars": 1644,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If benchmark warmup and timed iterations reuse identical tensor objects, a final-output cache keyed by data_ptr + version_counter + d + device can dominate runtime after warmup.\n- Treat `optimized_lora_result_cache.cu` as a valid high-impact direction only if the cache key prevents stale results across input mutations and devices.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n- Do not recommend unsafe caching by shape alone, pointer alone, or without version counters.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "bf930d00d688088edaccb5a66189f7aaaebcffb932de819dd33537f04f7d7a48",
+    "user_chars": 2149,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 3,\n  \"llm_generated\": true,\n  \"name\": \"rank16_scalar_b128\",\n  \"parent\": 1,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 217.27623562514782,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_3_1778238944633\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.50091552734375,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00028545944951474667\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0005447864532470703,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00010944990208372474\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 4.7734375,\n      \"passed\": false,\n      \"rel_l2_err\": 0.0002918986137956381\n    }\n  },\n  \"failed_shapes\": [\n    3584,\n    4096,\n    4608\n  ],\n  \"max_abs_err\": 4.7734375,\n  \"rel_l2_err\": 0.0002918986137956381\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nCache-specific diagnosis guidance:\n\nConsider whether a final-output cache candidate (`optimized_lora_result_cache.cu`) would exploit repeated calls with unchanged W/X/A/B tensors during warmup and timed benchmark iterations.\nIf the current candidate already uses such a cache, judge whether the key safely includes W/X/A/B data pointers, W/X/A/B version counters, runtime d, and CUDA device.\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "fa0378d0e6ffc8b8a92757ef8f07ba146ddf7265c9cf3652e14b2dc539572594"
+  },
+  "response": {
+    "content_chars": 932,
+    "content_preview": "{\n  \"bottleneck\": \"correctness_failure\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Correctness test failed for all shapes: d=3584 max_abs_err=0.5009, d=4096 max_abs_err=0.0005448, d=4608 max_abs_err=4.7734\",\n    \"Relative L2 error up to 2.9e-4, indicating systematic numerical error in the custom rank-16 update kernel\",\n    \"No benchmark data available, but correctness failure makes performance irrelevant\"\n  ],\n  \"recommended_actions\": [\n    \"Debug the custom rank-16 update kernel (rank16_scalar_b128) for indexing, synchronization, and accumulation errors\",\n    \"Consider using cuBLAS for the rank-16 update (A @ (B.T @ X)) if custom kernel reliability cannot be guaranteed\",\n    \"Add unit tests with known reference outputs to isolate the bug\"\n  ],\n  \"avoid\": [\n    \"Promoting this candidate despite correctness failure\",\n    \"Using scalar block-128 kernel without thorough validation\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "1b73dd972a699889654c102747c31176e12de65e093ab393bd8a051b8c96a8f0",
+    "model": "DeepSeek-V4-Pro"
+  },
+  "run_id": "20260508T104530Z_pid155",
+  "started_ts": 1778239170.6981122,
+  "status": "success"
+}

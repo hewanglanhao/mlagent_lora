@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 2,
+  "llm_generated": true,
+  "name": "optimized_lora_result_cache_repair1",
+  "parent": 1,
+  "shape_dispatch": false,
+  "strategy": "llm_cuda_repair_attempt:1",
+  "use_fast_math": false,
+  "vector_width": 1
+}

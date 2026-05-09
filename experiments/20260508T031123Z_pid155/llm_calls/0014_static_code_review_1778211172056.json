@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0014_static_code_review_1778211172056",
+  "duration_sec": 54.76633977890015,
+  "finished_ts": 1778211226.8226466,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 3,
+      "llm_generated": true,
+      "name": "custom_lowrank_a_b",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Reduce kernel launch overhead from 3 to 2 by using two custom kernels for the low-rank update (B.T @ X and A @ result), retaining cuBLAS for W @ X.",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T031123Z_pid155/exp_0003/candidate.cu"
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778211226.8403914
+    }
+  ],
+  "request": {
+    "system_chars": 1239,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "c267bb4057c8aa1e9d6ff4a4a288dd7f56084b80c403f9a47c01f976fb923bf4",
+    "user_chars": 4824,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 3,\n  \"llm_generated\": true,\n  \"name\": \"custom_lowrank_a_b\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Reduce kernel launch overhead from 3 to 2 by using two custom kernels for the low-rank update (B.T @ X and A @ result), retaining cuBLAS for W @ X.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\nnamespace {\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"All inputs must be CUDA tensors.\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"All inputs must be float32.\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"All inputs must be 2D tensors.\");\n    int64_t d = W.size(0);\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be square d x d.\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16 &&\n                B.size(0) == d && B.size(1) == 16,\n                \"A and B must be d x 16.\");\n}\n\n// Kernel: compute T = B^T @ X,  T is 16 x d\n// Each thread handles one element (k, j) of T\n__global__ void lowrank_btx_kernel(\n    const float* __restrict__ B,   // d x 16 row-major\n    const float* __restrict__ X,   // d x d row-major\n    float* __restrict__ T,         // 16 x d row-major\n    int64_t d) {\n    int64_t total = 16 * d;\n    int64_t idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx >= total) return;\n    int64_t k = idx / d;          // rank index 0..15\n    int64_t j = idx % d;          // column index in X\n    float sum = 0.0f;\n    const float* B_col = B + k;   // B[k] column access: stride 16\n    const float* X_col = X + j;   // X column: stride d\n    for (int64_t i = 0; i < d; ++i) {\n        sum += (*B_col) * (*X_col);\n        B_col += 16;   // next row, same column k\n        X_col += d;    // next row, same column j\n    }\n    T[k * d + j] = sum;\n}\n\n// Kernel: compute delta = A @ T, add result to Y\n// Each thread handles one element (i, j) of Y\n__global__ void lowrank_ax_add_kernel(\n    const float* __restrict__ A,   // d x 16 row-major\n    const float* __restrict__ T,   // 16 x d row-major\n    float* __restrict__ Y,         // d x d row-major (in-place addition)\n    int64_t d) {\n    int64_t total = d * d;\n    int64_t idx = blockIdx.x * blockDim.x + threadIdx.x;\n    if (idx >= total) return;\n    int64_t i = idx / d;\n    int64_t j = idx % d;\n    float sum = 0.0f;\n    const float* A_row = A + i * 16;      // row i of A\n    const float* T_col = T + j;           // column j of T (stride d)\n    #pragma unroll 16\n    for (int k = 0; k < 16; ++k) {\n        sum += A_row[k] * T_col[k * d];\n    }\n    Y[i * d + j] += sum;\n}\n\n} // anonymous namespace\n\ntorch::Tensor forward(torch::Tensor W,\n                      torch::Tensor X,\n                      torch::Tensor A,\n                      torch::Tensor B) {\n    check_inputs(W, X, A, B);\n\n    // Make contiguous copies\n    auto Wc = W.contiguous();\n    auto Xc = X.contiguous();\n    auto Ac = A.contiguous();\n    auto Bc = B.contiguous();\n\n    int64_t d = Wc.size(0);\n\n    // Step 1: full GEMM via cuBLAS\n    auto Y = at::matmul(Wc, Xc);  // d x d\n\n    // Step 2: allocate T = B^T @ X  (16 x d)\n    auto T = torch::empty({16, d}, Wc.options());\n\n    const float* Bp\n...<trimmed>...",
+    "user_sha256": "a541ef9255e9fb3acd058748c74cf6df3d9f4f81c9c9d305c4d0f875db7c7415"
+  },
+  "response": {
+    "content_chars": 877,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"medium\",\n  \"errors\": [],\n  \"warnings\": [\n    \"Missing CUDA error checking after kernel launches (lowrank_btx_kernel and lowrank_ax_add_kernel); if a launch fails, undefined behavior may occur.\",\n    \"No explicit synchronization between the cuBLAS matmul (W @ X) and the custom kernel lowrank_ax_add_kernel that modifies Y; relies on default stream ordering, which may be fragile if the user changes streams or if matmul internally uses a non\u2011default stream.\"\n  ],\n  \"suggested_fixes\": [\n    \"Add CUDA error checks after each kernel launch, e.g., AT_CUDA_CHECK(cudaGetLastError()) or a manual check with TORCH_CHECK.\",\n    \"To be robust, use an explicit CUDA stream (e.g., at::cuda::getCurrentCUDAStream()) for all operations, or call cudaDeviceSynchronize() after matmul before launching custom kernels. However, this may add overhead.\"\n  ]\n}",
+    "content_sha256": "c843bd011765a4c03517a307e2cb7d3c210fc8bf475c313f0aa833c11bf7c804",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T031123Z_pid155",
+  "started_ts": 1778211172.0563068,
+  "status": "success"
+}

@@ -1,0 +1,40 @@
+{
+  "avoid": [
+    "Replacing cuBLAS for the W @ X GEMM \u2013 high risk and unlikely to beat the highly optimized library.",
+    "Hardcoding hidden dimensions or tensor sizes \u2013 the operator must remain shape-generic for d in [3584, 4608].",
+    "Introducing complex multi-stream or async schemes without clear evidence of benefit, as they add overhead for small rank-16 operations."
+  ],
+  "bottleneck": "multiple_aten_gemm_and_add_launches",
+  "confidence": "high",
+  "evidence": [
+    "Aggregate speedup is 1.00013, essentially identical to the PyTorch baseline.",
+    "Correctness is perfect across all shapes (max_abs_err=0.0, rel_l2_err=0.0).",
+    "Profile summary explicitly identifies the bottleneck as multiple ATen GEMM and add launches.",
+    "The candidate uses separate ATen ops for W @ X, B.T @ X, A @ intermediate, and the final addition, incurring kernel launch overhead and no fusion."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0001321994320806, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.72326397895813, \"4096\": 5.818367958068848, \"4608\": 7.453183889389038}, \"speedup\": {\"3584\": 0.9998624852007502, \"4096\": 1.0001760366864387, \"4608\": 1.0003434639909339}, \"torch_ms\": {\"3584\": 3.7227519750595093, \"4096\": 5.819392204284668, \"4608\": 7.455743789672852}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Fuse the rank-16 update (B.T @ X followed by A @ result) into a single custom kernel to eliminate intermediate writes and reduce launch overhead.",
+    "Fuse the final addition with the second rank-16 GEMM to avoid a separate add kernel.",
+    "Keep cuBLAS for the large W @ X GEMM; do not attempt to replace it with a custom kernel.",
+    "Consider vectorized memory accesses and unrolling in the rank-16 kernel to improve bandwidth utilization.",
+    "If shape-dependent tuning is needed later, implement shape-aware dispatch, but the baseline does not require it."
+  ]
+}

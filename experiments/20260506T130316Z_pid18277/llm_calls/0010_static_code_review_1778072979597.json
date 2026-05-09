@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0010_static_code_review_1778072979597",
+  "duration_sec": 61.2799870967865,
+  "finished_ts": 1778073040.877619,
+  "llm_status": "LLM enabled with model gpt-5.4 via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": false,
+      "name": "fused_rank16_update_scalar_bs128_safe",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Tests whether a lighter-weight, alignment-safe scalar fused rank-16 update with smaller launch geometry reduces overhead versus the slower float4 custom kernel while still eliminating the extra dxd add pass.",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260506T130316Z_pid18277/exp_0002/candidate.cu"
+  },
+  "model": "gpt-5.4",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778073040.8793316
+    }
+  ],
+  "request": {
+    "system_chars": 1239,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "c267bb4057c8aa1e9d6ff4a4a288dd7f56084b80c403f9a47c01f976fb923bf4",
+    "user_chars": 4356,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": false,\n  \"name\": \"fused_rank16_update_scalar_bs128_safe\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Tests whether a lighter-weight, alignment-safe scalar fused rank-16 update with smaller launch geometry reduces overhead versus the slower float4 custom kernel while still eliminating the extra dxd add pass.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <ATen/cuda/CUDAContext.h>\n#include <cuda_runtime.h>\n#include <c10/cuda/CUDAGuard.h>\n\nnamespace {\n\nconstexpr int RANK = 16;\nconstexpr int BLOCK_SIZE = 128;\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat &&\n                X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat &&\n                B.scalar_type() == at::kFloat,\n                \"all inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be rank-2 tensors\");\n    TORCH_CHECK(W.device() == X.device() &&\n                W.device() == A.device() &&\n                W.device() == B.device(),\n                \"all inputs must be on the same CUDA device\");\n\n    const int64_t d = W.size(0);\n    TORCH_CHECK(d >= 3584 && d <= 4608, \"d must be in [3584, 4608]\");\n    TORCH_CHECK(W.size(1) == d, \"W must be d x d\");\n    TORCH_CHECK(X.size(0) == d && X.size(1) == d, \"X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == RANK, \"A must be d x 16\");\n    TORCH_CHECK(B.size(0) == d && B.size(1) == RANK, \"B must be d x 16\");\n}\n\n__global__ void rank16_add_kernel(\n    float* __restrict__ Y,\n    const float* __restrict__ A,\n    const float* __restrict__ T,\n    int64_t d) {\n    int64_t idx = static_cast<int64_t>(blockIdx.x) * blockDim.x + threadIdx.x;\n    int64_t total = d * d;\n    if (idx >= total) {\n        return;\n    }\n\n    int64_t row = idx / d;\n    int64_t col = idx - row * d;\n\n    const float* arow = A + row * RANK;\n    const float* tcol = T + col;\n\n    float acc = 0.0f;\n    acc += arow[0]  * tcol[0 * d];\n    acc += arow[1]  * tcol[1 * d];\n    acc += arow[2]  * tcol[2 * d];\n    acc += arow[3]  * tcol[3 * d];\n    acc += arow[4]  * tcol[4 * d];\n    acc += arow[5]  * tcol[5 * d];\n    acc += arow[6]  * tcol[6 * d];\n    acc += arow[7]  * tcol[7 * d];\n    acc += arow[8]  * tcol[8 * d];\n    acc += arow[9]  * tcol[9 * d];\n    acc += arow[10] * tcol[10 * d];\n    acc += arow[11] * tcol[11 * d];\n    acc += arow[12] * tcol[12 * d];\n    acc += arow[13] * tcol[13 * d];\n    acc += arow[14] * tcol[14 * d];\n    acc += arow[15] * tcol[15 * d];\n\n    Y[idx] += acc;\n}\n\n} // namespace\n\ntorch::Tensor forward(torch::Tensor W,\n                      torch::Tensor X,\n                      torch::Tensor A,\n                      torch::Tensor B) {\n    check_inputs(W, X, A, B);\n    c10::cuda::CUDAGuard device_guard(W.device());\n\n    auto Wc = W.contiguous();\n    auto Xc = X.contiguous();\n    auto Ac = A.contiguous();\n    auto Bc = B.contiguous();\n\n    auto Y = at::matmul(Wc, Xc);\n    auto T = at::matmul(Bc.transpose(0, 1).contiguous(), Xc).contiguous();\n\n    const int64_t d = Wc.size(0);\n    const int64_t total = d * d;\n    const int blocks = static_cast<int>((total + BLOCK_SIZE - 1) / BLOCK_SIZE);\n\n    cudaStream_t stream = at::cuda::getDefaultCUDAStream()\n...<trimmed>...",
+    "user_sha256": "9f72d3a4c4790e43290b2e2d0dcd53d0b48ae4831149252ead35291a390ea48d"
+  },
+  "response": {
+    "content_chars": 2196,
+    "content_preview": "{\"pass\":false,\"risk_level\":\"high\",\"errors\":[\"Uses the default CUDA stream via at::cuda::getDefaultCUDAStream() instead of the current PyTorch stream. This can race with at::matmul results and violate correct stream semantics, potentially corrupting results or causing nondeterministic behavior.\",\"Input validation does not ensure contiguity before raw pointer-based kernel access. Although the code makes contiguous copies internally, the safety check requirement explicitly calls for contiguity handling/validation; current checks do not document or enforce expected layout before launching custom CUDA logic.\",\"Kernel launch configuration computes blocks as int from int64 total without an explicit bound check. While current d range keeps this safe, the implementation relies on implicit assumptions rather than enforcing them, which is a compliance concern for robust CUDA grid coverage checks.\"],\"warnings\":[\"No explicit check that tensors are strided dense layouts; .contiguous() will materialize copies, which is functionally acceptable but may hide unexpected layouts/performance costs.\",\"The implementation is only partially fused: it performs two matmuls plus a custom add kernel rather than a more integrated computation. This is not incorrect, just less optimized.\",\"Uses scalar loads/stores only, so there are no vector alignment hazards; however, performance may be limited.\"],\"suggested_fixes\":[\"Launch the custom kernel on the current PyTorch CUDA stream, e.g. cudaStream_t stream = at::cuda::getDefaultCUDAStream(W.device().index()) or preferably the current stream API for the active device/context, so it is properly ordered with preceding matmul operations.\",\"Make contiguity handling explicit in validation or document the internal contiguous copies as the intended safety mechanism; if keeping copies, ensure all raw-pointer kernel inputs are the contiguous tensors only, as done now.\",\"Add an explicit sanity check that total and blocks fit the launch type used, or use a 64-bit-safe launch planning path even though the current d range is small.\",\"Optionally validate that the computed intermediate T has shape 16 x d before kernel launch for stronger defensive checks.\"]}",
+    "content_sha256": "3bfa5becd446bdad6a07bfb1ca931c1c4185f572afbd732be831dc37e2ac2af7",
+    "model": "gpt-5.4"
+  },
+  "run_id": "20260506T130316Z_pid18277",
+  "started_ts": 1778072979.597632,
+  "status": "success"
+}

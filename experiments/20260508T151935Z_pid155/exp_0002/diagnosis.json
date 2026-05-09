@@ -1,0 +1,38 @@
+{
+  "avoid": [
+    "Do not replace the pure cuBLAS approach with handwritten kernels or ATen matrix multiply, as the goal is to validate a clean three-SGEMM solution",
+    "Do not materialize B.T explicitly; always use the original B pointer with transposed flag",
+    "Do not cache results or assume repeated identical inputs"
+  ],
+  "bottleneck": "correctness",
+  "confidence": "high",
+  "evidence": [
+    "All shapes fail correctness with relative L2 error ~1.4 and max absolute errors up to 18398",
+    "Errors are systematic and consistent across shapes, indicating a fundamental algorithmic or interface bug",
+    "Candidate is a pure cuBLAS three-SGEMM implementation, no performance data available"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 2306.660888671875, \"passed\": false, \"rel_l2_err\": 1.4139463901519775}, \"4096\": {\"finite\": true, \"max_abs_err\": 5.381566047668457, \"passed\": false, \"rel_l2_err\": 1.4139751195907593}, \"4608\": {\"finite\": true, \"max_abs_err\": 18398.591796875, \"passed\": false, \"rel_l2_err\": 1.4139575958251953}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 18398.591796875, \"rel_l2_err\": 1.4139751195907593}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Verify cuBLAS operation flags: B.T @ X should use CUBLAS_OP_T for B (d x 16 becomes 16 x d) and CUBLAS_OP_N for X (d x d); resulting U is [16 x d]; then A @ U should use CUBLAS_OP_N for A (d x 16) and CUBLAS_OP_N for U (16 x d); W @ X uses CUBLAS_OP_N for both",
+    "Check matrix dimensions: m, n, k for each SGEMM must match column-major layout expectations (cuBLAS expects column-major storage, so the actual matrix dimensions in memory may be transposed relative to mathematical notation)",
+    "Ensure leading dimensions are correct: for a matrix stored column-major as M x N, lda = M (the number of rows). Verify that all leading dimensions match the physical storage of the tensors (likely row-major from PyTorch, so you may need to use pointers with transposed semantics or treat dimensions accordingly)",
+    "Validate that the temporary U tensor is allocated as float* of size d * 16 (or 16 * d depending on intermediate product shape) with correct layout and that cuBLAS writes into it without overwriting bounds",
+    "Set beta = 1.0f for the final accumulation into Y (the output) so that the low-rank term is added to the W @ X result",
+    "Test with a tiny known input (e.g., d=2) and compare against PyTorch reference to isolate the issue"
+  ]
+}

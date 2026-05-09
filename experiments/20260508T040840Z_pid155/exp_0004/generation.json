@@ -1,0 +1,17 @@
+{
+  "bytes": 3996,
+  "candidate": {
+    "block_size": 128,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 4,
+    "llm_generated": true,
+    "name": "block_size_128_float4",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Lower block size may improve occupancy for the fused rank-16 kernel, reducing memory latency and possibly outperforming baseline",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  "enabled": true,
+  "origin": "llm"
+}

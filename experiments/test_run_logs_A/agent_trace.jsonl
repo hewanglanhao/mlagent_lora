@@ -1,0 +1,2 @@
+{"constraints": {"d_range": [3584, 4608], "dtype": "float32", "dynamic_shape_required": true, "entrypoint": "forward", "final_file": "optimized_lora.cu", "operator": "Y = W @ X + A @ (B.T @ X)", "rank": 16, "single_file": true}, "event": "supervisor_start", "llm": "LLM enabled with model gpt-5.4 via OpenAI SDK.", "max_time_sec": 1700.0, "run_id": "test_run_logs_A", "ts": 1778071002.023367}
+{"event": "baseline_bootstrapped", "run_id": "test_run_logs_A", "source": "/workspace/mlagent_lora/experiments/test_run_logs_A/exp_0000/candidate.cu", "ts": 1778071002.0683613}

@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0009_static_code_review_1778254562028",
+  "duration_sec": 46.29987406730652,
+  "finished_ts": 1778254608.3283486,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": true,
+      "name": "pure_cublas_three_sgemm_repair1",
+      "parent": 1,
+      "shape_dispatch": false,
+      "strategy": "llm_cuda_repair_attempt:1",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0002/candidate.cu"
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778254608.330257
+    }
+  ],
+  "request": {
+    "system_chars": 2064,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nPure cuBLAS three-SGEMM review focus:\n\n- If the candidate claims a pure cuBLAS three-SGEMM strategy, verify that the core computation does not call ATen `mm`, `matmul`, or `addmm`.\n- Verify that the preferred strategy does not use handwritten CUDA kernels for the LoRA computation.\n- Verify that it avoids explicit B.T transpose-copy materialization when cuBLAS operation flags can express the same math.\n- Check that the row-major PyTorch tensors are correctly interpreted through cuBLAS column-major conventions.\n- Check the three SGEMMs separately: main W @ X term, temporary U with shape {d, 16} for the low-rank intermediate, and final low-rank accumulation into Y with beta = 1.\n- Treat wrong cuBLAS op flags, m/n/k dimensions, leading dimensions, alpha/beta values, or stream binding as high-risk or blocking issues.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "ae3a07216b844d8d09746dfd0c559667549c883e5ad793013bea9bf3ceeb0d60",
+    "user_chars": 7039,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": true,\n  \"name\": \"pure_cublas_three_sgemm_repair1\",\n  \"parent\": 1,\n  \"shape_dispatch\": false,\n  \"strategy\": \"llm_cuda_repair_attempt:1\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <cublas_v2.h>\n#include <cuda_runtime.h>\n#include <ATen/cuda/CUDAContext.h>\n\n// -----------------------------------------------------------------------------\n// Error checking macro for cuBLAS calls\n// -----------------------------------------------------------------------------\n#define CUBLAS_CHECK(status)                                                  \\\n  do {                                                                        \\\n    if (status != CUBLAS_STATUS_SUCCESS) {                                    \\\n      std::stringstream ss;                                                   \\\n      ss << \"cuBLAS error at \" << __FILE__ << \":\" << __LINE__;                \\\n      TORCH_CHECK(false, ss.str());                                           \\\n    }                                                                         \\\n  } while (0)\n\n// -----------------------------------------------------------------------------\n// Static cuBLAS handle management (lazy initialization, reuse)\n// -----------------------------------------------------------------------------\nstatic cublasHandle_t get_cublas_handle() {\n  static cublasHandle_t handle = nullptr;\n  if (!handle) {\n    CUBLAS_CHECK(cublasCreate(&handle));\n  }\n  // Set the current CUDA stream from PyTorch\n  cudaStream_t stream = at::cuda::getCurrentCUDAStream();\n  CUBLAS_CHECK(cublasSetStream(handle, stream));\n  return handle;\n}\n\n// -----------------------------------------------------------------------------\n// Validation helper\n// -----------------------------------------------------------------------------\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n  TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n              \"all inputs must be CUDA tensors\");\n  TORCH_CHECK(W.scalar_type() == at::kFloat &&\n              X.scalar_type() == at::kFloat &&\n              A.scalar_type() == at::kFloat &&\n              B.scalar_type() == at::kFloat,\n              \"all inputs must be float32 tensors\");\n  TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n              \"all inputs must be rank-2 tensors\");\n  const int64_t d = W.size(0);\n  const int64_t r = 16;\n  TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n              \"W and X must be d x d\");\n  TORCH_CHECK(A.size(0) == d && A.size(1) == r &&\n              B.size(0) == d && B.size(1) == r,\n              \"A and B must be d x \", r);\n}\n\n// -----------------------------------------------------------------------------\n// Forward: Y = W @ X + A @ (B^T @ X)\n// Uses three cuBLAS SGEMM calls with no explicit transpose of B.\n// -----------------------------------------------------------------------------\ntorch::Tensor forward(torch::Tensor W,\n                      torch::Tensor X,\n                      torch::Tensor A,\n                      torch::Tensor B) {\n  check_inputs(W, X, A, B);\n\n  W = W.contiguous();\n  X = X.contiguous();\n  A = A.contiguous();\n  B = B.contiguous();\n\n  const int64_t d = W.size(0);\n  const int64_t r = 16;\n  const float alpha = 1.0f;\n  const float beta0 = 0.0f;\n  const float beta1 = 1.0f;\n\n  cublasHandle_t handle = get_cublas_handle();\n\n  // --- Step 1: Compute Y_cm = X^T @ W^T  (column-\n...<trimmed>...",
+    "user_sha256": "76ecde7071809b648f0caa5d7462840b7a50b1d228c3fa838723532e4fd198d9"
+  },
+  "response": {
+    "content_chars": 595,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [\n    \"Static cuBLAS handle is never destroyed, causing a minor resource leak on module unload.\",\n    \"CUBLAS_CHECK macro relies on stringstream without explicit include; <torch/extension.h> likely provides it, but it's safer to include <sstream>.\"\n  ],\n  \"suggested_fixes\": [\n    \"Consider using at::cuda::getCurrentCUDABlasHandle() from PyTorch instead of a custom static handle to ensure proper stream synchronization and handle lifecycle.\",\n    \"Add #include <sstream> to guarantee std::stringstream availability.\"\n  ]\n}",
+    "content_sha256": "07608cbd30246db08e35b10c3cee7c3db64ceaafc49457049ba32080a5fe42ed",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T151935Z_pid155",
+  "started_ts": 1778254562.0284746,
+  "status": "success"
+}

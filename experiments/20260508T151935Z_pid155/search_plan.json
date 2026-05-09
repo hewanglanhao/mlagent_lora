@@ -1,0 +1,28 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_triple_sgemm"
+    ],
+    "priority_order": [
+      "Implement three cuBLAS SGEMM calls: compute W@X into Y, compute B.T@X into temporary U using CUBLAS_OP_T on B, then compute A@U and accumulate into Y with beta=1"
+    ],
+    "rationale": "The baseline uses separate ATen mm and add calls, incurring kernel launch overhead. A pure cuBLAS three-SGEMM strategy reduces the number of kernel launches to three, avoids explicit transpose of B by using CUBLAS_OP_T, and accumulates the low-rank update directly into Y with beta=1, eliminating an extra add kernel. This aligns with the recommended actions from the diagnosis and is the first optimization step.",
+    "risk_controls": [
+      "Ensure correctness across all d in [3584,4608]",
+      "Avoid hardcoding hidden dimension sizes",
+      "Use leading dimensions and transpose flags correctly to avoid explicit transpose copies",
+      "Compile and run static review before promotion"
+    ],
+    "stop_conditions": [
+      "Achieve aggregate speedup > 1.05x over baseline",
+      "Exhaust viable cuBLAS-only approaches without further improvement"
+    ],
+    "strategy": "cublas_triple_sgemm"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "cublas_triple_sgemm"
+}

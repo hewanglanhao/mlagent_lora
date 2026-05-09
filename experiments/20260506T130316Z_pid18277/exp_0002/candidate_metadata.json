@@ -1,0 +1,12 @@
+{
+  "block_size": 128,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 2,
+  "llm_generated": false,
+  "name": "fused_rank16_update_scalar_bs128_safe",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Tests whether a lighter-weight, alignment-safe scalar fused rank-16 update with smaller launch geometry reduces overhead versus the slower float4 custom kernel while still eliminating the extra dxd add pass.",
+  "use_fast_math": false,
+  "vector_width": 1
+}

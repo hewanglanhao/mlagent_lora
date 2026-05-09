@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Replace Bc.transpose(0, 1).contiguous() with Bc.t() and let ATen manage the transpose implicitly."
+  ],
+  "warnings": [
+    "Explicitly materializing B.transpose(0, 1).contiguous() creates a full transpose copy; can use Bc.t() to let ATen handle the layout internally, though not required for correctness."
+  ]
+}

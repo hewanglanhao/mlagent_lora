@@ -1,0 +1,17 @@
+{
+  "bytes": 1920,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 2,
+    "llm_generated": true,
+    "name": "precompute_weff_aten",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Reduce from 3 cuBLAS gemms to 2 cuBLAS gemms plus a cheap elementwise add, lowering launch overhead and total flops",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "enabled": true,
+  "origin": "llm"
+}

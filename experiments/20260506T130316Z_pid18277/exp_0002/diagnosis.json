@@ -1,0 +1,48 @@
+{
+  "avoid": [
+    "Do not attempt a custom full d x d GEMM for W @ X; that is high risk and unlikely to beat cuBLAS here.",
+    "Do not promote a universally scalar kernel as the default optimization path.",
+    "Do not assume smaller block size automatically reduces overhead enough to matter end-to-end.",
+    "Do not hardcode specific hidden dimensions or tensor values."
+  ],
+  "bottleneck": "w_gemm_dominates_and_scalar_rank16_fusion_underdelivers",
+  "confidence": "high",
+  "evidence": [
+    "Correctness is perfect on all tested shapes, so the candidate is functionally valid.",
+    "Aggregate speedup is 0.9876, meaning it is consistently slower than the torch baseline rather than showing noise-limited parity.",
+    "All three tested sizes regress similarly: 3584 speedup 0.9886, 4096 speedup 0.9878, 4608 speedup 0.9863.",
+    "Uniform regression across shapes suggests the issue is systemic overhead or lower efficiency, not a single bad shape.",
+    "This family keeps cuBLAS for W @ X, so the remaining opportunity is the rank-16 path and elimination of the extra add pass.",
+    "Because total runtime is still dominated by the large d x d GEMM, any custom fused update must be extremely efficient to win; this scalar version does not recover enough time.",
+    "Vector width is 1 and the strategy explicitly chose an alignment-safe scalar kernel, which likely sacrifices memory throughput versus vectorized loads/stores for the d x d output update.",
+    "The smaller block size 128 did not translate into lower end-to-end latency, indicating launch geometry reduction alone is insufficient.",
+    "The slight worsening at larger d is consistent with memory-bandwidth-limited scalar output writes becoming more visible as tensor size grows."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "custom full GEMM without evidence"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 0.9875827636498109, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 4.788224220275879, \"4096\": 7.230976104736328, \"4608\": 9.671680450439453}, \"speedup\": {\"3584\": 0.9885585353937417, \"4096\": 0.9878212578149852, \"4608\": 0.9862889996856479}, \"torch_ms\": {\"3584\": 4.733439922332764, \"4096\": 7.142911911010742, \"4608\": 9.539072036743164}}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "try vector width 4",
+      "vary block size",
+      "keep W @ X in cuBLAS"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Do not promote this candidate as a default path; keep it only as a correctness-safe reference if needed.",
+    "Focus optimization effort on the rank-16 update path only, not on replacing the full W @ X GEMM.",
+    "Add shape-aware dispatch so vectorized kernels are used when alignment permits, especially float4 loads/stores for d divisible by 4, while retaining a scalar fallback for safety.",
+    "Revisit launch geometry jointly with vectorization and memory coalescing; block size changes alone are unlikely to help.",
+    "Unroll the rank-16 accumulation aggressively and keep the 16 coefficients in registers to reduce loop/control overhead.",
+    "Minimize extra global memory traffic in the fused epilogue/update path, since the remaining opportunity is bandwidth-bound output read-modify-write work.",
+    "Benchmark specialized variants per shape class or alignment class rather than one universal kernel, because a safe scalar kernel is too conservative for all tested dimensions.",
+    "If future variants do not show a clear win on the rank-16 fused path, rely on cuBLAS plus standard library ops instead of forcing custom fusion."
+  ]
+}

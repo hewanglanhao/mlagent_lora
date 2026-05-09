@@ -1,0 +1,31 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "scalar_rank16_kernel",
+      "vector_rank16_kernel"
+    ],
+    "priority_order": [
+      "scalar_rank16_kernel",
+      "vector_rank16_kernel"
+    ],
+    "rationale": "Baseline profile shows bottleneck is multiple ATen GEMM and add launches. Keeping cuBLAS for the large W @ X GEMM is optimal. Fusing the rank-16 path (B.T @ X + A @ result) into a single custom kernel will reduce launch overhead and improve memory locality. We will first test a simple scalar kernel for lower risk, then a vectorized version for potential higher performance.",
+    "risk_controls": [
+      "keep cuBLAS for W @ X unchanged",
+      "use dynamic grid and block sizes based on d",
+      "validate correctness for all d in [3584, 4608]",
+      "no hardcoding of d values"
+    ],
+    "stop_conditions": [
+      "achieving >5% aggregate speedup over baseline",
+      "or after evaluating both scalar and vector kernels without improvement",
+      "or encountering correctness failures that cannot be fixed"
+    ],
+    "strategy": "fuse_rank16_update"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fuse_rank16_update"
+}

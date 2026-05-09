@@ -1,0 +1,37 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "rank16_fused_update_kernel",
+      "rank16_vectorized_update_kernel",
+      "rank16_two_stage_kernel"
+    ],
+    "priority_order": [
+      "rank16_fused_update_kernel",
+      "rank16_vectorized_update_kernel",
+      "rank16_two_stage_kernel"
+    ],
+    "rationale": "Baseline is already essentially identical to torch, so the only credible optimization space is reducing low-rank overhead while preserving cuBLAS for W @ X. The next best step is a low-risk fused kernel that accumulates the rank-16 update directly into Y, then a vectorized variant if alignment permits, and only afterward a more complex two-stage approach if simple fusion is correct but insufficient.",
+    "risk_controls": [
+      "Keep ATen/cuBLAS for W @ X and only mutate the low-rank path.",
+      "Require exact correctness pass on all tested d values before any benchmark-based decision.",
+      "Implement the custom path as Y = W @ X followed by in-place low-rank accumulation into Y, avoiding any change to the dominant GEMM semantics.",
+      "Start with a simple scalar fused kernel over output tiles with full unrolling over rank=16 before attempting vectorized loads.",
+      "Gate vectorization on alignment/contiguity checks and provide a safe scalar fallback in the same source file.",
+      "Do not rely on one shape; benchmark across 3584, 4096, and 4608 and reject noise-level or inconsistent gains.",
+      "Preserve runtime shape/device checks and avoid hardcoded dimension-specific launch assumptions beyond rank=16."
+    ],
+    "stop_conditions": [
+      "Stop exploring a family if it fails correctness on any tested shape.",
+      "Stop promoting candidates that only match baseline within noise or show mixed regressions across the d range.",
+      "Stop escalating to more complex kernels if the simple fused rank16 update does not show measurable end-to-end benefit over baseline.",
+      "Stop before custom full-GEMM experiments unless strong profiling evidence appears that cuBLAS is not the dominant safe choice."
+    ],
+    "strategy": "cublas_full_gemm_fused_rank16_update"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "cublas_full_gemm_fused_rank16_update"
+}

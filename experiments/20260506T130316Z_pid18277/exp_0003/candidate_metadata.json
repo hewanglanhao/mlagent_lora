@@ -1,0 +1,12 @@
+{
+  "block_size": 512,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 3,
+  "llm_generated": false,
+  "name": "rank16_update_vec4_dispatch_bs512",
+  "parent": 0,
+  "shape_dispatch": true,
+  "strategy": "Test a safer high-throughput rank-16 fused update path: keep cuBLAS for W@X, use a float4 kernel only when d%4==0 and all relevant pointers are 16-byte aligned, otherwise fall back to a scalar/current-library path. This targets bandwidth efficiency on the low-rank add while preserving correctness.",
+  "use_fast_math": false,
+  "vector_width": 4
+}

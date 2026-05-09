@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0010_static_code_review_1778230841863",
+  "duration_sec": 92.07109093666077,
+  "finished_ts": 1778230933.9343598,
+  "llm_status": "LLM enabled with model DeepSeek-V4-Pro from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": true,
+      "name": "cublas_WX_BTX_fused_AC_add_vec4",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Reduces launch count from 4 to 3 by fusing A@C and addition into a single vectorized kernel, while keeping cuBLAS for W@X and B.T@X to ensure correctness. Vectorized loads (float4) improve memory throughput for the rank-16 update.",
+      "use_fast_math": false,
+      "vector_width": 4
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T083646Z_pid155/exp_0002/candidate.cu"
+  },
+  "model": "DeepSeek-V4-Pro",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778230933.936507
+    }
+  ],
+  "request": {
+    "system_chars": 1239,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "c267bb4057c8aa1e9d6ff4a4a288dd7f56084b80c403f9a47c01f976fb923bf4",
+    "user_chars": 5384,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": true,\n  \"name\": \"cublas_WX_BTX_fused_AC_add_vec4\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Reduces launch count from 4 to 3 by fusing A@C and addition into a single vectorized kernel, while keeping cuBLAS for W@X and B.T@X to ensure correctness. Vectorized loads (float4) improve memory throughput for the rank-16 update.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\nnamespace {\n\n// Runtime shape and type checks\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"all inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be rank-2 tensors\");\n    const int64_t d = W.size(0);\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16 &&\n                B.size(0) == d && B.size(1) == 16,\n                \"A and B must be d x 16\");\n}\n\n// Fused kernel: Y += A @ C, where C = B.T @ X (16 x d)\n// Each block computes a 16x16 tile of the output.\n// Vectorized loads (float4) are used for both A and C tiles.\n__global__ void fused_ac_add_kernel(\n    float* __restrict__ Y,\n    const float* __restrict__ A,\n    const float* __restrict__ C,\n    int d) {\n\n    // Shared memory for A tile (16x16) and C tile (16x16)\n    __shared__ float As[16][16];\n    __shared__ float Cs[16][16];\n\n    int tid = threadIdx.y * blockDim.x + threadIdx.x;\n\n    // Load A tile using float4 (64 float4 loads needed)\n    if (tid < 64) {\n        int row = tid / 4;          // 0..15\n        int col_group = tid % 4;    // 0..3\n        int global_row = blockIdx.y * 16 + row;\n        if (global_row < d) {\n            const float4* src = reinterpret_cast<const float4*>(A + global_row * 16 + col_group * 4);\n            float4* dst = reinterpret_cast<float4*>(&As[row][col_group * 4]);\n            *dst = *src;\n        } else {\n            // Out-of-bounds rows: fill with zero\n            float4* dst = reinterpret_cast<float4*>(&As[row][col_group * 4]);\n            *dst = make_float4(0.f, 0.f, 0.f, 0.f);\n        }\n    }\n\n    // Load C tile using float4 (64 float4 loads needed)\n    if (tid < 64) {\n        int row = tid / 4;          // 0..15\n        int col_group = tid % 4;    // 0..3\n        int global_col = blockIdx.x * 16 + col_group * 4;\n        if (global_col < d) {\n            const float4* src = reinterpret_cast<const float4*>(C + row * d + global_col);\n            float4* dst = reinterpret_cast<float4*>(&Cs[row][col_group * 4]);\n            *dst = *src;\n        } else {\n            // Out-of-bounds columns: fill with zero\n            float4* dst = reinterpret_cast<float4*>(&Cs[row][col_group * 4]);\n            *dst = make_float4(0.f, 0.f, 0.f, 0.f);\n        }\n    }\n\n    __syncthreads();\n\n    // Compute one output element\n    int row = threadIdx.y;\n    int col = threadIdx.x;\n    int global_row = blockIdx.y * 16 + row;\n    int global_col = blockIdx.x * 16 + col;\n\n    if (global_row < d && global_col < d) {\n        float sum = 0.f;\n        #pragma unroll\n        \n...<trimmed>...",
+    "user_sha256": "d0665c192749f10320a67023da42f8c3d040cb9d7ee8f468f45be000ba3afcb4"
+  },
+  "response": {
+    "content_chars": 1321,
+    "content_preview": "{\n  \"pass\": false,\n  \"risk_level\": \"high\",\n  \"errors\": [\n    \"Out-of-bounds read in C tile loading: the condition `global_col < d` does not guarantee that `global_col + 3 < d`, so a float4 load may read up to 3 elements beyond the allocated C tensor when d is not a multiple of 4.\",\n    \"Misaligned memory access for C: the pointer `C + row * d + global_col` may not be 16-byte aligned when d is not a multiple of 4, causing undefined behavior for the float4 load.\"\n  ],\n  \"warnings\": [\n    \"No CUDA kernel launch error checking after `fused_ac_add_kernel<<<...>>>`; a launch failure could go undetected.\",\n    \"The kernel uses only 64 of 256 threads for tile loading; the remaining threads are idle, which is inefficient but not incorrect.\"\n  ],\n  \"suggested_fixes\": [\n    \"Replace the vectorized float4 load for C with scalar loads or add a boundary check `global_col + 3 < d` and handle partial loads safely.\",\n    \"Avoid vectorized loads for C entirely if alignment cannot be guaranteed, or use `cudaMallocPitch`-style allocation with padded leading dimension, but that would require changing the tensor layout. A simpler fix is to use scalar loads for C.\",\n    \"Add `cudaError_t err = cudaGetLastError(); if (err != cudaSuccess) { throw std::runtime_error(cudaGetErrorString(err)); }` after the kernel launch.\"\n  ]\n}",
+    "content_sha256": "37acfe1f617cc6b8eda608605e9d55fbc8f331f30129d2525bf636773b6bcfc2",
+    "model": "DeepSeek-V4-Pro"
+  },
+  "run_id": "20260508T083646Z_pid155",
+  "started_ts": 1778230841.8632689,
+  "status": "success"
+}

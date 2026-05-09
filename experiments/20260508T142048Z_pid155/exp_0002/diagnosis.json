@@ -1,0 +1,35 @@
+{
+  "avoid": [
+    "Promoting this candidate without fixing the correctness bug.",
+    "Assuming the kernel is correct for all shapes based on passing two out of three.",
+    "Making performance optimizations before correctness is fully verified."
+  ],
+  "bottleneck": "correctness",
+  "confidence": "high",
+  "evidence": [
+    "Correctness test failed for d=3584 with max_abs_err=0.00146484375 and rel_l2_err=7.9e-7, while passing for d=4096 and d=4608.",
+    "The error is small but non-zero, indicating a subtle bug in the custom rank-16 update kernel, likely related to tile size, boundary conditions, or memory indexing for that specific dimension.",
+    "Benchmark data is unavailable, so performance cannot be evaluated, but correctness failure alone disqualifies the candidate."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00146484375, \"passed\": false, \"rel_l2_err\": 7.909732744337816e-07}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0, \"passed\": true, \"rel_l2_err\": 0.0}}, \"failed_shapes\": [3584], \"max_abs_err\": 0.00146484375, \"rel_l2_err\": 7.909732744337816e-07}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Debug the custom rank-16 update kernel for d=3584: check for race conditions, uninitialized memory, or incorrect loop bounds when d is exactly divisible by block_size (128).",
+    "Verify that all threads write their output correctly and that no partial sums are lost.",
+    "Consider adding a regression test for multiple d values to catch similar shape-dependent bugs early."
+  ]
+}

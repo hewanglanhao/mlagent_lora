@@ -1,0 +1,13 @@
+{
+  "errors": [
+    "Stage 2 cuBLAS SGEMM call uses incorrect operation flags. To compute A @ B.T without explicit transpose, the call should be: cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N, d, d, rank, &alpha, B_ptr, rank, A_ptr, rank, &beta0, C_ptr, d). The current call uses CUBLAS_OP_N for both, which results in multiplying B^T @ A^T (incorrect dimensions and result)."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Change the first flag of the second SGEMM call from CUBLAS_OP_N to CUBLAS_OP_T."
+  ],
+  "warnings": [
+    "The intermediate C = A @ B.T is a full d x d matrix, which may be memory-intensive for large d but acceptable."
+  ]
+}

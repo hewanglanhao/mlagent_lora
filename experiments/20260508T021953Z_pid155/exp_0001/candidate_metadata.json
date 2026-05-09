@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 1,
+  "llm_generated": true,
+  "name": "fused_rank16_vector4",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Reduce launch overhead by fusing B.T@X and A@result into one kernel, and use vectorized loads for rank-16 update. Expect ~10-30% speedup.",
+  "use_fast_math": false,
+  "vector_width": 4
+}

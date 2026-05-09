@@ -1,0 +1,36 @@
+{
+  "avoid": [
+    "Don't rely solely on static review to catch syntax errors",
+    "Avoid submitting code without testing compilation"
+  ],
+  "bottleneck": "compile_failure",
+  "confidence": "high",
+  "evidence": [
+    "Compile errors: line 17 has malformed expressions like 'W. 2() == 2'",
+    "Line 137: 'CUDA_CHECK' undefined macro",
+    "Static review passed with low risk, but code has syntax errors",
+    "No correctness, benchmark, or profile data due to compile failure"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "promoting uncompiled code"
+    ],
+    "bottleneck": "compile_failure",
+    "confidence": "high",
+    "evidence": [
+      "pybind_or_signature_error",
+      "Error building extension 'lora_candidate_ext_1_1778213814581': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_1_1778213814581 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "fall back to a simpler candidate",
+      "preserve current best"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Fix syntax errors on line 17: correct 'W. 2()' to proper member access",
+    "Define CUDA_CHECK macro or replace with direct error checking",
+    "Review LLM-generated code for formatting issues before submission"
+  ]
+}

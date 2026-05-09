@@ -1,0 +1,39 @@
+{
+  "avoid": [
+    "Using deprecated ATen CUDA stream API",
+    "Hardcoding dimensions",
+    "Using ATen matmul instead of direct cuBLAS",
+    "Explicit transpose of B into a separate tensor",
+    "Result caching as a general optimization"
+  ],
+  "bottleneck": "compilation_error",
+  "confidence": "high",
+  "evidence": [
+    "Candidate uses at::cuda::getCurrentCUDAStream() which does not exist in this PyTorch version",
+    "Compilation failed with 1 error: namespace 'at::cuda' has no member 'getCurrentCUDAStream'",
+    "No correctness or benchmark data available due to compile failure"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "promoting uncompiled code"
+    ],
+    "bottleneck": "compile_failure",
+    "confidence": "high",
+    "evidence": [
+      "pybind_or_signature_error",
+      "Error building extension 'lora_candidate_ext_3_1778255443732': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_3_1778255443732 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "fall back to a simpler candidate",
+      "preserve current best"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Replace at::cuda::getCurrentCUDAStream() with c10::cuda::getCurrentCUDAStream() or obtain cublasHandle_t via at::cuda::getCurrentCUDABlasHandle()",
+    "Rewrite candidate as a pure cuBLAS three-SGEMM implementation: cublasSgemm for W@X, cublasSgemm for B.T@X (using CUBLAS_OP_T), and cublasSgemm for A@(result) with beta=1 accumulation into Y",
+    "Ensure all matrix multiplications use column-major layout with correct m,n,k dimensions and leading dimensions",
+    "Remove any handwritten rank-16 update kernel and rely solely on cuBLAS"
+  ]
+}

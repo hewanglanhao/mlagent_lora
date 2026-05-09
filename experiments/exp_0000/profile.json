@@ -1,0 +1,24 @@
+{
+  "bottleneck": "multiple_aten_gemm_and_add_launches",
+  "evidence": {
+    "aggregate_speedup": 0.9980694334724157,
+    "details": {
+      "iters": 1,
+      "warmup": 1
+    },
+    "latency_ms": {
+      "3584": 4.773888111114502
+    },
+    "speedup": {
+      "3584": 0.9980694334724157
+    },
+    "torch_ms": {
+      "3584": 4.764671802520752
+    }
+  },
+  "suggested_actions": [
+    "keep cuBLAS for W @ X",
+    "fuse rank-16 update into the output tensor",
+    "test scalar and vectorized rank-16 kernels"
+  ]
+}

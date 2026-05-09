@@ -1,0 +1,37 @@
+{
+  "bytes": 6088,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 2,
+    "llm_generated": true,
+    "name": "pure_cublas_three_sgemm_repair1",
+    "parent": 1,
+    "shape_dispatch": false,
+    "strategy": "llm_cuda_repair_attempt:1",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "failed_candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": true,
+    "name": "pure_cublas_three_sgemm",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Eliminate explicit transpose of B via CUBLAS_OP_T, reduce kernel launch overhead by replacing three ATen mm calls with three direct cuBLAS SGEMM calls (W@X, B.T@X, A*U) and accumulate low-rank contribution into Y with beta=1, expected speedup >1.1 for larger d.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "failed_compile": {
+    "compile_time_sec": 31.2150958229322,
+    "compiled": false,
+    "error_summary": "Error building extension 'lora_candidate_ext_1_1778254384990': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_1_1778254384990 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_72,code=sm_72 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_87,code=sm_87 -gencode=arch=compute_90,code=compute_90 -gencode=arch=compute_90,code=sm_90 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0001/candidate.cu -o candidate.cuda.o \nFAILED: candidate.cuda.o \n/usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_1_1778254384990 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc/api/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/TH -isystem /usr/local/lib/python3.10/dist-packages/torch/include/THC -isystem /usr/local/cuda/include -isystem /usr/include/python3.10 -D_GLIBCXX_USE_CXX11_ABI=1 -D__CUDA_NO_HALF_OPERATORS__ -D__CUDA_NO_HALF_CONVERSIONS__ -D__CUDA_NO_BFLOAT16_CONVERSIONS__ -D__CUDA_NO_HALF2_OPERATORS__ --expt-relaxed-constexpr -gencode=arch=compute_52,code=sm_52 -gencode=arch=compute_60,code=sm_60 -gencode=arch=compute_61,code=sm_61 -gencode=arch=compute_70,code=sm_70 -gencode=arch=compute_72,code=sm_72 -gencode=arch=compute_75,code=sm_75 -gencode=arch=compute_80,code=sm_80 -gencode=arch=compute_86,code=sm_86 -gencode=arch=compute_87,code=sm_87 -gencode=arch=compute_90,code=compute_90 -gencode=arch=compute_90,code=sm_90 --compiler-options '-fPIC' -O3 -std=c++17 -c /workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0001/candidate.cu -o candidate.cuda.o \n/workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0001/candidate.cu(31): error: namespace \"at::cuda\" has no member \"getCurrentCUDABlasHandle\"\n    cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();\n                                      ^\n\n1 error detected in the compilation of \"/workspace/mlagent_lora/experiments/20260508T151935Z_pid155/exp_0001/candidate.cu\".\nninja: build stopped: subcommand failed.\n",
+    "error_type": "pybind_or_signature_error",
+    "module_name": "lora_candidate_ext_1_1778254384990",
+    "skipped": false
+  },
+  "origin": "llm_repair_codegen",
+  "repair_attempt": 1
+}

@@ -1,0 +1,30 @@
+{
+  "bottleneck": "rank16_update_or_memory_bandwidth",
+  "evidence": {
+    "aggregate_speedup": 0.9800403093489698,
+    "details": {
+      "iters": 10,
+      "warmup": 3
+    },
+    "latency_ms": {
+      "3584": 3.8287360668182373,
+      "4096": 5.917184114456177,
+      "4608": 7.605760097503662
+    },
+    "speedup": {
+      "3584": 0.9729874113909417,
+      "4096": 0.9852037206646389,
+      "4608": 0.9802086588861056
+    },
+    "torch_ms": {
+      "3584": 3.7253119945526123,
+      "4096": 5.829631805419922,
+      "4608": 7.4552319049835205
+    }
+  },
+  "suggested_actions": [
+    "vary block size",
+    "try float4 stores when d is divisible by 4",
+    "fall back to ATen if numerical error appears"
+  ]
+}

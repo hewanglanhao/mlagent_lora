@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 2,
+  "llm_generated": true,
+  "name": "fused_rank16_update_kernel",
+  "parent": 1,
+  "shape_dispatch": false,
+  "strategy": "Fuse B.T @ X, A @ (result), and addition to W @ X into a single custom kernel to reduce launch overhead and memory traffic. Keep cuBLAS for the large W @ X GEMM. Vectorized float4 stores when d is divisible by 4 (all target d are). Expected speedup over baseline by eliminating multiple intermediate tensor allocations and kernel launches.",
+  "use_fast_math": false,
+  "vector_width": 4
+}

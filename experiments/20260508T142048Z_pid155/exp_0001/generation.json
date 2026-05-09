@@ -1,0 +1,17 @@
+{
+  "bytes": 4899,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": true,
+    "name": "fused_rank16_update_v1",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Fuses Y += A @ Z into a single custom kernel after cuBLAS GEMMs for W@X and B.T@X, reducing launch overhead and global memory traffic. Exploits rank=16 with unrolled FMA, shared memory staging of A and Z tiles, and float4 vectorized loads/stores. Expected speedup from eliminating separate add kernel and better memory reuse.",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  "enabled": true,
+  "origin": "llm"
+}

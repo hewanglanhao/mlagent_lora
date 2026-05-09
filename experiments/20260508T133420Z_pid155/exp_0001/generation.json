@@ -1,0 +1,17 @@
+{
+  "bytes": 3878,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": true,
+    "name": "candidate_precompute_outer_256x4",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Reduce from 3 cuBLAS gemm calls to 2 gemm calls + one custom rank-16 outer product kernel, lowering launch overhead and intermediate memory traffic",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  "enabled": true,
+  "origin": "llm"
+}

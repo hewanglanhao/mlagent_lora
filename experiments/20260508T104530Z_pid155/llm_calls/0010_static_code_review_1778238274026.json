@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0010_static_code_review_1778238274026",
+  "duration_sec": 59.30222725868225,
+  "finished_ts": 1778238333.3286264,
+  "llm_status": "LLM enabled with model DeepSeek-V4-Pro from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": true,
+      "name": "fused_rank16_update_kernel",
+      "parent": 1,
+      "shape_dispatch": false,
+      "strategy": "Fuse B.T @ X, A @ (result), and addition to W @ X into a single custom kernel to reduce launch overhead and memory traffic. Keep cuBLAS for the large W @ X GEMM. Vectorized float4 stores when d is divisible by 4 (all target d are). Expected speedup over baseline by eliminating multiple intermediate tensor allocations and kernel launches.",
+      "use_fast_math": false,
+      "vector_width": 4
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T104530Z_pid155/exp_0002/candidate.cu"
+  },
+  "model": "DeepSeek-V4-Pro",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778238333.3447678
+    }
+  ],
+  "request": {
+    "system_chars": 1649,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- For final-output result caches, verify the cache key includes all four input data pointers, all four tensor version counters, runtime d, and CUDA device.\n- For final-output result caches, reject shape-only caching, pointer-only caching without version counters, or cross-device reuse.\n- For final-output result caches, verify cache hits return only the exact cached final output for unchanged input tensors.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "d9256f4b3968fcbf137278eab67eeebe41cfb683718a54f186b7fa87d89a2951",
+    "user_chars": 6670,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": true,\n  \"name\": \"fused_rank16_update_kernel\",\n  \"parent\": 1,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Fuse B.T @ X, A @ (result), and addition to W @ X into a single custom kernel to reduce launch overhead and memory traffic. Keep cuBLAS for the large W @ X GEMM. Vectorized float4 stores when d is divisible by 4 (all target d are). Expected speedup over baseline by eliminating multiple intermediate tensor allocations and kernel launches.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n\n// ---------------------------------------------------------------------------\n// Input validation\n// ---------------------------------------------------------------------------\nstatic void check_inputs(const torch::Tensor& W,\n                         const torch::Tensor& X,\n                         const torch::Tensor& A,\n                         const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"All inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"All inputs must be float32\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"All inputs must be rank-2 tensors\");\n    int64_t d = W.size(0);\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16 &&\n                B.size(0) == d && B.size(1) == 16,\n                \"A and B must be d x 16\");\n}\n\n// ---------------------------------------------------------------------------\n// Kernel 1: C = B^T @ X   (C is 16 x d)\n// ---------------------------------------------------------------------------\n__global__ void compute_C_kernel(const float* __restrict__ B,\n                                 const float* __restrict__ X,\n                                 float* __restrict__ C,\n                                 int d) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int total = 16 * d;\n    if (idx >= total) return;\n\n    int k = idx / d;          // row of C (0..15)\n    int j = idx % d;          // column of C\n\n    float sum = 0.0f;\n    for (int l = 0; l < d; ++l) {\n        sum += B[l * 16 + k] * X[l * d + j];\n    }\n    C[k * d + j] = sum;\n}\n\n// ---------------------------------------------------------------------------\n// Kernel 2: Y = WX + A @ C   (vectorized, 4 columns per thread)\n// ---------------------------------------------------------------------------\n__global__ void compute_Y_kernel(const float* __restrict__ A,\n                                 const float* __restrict__ C,\n                                 const float* __restrict__ WX,\n                                 float* __restrict__ Y,\n                                 int d) {\n    int tid = blockIdx.x * blockDim.x + threadIdx.x;\n    int num_groups = d / 4;               // number of 4\u2011column groups\n    int total_threads = d * num_groups;\n    if (tid >= total_threads) return;\n\n    int i = tid / num_groups;\n    int j_group = tid % num_groups;\n    int j = j_group * 4;\n\n    const float* A_row = A + i * 16;\n\n    float sum0 = 0.0f, sum1 = 0.0f, sum2 = 0.0f, sum3 = 0.0f;\n\n    #pragma unroll\n    for (int k = 0; k < 16; ++k) {\n        float aik = A_row[k];\n        const float* C_row = C + k * d + j;\n        // Load 4 consecutive floats from C as float4\n        float4 c_vec = *re\n...<trimmed>...",
+    "user_sha256": "4f75cfe7417a2dc31f5cf014802de882de81aad9dc82476d9d5a32268cf0d037"
+  },
+  "response": {
+    "content_chars": 492,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [\n    \"Missing CUDA error checking after custom kernel launches. Kernel failures (e.g., out-of-memory, invalid configuration) may go undetected, potentially leading to silent data corruption.\"\n  ],\n  \"suggested_fixes\": [\n    \"After each kernel launch, call cudaDeviceSynchronize() and check cudaGetLastError() to detect launch errors. Alternatively, use a macro like CUDA_KERNEL_CHECK() to wrap kernel invocations.\"\n  ]\n}",
+    "content_sha256": "be201a70058737ad56c9cc2055c00977403b0e1018098f300a2fa83bc03a56b1",
+    "model": "DeepSeek-V4-Pro"
+  },
+  "run_id": "20260508T104530Z_pid155",
+  "started_ts": 1778238274.0263991,
+  "status": "success"
+}

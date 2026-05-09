@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0015_performance_diagnosis_1778248617040",
+  "duration_sec": 12.491811752319336,
+  "finished_ts": 1778248629.5323207,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 3,
+      "llm_generated": true,
+      "name": "rank16_scalar_b128",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778248629.5340524
+    }
+  ],
+  "request": {
+    "system_chars": 1563,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- Actively compare candidates against the `candidate_002_precompute.cu` direction: precompute `Weff = W + A @ B.T`, then use one cuBLAS-backed `Weff @ X` GEMM.\n- When diagnosing a precompute candidate, weigh the temporary `Weff` allocation/copy and rank-16 outer-product cost against any reduction in launch overhead or small-GEMM/update overhead.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "9762c12f1114af6e18aea786a609c6798dd5b828534360ca18e59b297a42f299",
+    "user_chars": 1763,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 3,\n  \"llm_generated\": true,\n  \"name\": \"rank16_scalar_b128\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 214.72841545497067,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_3_1778248402195\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.536468505859375,\n      \"passed\": false,\n      \"rel_l2_err\": 0.0002922355488408357\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0011567473411560059,\n      \"passed\": false,\n      \"rel_l2_err\": 0.0002928708272520453\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 5.0849609375,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00029321821057237685\n    }\n  },\n  \"failed_shapes\": [\n    3584,\n    4096,\n    4608\n  ],\n  \"max_abs_err\": 5.0849609375,\n  \"rel_l2_err\": 0.00029321821057237685\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "11a71e7af670f5f65cf337ba2d6064130769b7c82093701886e3483074e951dd"
+  },
+  "response": {
+    "content_chars": 1336,
+    "content_preview": "{\n  \"bottleneck\": \"correctness\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Candidate failed correctness for all three shapes (3584, 4096, 4608)\",\n    \"Max absolute error is 5.08 at d=4608, far above acceptable tolerance\",\n    \"Relative L2 error ~0.00029 exceeds strict floating-point error bound\",\n    \"Static review and compilation passed, implying bug is in kernel logic, not interface\",\n    \"No benchmark data available, but correctness failure dominates\"\n  ],\n  \"recommended_actions\": [\n    \"Debug the custom rank-16 update kernel: verify indexing, boundary conditions, and shared memory usage\",\n    \"Use vectorized loads (float4) to improve memory coalescing and reduce instruction count\",\n    \"Test with a simple reference kernel (e.g., naive for-loop) for each shape to isolate the bug\",\n    \"Consider implementing the rank-16 update via a small GEMM (cuBLAS) to eliminate custom kernel risk\",\n    \"Add shape-aware handling if kernel assumes block-size alignment that fails for non-multiple dimensions\"\n  ],\n  \"avoid\": [\n    \"Ignoring correctness failures for performance gains\",\n    \"Hardcoding hidden dimensions (d) or tensor sizes\",\n    \"Using scalar (vector_width=1) loads for large contiguous memory regions\",\n    \"Promoting any candidate that fails correctness on all tested shapes\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "89196c709885e59a8b71b044a1b738f2d407f3315baf92545a41b7a47a0340c4",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T133420Z_pid155",
+  "started_ts": 1778248617.040509,
+  "status": "success"
+}

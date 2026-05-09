@@ -1,0 +1,590 @@
+[
+  {
+    "aggregate_speedup": 0.9998763556893003,
+    "benchmark": {
+      "aggregate_speedup": 0.9998763556893003,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.7253119945526123,
+        "4096": 5.825535774230957,
+        "4608": 7.4552319049835205
+      },
+      "speedup": {
+        "3584": 0.9998625608004459,
+        "4096": 1.0,
+        "4608": 0.9997252914972218
+      },
+      "torch_ms": {
+        "3584": 3.7247999906539917,
+        "4096": 5.825535774230957,
+        "4608": 7.453183889389038
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 221.64529612101614,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_0_1778209899452",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "writing a custom full GEMM for W @ X, as cuBLAS is already optimal for this large matrix multiply",
+        "hardcoding the hidden dimension d",
+        "non-coalesced memory access patterns in the fused kernel"
+      ],
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "confidence": "high",
+      "evidence": [
+        "correctness is perfect with zero error across all shapes",
+        "speedup is ~1.0, identical to torch reference",
+        "benchmark latencies match torch baseline exactly",
+        "profile explicitly identifies multiple separate GEMM and add launches as the bottleneck"
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "custom full GEMM without evidence"
+        ],
+        "bottleneck": "multiple_aten_gemm_and_add_launches",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 0.9998763556893003, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.7253119945526123, \"4096\": 5.825535774230957, \"4608\": 7.4552319049835205}, \"speedup\": {\"3584\": 0.9998625608004459, \"4096\": 1.0, \"4608\": 0.9997252914972218}, \"torch_ms\": {\"3584\": 3.7247999906539917, \"4096\": 5.825535774230957, \"4608\": 7.453183889389038}}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "try vector width 4",
+          "vary block size",
+          "keep W @ X in cuBLAS"
+        ]
+      },
+      "promotion_advice": "needs_more_data",
+      "recommended_actions": [
+        "keep cuBLAS for the full GEMM W @ X",
+        "fuse the rank-16 update (B.T @ X and A @ result) into a single custom kernel to reduce launch overhead and improve memory locality",
+        "use vectorized loads/stores (float4) for the small matrices",
+        "unroll the inner loop over rank 16 to reduce loop overhead"
+      ]
+    },
+    "family": "aten_reference",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "aten_reference",
+        "id": 0,
+        "llm_generated": false,
+        "name": "baseline_aten",
+        "parent": null,
+        "shape_dispatch": false,
+        "strategy": "",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "origin": "deterministic_baseline"
+    },
+    "id": 0,
+    "latency_by_d": {
+      "3584": 3.7253119945526123,
+      "4096": 5.825535774230957,
+      "4608": 7.4552319049835205
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [],
+      "warnings": []
+    },
+    "name": "baseline_aten",
+    "parent": null,
+    "profile": {
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "evidence": {
+        "aggregate_speedup": 0.9998763556893003,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.7253119945526123,
+          "4096": 5.825535774230957,
+          "4608": 7.4552319049835205
+        },
+        "speedup": {
+          "3584": 0.9998625608004459,
+          "4096": 1.0,
+          "4608": 0.9997252914972218
+        },
+        "torch_ms": {
+          "3584": 3.7247999906539917,
+          "4096": 5.825535774230957,
+          "4608": 7.453183889389038
+        }
+      },
+      "suggested_actions": [
+        "keep cuBLAS for W @ X",
+        "fuse rank-16 update into the output tensor",
+        "test scalar and vectorized rank-16 kernels"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T031123Z_pid155/exp_0000/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 227.84433854697272,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_1_1778210354916",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.4996490478515625,
+          "passed": false,
+          "rel_l2_err": 0.0002854639897122979
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.000545501708984375,
+          "passed": false,
+          "rel_l2_err": 0.00010945051326416433
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 4.77294921875,
+          "passed": false,
+          "rel_l2_err": 0.00029189916676841676
+        }
+      },
+      "failed_shapes": [
+        3584,
+        4096,
+        4608
+      ],
+      "max_abs_err": 4.77294921875,
+      "rel_l2_err": 0.00029189916676841676
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "Hardcoding hidden dimension d in the custom kernel",
+        "Ignoring correctness for performance gains",
+        "Deploying a candidate that fails correctness for any shape"
+      ],
+      "bottleneck": "unknown",
+      "confidence": "high",
+      "evidence": [
+        "Correctness fails for all tested shapes: 3584, 4096, 4608",
+        "Max absolute error up to 4.77 at d=4608, rel L2 error ~0.0003",
+        "Benchmark data is empty, so performance cannot be assessed; correctness failure dominates",
+        "Static review passed with low risk, but runtime results show significant numerical errors"
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.4996490478515625, \"passed\": false, \"rel_l2_err\": 0.0002854639897122979}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.000545501708984375, \"passed\": false, \"rel_l2_err\": 0.00010945051326416433}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.77294921875, \"passed\": false, \"rel_l2_err\": 0.00029189916676841676}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.77294921875, \"rel_l2_err\": 0.00029189916676841676}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Debug the custom fused kernel for the low-rank update, focusing on correct indexing and memory access patterns for arbitrary d",
+        "Verify grid/block dimensions are appropriately computed for all d in [3584, 4608]",
+        "Test with vector width 4 and ensure coalesced loads/stores for A, B.T, and output",
+        "Consider adding a small tolerance for float accuracy but prioritize exact correctness against cuBLAS baseline"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 4811,
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 1,
+        "llm_generated": true,
+        "name": "fused_rank16_update_v1",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "Reduce kernel launch overhead and improve memory locality by fusing the low-rank update (B.T@X and A@result) into a single custom kernel that adds the low-rank contribution directly to the output of W@X (computed via cuBLAS).",
+        "use_fast_math": false,
+        "vector_width": 4
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 1,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [
+        "Incorrect mapping of thread IDs to A tile loading and retrieval. The kernel loads A using tid as index but later retrieves using localRow (tid/8), causing mismatched data and undefined behavior."
+      ],
+      "pass": false,
+      "risk_level": "high",
+      "suggested_fixes": [
+        "Fix the A tile loading: either load As using localRow = tid / BLOCK_N, or change retrieval to use threadIdx.x directly. Ensure the mapping is consistent.",
+        "Add CUDA error checking after kernel launch (e.g., cudaGetLastError()).",
+        "Consider accumulating partial sums in a local register and writing to Y once after the loop to reduce global memory traffic."
+      ],
+      "warnings": [
+        "No CUDA error checking after kernel launch.",
+        "Kernel writes to Y multiple times (per chunk) instead of accumulating in register and writing once."
+      ]
+    },
+    "name": "fused_rank16_update_v1",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T031123Z_pid155/exp_0001/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "Reduce kernel launch overhead and improve memory locality by fusing the low-rank update (B.T@X and A@result) into a single custom kernel that adds the low-rank contribution directly to the output of W@X (computed via cuBLAS).",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 215.48607473098673,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_2_1778210826379",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.50091552734375,
+          "passed": false,
+          "rel_l2_err": 0.00028545944951474667
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0005447864532470703,
+          "passed": false,
+          "rel_l2_err": 0.00010944990208372474
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 4.7734375,
+          "passed": false,
+          "rel_l2_err": 0.0002918986137956381
+        }
+      },
+      "failed_shapes": [
+        3584,
+        4096,
+        4608
+      ],
+      "max_abs_err": 4.7734375,
+      "rel_l2_err": 0.0002918986137956381
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "promoting without fixing correctness",
+        "ignoring large max_abs_err as acceptable"
+      ],
+      "bottleneck": "correctness",
+      "confidence": "high",
+      "evidence": [
+        "correctness fails for all tested shapes (3584, 4096, 4608)",
+        "max absolute error up to 4.77 at d=4608",
+        "rel_l2 error ~0.0003"
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.50091552734375, \"passed\": false, \"rel_l2_err\": 0.00028545944951474667}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0005447864532470703, \"passed\": false, \"rel_l2_err\": 0.00010944990208372474}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.7734375, \"passed\": false, \"rel_l2_err\": 0.0002918986137956381}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.7734375, \"rel_l2_err\": 0.0002918986137956381}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "inspect custom rank-16 kernel for indexing errors or incorrect accumulation",
+        "verify that the kernel computes A @ (B.T @ X) correctly, especially the reduction for the outer product",
+        "test with smaller d to debug and compare against reference",
+        "consider using float32 for intermediate accumulations if using lower precision"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 3211,
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 2,
+        "llm_generated": true,
+        "name": "rank16_scalar_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 2,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "medium",
+      "suggested_fixes": [
+        "Add cudaGetLastError() or AT_CUDA_CHECK after each kernel launch.",
+        "Consider enforcing the d range in check_inputs for consistency with operator spec.",
+        "Align block size with metadata or adjust metadata to match actual block size (256).",
+        "For performance, consider using tiling or cooperative groups to improve memory coalescing."
+      ],
+      "warnings": [
+        "No CUDA error checking after kernel launches; silent failures possible.",
+        "Block size used (256) differs from metadata (128); may affect occupancy.",
+        "Input validation does not enforce d in [3584, 4608] as per operator constraints.",
+        "Scalar memory access patterns may be inefficient for large d; consider using shared memory or vectorized loads."
+      ]
+    },
+    "name": "rank16_scalar_b128",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T031123Z_pid155/exp_0002/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 212.48712117387913,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_3_1778211226842",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.50091552734375,
+          "passed": false,
+          "rel_l2_err": 0.00028545944951474667
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0005447864532470703,
+          "passed": false,
+          "rel_l2_err": 0.00010944990208372474
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 4.7734375,
+          "passed": false,
+          "rel_l2_err": 0.0002918986137956381
+        }
+      },
+      "failed_shapes": [
+        3584,
+        4096,
+        4608
+      ],
+      "max_abs_err": 4.7734375,
+      "rel_l2_err": 0.0002918986137956381
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "Deploying an incorrect kernel even if it reduces launch overhead",
+        "Ignoring correctness errors in favor of potential performance gains"
+      ],
+      "bottleneck": "correctness_error",
+      "confidence": "high",
+      "evidence": [
+        "Correctness fails for all shapes (3584, 4096, 4608) with max_abs_err up to 4.77 and rel_l2_err around 0.0003",
+        "Benchmark unavailable, performance unknown, but correctness dominates",
+        "Static review passed with low risk, but runtime errors indicate implementation bugs"
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.50091552734375, \"passed\": false, \"rel_l2_err\": 0.00028545944951474667}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0005447864532470703, \"passed\": false, \"rel_l2_err\": 0.00010944990208372474}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.7734375, \"passed\": false, \"rel_l2_err\": 0.0002918986137956381}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.7734375, \"rel_l2_err\": 0.0002918986137956381}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Debug the two custom kernels for low-rank update: B.T @ X and A @ result",
+        "Verify that matrix dimensions and transpose handling are correct",
+        "Compare intermediate results with a reference implementation (e.g., PyTorch) for specific sizes",
+        "Consider using a single fused kernel for the entire low-rank update to avoid intermediate storage issues"
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 4031,
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 3,
+        "llm_generated": true,
+        "name": "custom_lowrank_a_b",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "Reduce kernel launch overhead from 3 to 2 by using two custom kernels for the low-rank update (B.T @ X and A @ result), retaining cuBLAS for W @ X.",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 3,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "medium",
+      "suggested_fixes": [
+        "Add CUDA error checks after each kernel launch, e.g., AT_CUDA_CHECK(cudaGetLastError()) or a manual check with TORCH_CHECK.",
+        "To be robust, use an explicit CUDA stream (e.g., at::cuda::getCurrentCUDAStream()) for all operations, or call cudaDeviceSynchronize() after matmul before launching custom kernels. However, this may add overhead."
+      ],
+      "warnings": [
+        "Missing CUDA error checking after kernel launches (lowrank_btx_kernel and lowrank_ax_add_kernel); if a launch fails, undefined behavior may occur.",
+        "No explicit synchronization between the cuBLAS matmul (W @ X) and the custom kernel lowrank_ax_add_kernel that modifies Y; relies on default stream ordering, which may be fragile if the user changes streams or if matmul internally uses a non\u2011default stream."
+      ]
+    },
+    "name": "custom_lowrank_a_b",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T031123Z_pid155/exp_0003/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "Reduce kernel launch overhead from 3 to 2 by using two custom kernels for the low-rank update (B.T @ X and A @ result), retaining cuBLAS for W @ X.",
+    "use_fast_math": false,
+    "vector_width": 1
+  }
+]

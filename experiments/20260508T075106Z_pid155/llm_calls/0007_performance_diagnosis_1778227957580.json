@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0007_performance_diagnosis_1778227957580",
+  "duration_sec": 94.39051651954651,
+  "finished_ts": 1778228051.9714186,
+  "llm_status": "LLM enabled with model DeepSeek-V4-Pro from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 1,
+      "llm_generated": false,
+      "name": "fused_rank16_two_kernels",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Fuse the rank-16 update into two custom kernels: one for B.T @ X (16xd) and one for Y += A @ C, using vectorized loads and tiled outer product for K=16. Keep cuBLAS for W @ X. Expect reduction in launch overhead and better memory locality, aiming for speedup >1.0.",
+      "use_fast_math": false,
+      "vector_width": 4
+    }
+  },
+  "model": "DeepSeek-V4-Pro",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778228052.0084338
+    }
+  ],
+  "request": {
+    "system_chars": 1215,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "8878a9be0a533cead46299fdae5996c8c11a2ff8a7ca72c4c833e98e4fd49f0e",
+    "user_chars": 2858,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 1,\n  \"llm_generated\": false,\n  \"name\": \"fused_rank16_two_kernels\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Fuse the rank-16 update into two custom kernels: one for B.T @ X (16xd) and one for Y += A @ C, using vectorized loads and tiled outer product for K=16. Keep cuBLAS for W @ X. Expect reduction in launch overhead and better memory locality, aiming for speedup >1.0.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 215.4002498590853,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_1_1778227741570\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": true,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    }\n  },\n  \"failed_shapes\": [],\n  \"max_abs_err\": 0.0,\n  \"rel_l2_err\": 0.0\n}\n\nBenchmark result:\n\n{\n  \"aggregate_speedup\": 0.9867630030013619,\n  \"details\": {\n    \"iters\": 10,\n    \"warmup\": 3\n  },\n  \"latency_ms\": {\n    \"3584\": 3.7795839309692383,\n    \"4096\": 5.889535903930664,\n    \"4608\": 7.559679985046387\n  },\n  \"speedup\": {\n    \"3584\": 0.9852343672923342,\n    \"4096\": 0.9880901142653392,\n    \"4608\": 0.9865221570250864\n  },\n  \"torch_ms\": {\n    \"3584\": 3.7237759828567505,\n    \"4096\": 5.819392204284668,\n    \"4608\": 7.457791805267334\n  }\n}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"rank16_update_or_memory_bandwidth\",\n  \"evidence\": {\n    \"aggregate_speedup\": 0.9867630030013619,\n    \"details\": {\n      \"iters\": 10,\n      \"warmup\": 3\n    },\n    \"latency_ms\": {\n      \"3584\": 3.7795839309692383,\n      \"4096\": 5.889535903930664,\n      \"4608\": 7.559679985046387\n    },\n    \"speedup\": {\n      \"3584\": 0.9852343672923342,\n      \"4096\": 0.9880901142653392,\n      \"4608\": 0.9865221570250864\n    },\n    \"torch_ms\": {\n      \"3584\": 3.7237759828567505,\n      \"4096\": 5.819392204284668,\n      \"4608\": 7.457791805267334\n    }\n  },\n  \"suggested_actions\": [\n    \"vary block size\",\n    \"try float4 stores when d is divisible by 4\",\n    \"fall back to ATen if numerical error appears\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "86b369c09580501aaf8273f7f6c7b37b0d1488a57941c96307267c0f9f08dc37"
+  },
+  "response": {
+    "content_chars": 1688,
+    "content_preview": "{\n  \"bottleneck\": \"rank16_update_or_memory_bandwidth\",\n  \"confidence\": \"medium\",\n  \"evidence\": [\n    \"Aggregate speedup 0.987 < 1.0, with per-shape speedups 0.985 (3584), 0.988 (4096), 0.987 (4608), all below baseline.\",\n    \"Correctness is perfect (max_abs_err=0.0, rel_l2_err=0.0), so performance regression is not due to numerical issues.\",\n    \"Baseline (torch) likely uses cuBLAS for the rank-16 matmuls, which is highly optimized even for small K=16.\",\n    \"Custom two-kernel approach writes intermediate C (16\u00d7d) to global memory and reads it back, adding bandwidth pressure.\",\n    \"Block size 256 may be suboptimal for K=16, leading to low occupancy or wasted threads.\",\n    \"Vector width 4 suggests float4 loads, but stores may not be vectorized, causing inefficient memory transactions.\"\n  ],\n  \"recommended_actions\": [\n    \"Profile the two custom kernels separately to pinpoint whether B.T @ X or Y += A @ C is the bottleneck.\",\n    \"Experiment with smaller block sizes (e.g., 128, 64) to improve occupancy for the thin K=16 dimension.\",\n    \"Ensure both loads and stores use float4 vectorization when d is divisible by 4.\",\n    \"Fuse the two rank-16 kernels into a single kernel that computes Y += A @ (B.T @ X) without materializing C, reducing global memory traffic.\",\n    \"Consider using shared memory to cache A and B tiles to reduce redundant global loads.\"\n  ],\n  \"avoid\": [\n    \"Replacing cuBLAS for the large W @ X GEMM (high risk, unlikely to beat cuBLAS).\",\n    \"Hardcoding hidden dimension d or relying on shape-specific tuning without dispatch.\",\n    \"Ignoring memory bandwidth and focusing only on launch overhead reduction.\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "ec06389e6d49a2e271ca95aa87cbcb6383b4fb4f89892548117271f40a7ab2a8",
+    "model": "DeepSeek-V4-Pro"
+  },
+  "run_id": "20260508T075106Z_pid155",
+  "started_ts": 1778227957.580902,
+  "status": "success"
+}

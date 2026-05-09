@@ -1,0 +1,9 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [],
+  "warnings": [
+    "No custom CUDA kernel; uses ATen operations which may be slower but are safe."
+  ]
+}

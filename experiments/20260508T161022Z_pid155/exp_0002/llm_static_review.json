@@ -1,0 +1,19 @@
+{
+  "errors": [
+    "First SGEMM (Y = W @ X) does not account for row-major to column-major conversion. Using opN/opN with leading dimensions d will compute X * W instead of W @ X.",
+    "Second SGEMM (U = B.T @ X) uses incorrect operation flags and dimension ordering. It computes X * B^T (invalid dimensions) instead of B^T * X. Should be opA=CUBLAS_OP_T, opB=CUBLAS_OP_N, with m=16, n=d, k=d.",
+    "Third SGEMM (Y += A @ U) has swapped A_ptr and B_ptr, computing U * A instead of A * U.",
+    "No CUDA error checking after cublasSgemm calls; missing cudaGetLastError or cublas status checks."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "To compute Y = W @ X in row-major, use cublasSgemm with CUBLAS_OP_T for both A and B, and swap m,n: cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_T, d, d, d, &alpha, Xc.data_ptr<float>(), d, Wc.data_ptr<float>(), d, &beta0, Y.data_ptr<float>(), d).",
+    "For U = B.T @ X, call cublasSgemm(handle, CUBLAS_OP_T, CUBLAS_OP_N, 16, d, d, &alpha, Bc.data_ptr<float>(), d, Xc.data_ptr<float>(), d, &beta0, U.data_ptr<float>(), 16).",
+    "For Y += A @ U, call cublasSgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, d, d, 16, &alpha, Ac.data_ptr<float>(), 16, U.data_ptr<float>(), d, &beta1, Y.data_ptr<float>(), d).",
+    "Add error checking after each cublasSgemm call, e.g., TORCH_CUDABLAS_CHECK(cublas_status);"
+  ],
+  "warnings": [
+    "U is allocated as {16, d} but its leading dimension is correctly set to 16 for the intended usage; however, due to SGEMM errors this becomes irrelevant."
+  ]
+}

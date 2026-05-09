@@ -1,0 +1,35 @@
+{
+  "avoid": [
+    "Do not rely solely on static review for syntax correctness; verify with actual compilation.",
+    "Avoid generation patterns that produce malformed member access like 'W. 2()'."
+  ],
+  "bottleneck": "compile_failure",
+  "confidence": "high",
+  "evidence": [
+    "Compilation failed with syntax errors on line 18: 'W. 2() == 2', etc.",
+    "Error type is pybind_or_signature_error, indicating invalid CUDA/C++ syntax.",
+    "Static review passed but actual compile revealed syntax errors, suggesting static analysis missed real issues."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "promoting uncompiled code"
+    ],
+    "bottleneck": "compile_failure",
+    "confidence": "high",
+    "evidence": [
+      "pybind_or_signature_error",
+      "Error building extension 'lora_candidate_ext_2_1778213956765': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_2_1778213956765 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "fall back to a simpler candidate",
+      "preserve current best"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Fix syntax errors in candidate.cu line 18: likely intended tensor dimension checks but used incorrect syntax.",
+    "Review and manually correct the generated code to handle shape validation properly.",
+    "Recompile and run correctness tests before any performance analysis."
+  ]
+}

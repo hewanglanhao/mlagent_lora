@@ -1,0 +1,36 @@
+{
+  "avoid": [
+    "Using .version() directly on torch::Tensor; it is not a public method.",
+    "Hardcoding hidden dimensions or tensors.",
+    "Implementing caching without version counters and device checks (unsafe)."
+  ],
+  "bottleneck": "compile_error",
+  "confidence": "high",
+  "evidence": [
+    "Static review passed with low risk, but compilation failed with 4 errors: 'class at::Tensor has no member version' on lines 58-61.",
+    "Candidate uses .version() which is not a public API in LibTorch; the correct approach is tensor.unsafeGetTensorImpl()->version_counter().current_version().",
+    "No benchmark or correctness results exist because the extension failed to build."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "promoting uncompiled code"
+    ],
+    "bottleneck": "compile_failure",
+    "confidence": "high",
+    "evidence": [
+      "pybind_or_signature_error",
+      "Error building extension 'lora_candidate_ext_1_1778241137576': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_1_1778241137576 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "fall back to a simpler candidate",
+      "preserve current best"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Replace W.version() with W.unsafeGetTensorImpl()->version_counter().current_version() and similarly for X, A, B.",
+    "After fixing compilation, re-evaluate correctness: ensure cache key prevents stale results across input mutations.",
+    "If caching is deemed safe, benchmark to see if the cache hit dominates after warmup in the given evaluation harness."
+  ]
+}

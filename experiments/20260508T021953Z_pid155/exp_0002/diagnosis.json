@@ -1,0 +1,34 @@
+{
+  "avoid": [
+    "Promoting this incorrect candidate",
+    "Using scalar-only kernels for matrix operations without careful numerical validation"
+  ],
+  "bottleneck": "correctness",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed for all shapes (3584, 4096, 4608) with max absolute errors up to 4.77 and relative L2 errors around 0.0003",
+    "Kernel uses scalar operations (vector_width=1) which may introduce numerical instability or bugs in the rank-16 update computation",
+    "No performance data available due to benchmark failure, but correctness failure dominates"
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.50091552734375, \"passed\": false, \"rel_l2_err\": 0.00028545944951474667}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0005447864532470703, \"passed\": false, \"rel_l2_err\": 0.00010944990208372474}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.7734375, \"passed\": false, \"rel_l2_err\": 0.0002918986137956381}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.7734375, \"rel_l2_err\": 0.0002918986137956381}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Debug and fix the custom rank-16 update kernel to ensure correct computation of A @ (B.T @ X)",
+    "Consider using vectorized loads/stores (e.g., float4) to improve numerical accuracy and performance",
+    "Test with a simple reference implementation to isolate the error source"
+  ]
+}

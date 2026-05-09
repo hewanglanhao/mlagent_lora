@@ -1,0 +1,39 @@
+{
+  "avoid": [
+    "Further micro-tuning the fused A@C+add kernel (block size, vector width) as it will not improve overall performance.",
+    "Hardcoding hidden dimensions or assuming d is always divisible by 4.",
+    "Adding complexity with shape\u2011specific dispatch when all shapes show identical behavior."
+  ],
+  "bottleneck": "WX_dominates",
+  "confidence": "high",
+  "evidence": [
+    "Correctness is perfect (max_abs_err=0.0, rel_l2_err=0.0) across all shapes.",
+    "Aggregate speedup is only 1.00045x, essentially no improvement over baseline.",
+    "Speedup per shape: 3584=1.00096, 4096=1.00026, 4608=1.00021, all negligible.",
+    "Profile summary indicates bottleneck is rank16_update_or_memory_bandwidth, but the fused kernel did not reduce overall latency, implying W@X (cuBLAS) dominates runtime.",
+    "Reducing launch count from 4 to 3 and using float4 vectorization did not yield measurable gains."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.000456456362009, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.7201919555664062, \"4096\": 5.818367958068848, \"4608\": 7.453183889389038}, \"speedup\": {\"3584\": 1.0009633984840438, \"4096\": 1.0002640140527759, \"4608\": 1.0002061039856185}, \"torch_ms\": {\"3584\": 3.7237759828567505, \"4096\": 5.819904088973999, \"4608\": 7.4547200202941895}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Profile to confirm that W@X (dense d\u00d7d GEMM) consumes >90% of time; if so, focus on optimizing or overlapping that part.",
+    "Consider using cuBLAS for all GEMMs and rely on CUDA graphs or streams to reduce launch overhead rather than custom kernels.",
+    "If rank-16 update becomes a bottleneck in future (e.g., after optimizing W@X), revisit fusion with proper unrolling and shared memory, but currently it is not the limiting factor."
+  ]
+}

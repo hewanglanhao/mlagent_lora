@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0010_static_code_review_1778207564819",
+  "duration_sec": 28.12806487083435,
+  "finished_ts": 1778207592.9473429,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": true,
+      "name": "scalar_rank16_two_kernels",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Moderate speedup by reducing launch overhead and customizing rank-16 update with correct scalar kernels",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260508T021953Z_pid155/exp_0002/candidate.cu"
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778207592.965645
+    }
+  ],
+  "request": {
+    "system_chars": 1239,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "c267bb4057c8aa1e9d6ff4a4a288dd7f56084b80c403f9a47c01f976fb923bf4",
+    "user_chars": 4857,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": true,\n  \"name\": \"scalar_rank16_two_kernels\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Moderate speedup by reducing launch overhead and customizing rank-16 update with correct scalar kernels\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <cuda_runtime.h>\n#include <c10/cuda/CUDAGuard.h>\n\n#define CHECK_CUDA_ERROR(ans) { gpuAssert((ans), __FILE__, __LINE__); }\ninline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true) {\n   if (code != cudaSuccess) {\n      fprintf(stderr,\"CUDA error: %s %s %d\\n\", cudaGetErrorString(code), file, line);\n      if (abort) exit(code);\n   }\n}\n\nnamespace {\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"all inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be rank-2 tensors\");\n    int64_t d = W.size(0);\n    TORCH_CHECK(W.size(1) == d && X.size(0) == d && X.size(1) == d,\n                \"W and X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == 16 &&\n                B.size(0) == d && B.size(1) == 16,\n                \"A and B must be d x 16\");\n}\n\n// Kernel 1: Compute T = B^T @ X, T is 16 x d\n__global__ void bt_x_kernel(const float* B, const float* X, float* T, int d) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int total = 16 * d;\n    if (idx >= total) return;\n    int r = idx / d;         // row in T (0..15)\n    int c = idx % d;         // column in T (0..d-1)\n    float sum = 0.0f;\n    // Loop over common dimension k (0..d-1)\n    for (int k = 0; k < d; ++k) {\n        // B[k][r] = B[k * 16 + r]\n        // X[k][c] = X[k * d + c]\n        sum += B[k * 16 + r] * X[k * d + c];\n    }\n    T[r * d + c] = sum;\n}\n\n// Kernel 2: Compute Y += A @ T, with fully unrolled rank-16 loop\n__global__ void a_t_add_kernel(const float* A, const float* T, float* Y, int d) {\n    int idx = blockIdx.x * blockDim.x + threadIdx.x;\n    int total = d * d;\n    if (idx >= total) return;\n    int i = idx / d;         // row in Y\n    int j = idx % d;         // column in Y\n    float update = 0.0f;\n    #pragma unroll\n    for (int r = 0; r < 16; ++r) {\n        // A[i][r] = A[i * 16 + r]\n        // T[r][j] = T[r * d + j]\n        update += A[i * 16 + r] * T[r * d + j];\n    }\n    Y[idx] += update;\n}\n\n} // namespace\n\ntorch::Tensor forward(torch::Tensor W,\n                      torch::Tensor X,\n                      torch::Tensor A,\n                      torch::Tensor B) {\n    check_inputs(W, X, A, B);\n    const at::cuda::OptionalCUDAGuard device_guard(device_of(W));\n\n    auto Wc = W.contiguous();\n    auto Xc = X.contiguous();\n    auto Ac = A.contiguous();\n    auto Bc = B.contiguous();\n\n    int64_t d = W.size(0);\n\n    // Step 1: Y = W @ X  (cuBLAS via ATen)\n    auto Y = at::matmul(Wc, Xc);  // d x d, contiguous\n\n    // Step 2: Compute T = B^T @ X, shape (16, d)\n    auto T = torch::empty({16, d}, torch::dtype(torch::kFloat32).device(torch::kCUDA));\n    const int block_size = 256;\n    int total_btx = 16 * d;\n    dim3 grid_btx((total_btx + block_size - 1) / block_size);\n    bt_x_kernel<<<gri\n...<trimmed>...",
+    "user_sha256": "7cbdfdb820a2bcb8de4f59539a9b7482eaa2b7ed232bd42021bf6e96fee23804"
+  },
+  "response": {
+    "content_chars": 455,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"medium\",\n  \"errors\": [],\n  \"warnings\": [\n    \"The CUDA error macro calls exit() on failure, which will crash the Python process instead of raising an exception. This violates PyTorch extension conventions and makes debugging difficult.\"\n  ],\n  \"suggested_fixes\": [\n    \"Replace CHECK_CUDA_ERROR with a version that throws a C++ exception (e.g., std::runtime_error) or uses TORCH_CHECK to report errors gracefully.\"\n  ]\n}",
+    "content_sha256": "393e89a6d3f1aa5db36c6359e0c333b2bfbd19e254ecd95b04e24384afd818cd",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T021953Z_pid155",
+  "started_ts": 1778207564.819278,
+  "status": "success"
+}

@@ -1,0 +1,21 @@
+{
+  "errors": [
+    "Kernel fused_lora_kernel does not correctly compute A @ (B.T @ X). The shared memory reduction logic is flawed: only diagonal elements of the 16xTILE_N submatrix are computed, leading to incorrect results.",
+    "Macro CUDA_CHECK is used but not defined in the code; will cause compilation error or undefined behavior.",
+    "Incorrect use of __syncthreads() inside conditional branches (inside if (l_global < d && local_row < TILE_L) block), which can cause deadlock or undefined behavior.",
+    "The kernel does not implement float4 vectorization despite being claimed; performance may be suboptimal."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Replace the fused kernel with a correct implementation: compute M = B.T @ X using a fast column-major approach (e.g., using shared memory tiling for the product) and then compute A @ M with another kernel or fused step.",
+    "Define CUDA_CHECK as: #define CU_CHECK(ans) { gpuAssert((ans), __FILE__, __LINE__); } or use AT_CUDA_CHECK.",
+    "Move __syncthreads() outside conditional branches to ensure all threads in the block synchronize.",
+    "Consider using existing ATen operations (e.g., torch::matmul) for the LoRA part if a custom kernel is not well-tested, or implement a correct and efficient fused kernel using appropriate algorithmic patterns."
+  ],
+  "warnings": [
+    "The kernel may suffer from low occupancy due to shared memory limitations (s_M is 16x16 floats = 1KB, but also s_prod is TILE_L x RANK = 16x16 = 1KB, total 2KB, which is acceptable but could be optimized).",
+    "No effective tiling for large d; the kernel launches many blocks but each block only processes a small tile, and the reduction over L uses a sequential loop that may be inefficient for d up to 4608.",
+    "Potential race condition: final reads from Y_input and writes to Y_output are to the same tensor without synchronization; however, for distinct (row, col) pairs this is safe because each element is written by exactly one thread. But the kernel does not ensure that all reads of Y_input happen before any writes? They happen in the same thread, so it's fine."
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "bytes": 4101,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 2,
+    "llm_generated": true,
+    "name": "scalar_rank16_two_kernels",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Moderate speedup by reducing launch overhead and customizing rank-16 update with correct scalar kernels",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "enabled": true,
+  "origin": "llm"
+}

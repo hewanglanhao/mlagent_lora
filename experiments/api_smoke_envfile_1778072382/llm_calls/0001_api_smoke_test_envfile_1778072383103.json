@@ -1,0 +1,23 @@
+{
+  "agent": "api_smoke_test_envfile",
+  "call_id": "0001_api_smoke_test_envfile_1778072383103",
+  "duration_sec": 0.5087680816650391,
+  "error": "LLM request failed: AttributeError: 'str' object has no attribute 'choices'",
+  "finished_ts": 1778072383.6123555,
+  "llm_status": "LLM enabled with model gpt-5.4 via OpenAI SDK.",
+  "metadata": {
+    "purpose": "verify_real_api_call_from_env_file"
+  },
+  "model": "gpt-5.4",
+  "request": {
+    "system_chars": 48,
+    "system_preview": "You are an API smoke test. Reply with JSON only.",
+    "system_sha256": "426d6bda9b121095ea8f393476023074b593fe21f3f59ce7c018ff88ee0f319c",
+    "user_chars": 85,
+    "user_preview": "Return exactly this JSON object and nothing else: {\"ok\": true, \"source\": \"api_smoke\"}",
+    "user_sha256": "47c88695d21a871fded75a7db740e7ebc86c267f89ea73418a9a977c7098eda7"
+  },
+  "run_id": "api_smoke_envfile_1778072382",
+  "started_ts": 1778072383.1035874,
+  "status": "error_or_empty"
+}

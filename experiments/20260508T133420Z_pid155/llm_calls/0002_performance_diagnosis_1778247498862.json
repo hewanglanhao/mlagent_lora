@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0002_performance_diagnosis_1778247498862",
+  "duration_sec": 20.117647409439087,
+  "finished_ts": 1778247518.980322,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "aten_reference",
+      "id": 0,
+      "llm_generated": false,
+      "name": "baseline_aten",
+      "parent": null,
+      "shape_dispatch": false,
+      "strategy": "",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778247518.9818609
+    }
+  ],
+  "request": {
+    "system_chars": 1563,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- Actively compare candidates against the `candidate_002_precompute.cu` direction: precompute `Weff = W + A @ B.T`, then use one cuBLAS-backed `Weff @ X` GEMM.\n- When diagnosing a precompute candidate, weigh the temporary `Weff` allocation/copy and rank-16 outer-product cost against any reduction in launch overhead or small-GEMM/update overhead.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "9762c12f1114af6e18aea786a609c6798dd5b828534360ca18e59b297a42f299",
+    "user_chars": 2572,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"aten_reference\",\n  \"id\": 0,\n  \"llm_generated\": false,\n  \"name\": \"baseline_aten\",\n  \"parent\": null,\n  \"shape_dispatch\": false,\n  \"strategy\": \"\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 222.6949737619143,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_0_1778247275229\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": true,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0,\n      \"passed\": true,\n      \"rel_l2_err\": 0.0\n    }\n  },\n  \"failed_shapes\": [],\n  \"max_abs_err\": 0.0,\n  \"rel_l2_err\": 0.0\n}\n\nBenchmark result:\n\n{\n  \"aggregate_speedup\": 0.9996617635689264,\n  \"details\": {\n    \"iters\": 10,\n    \"warmup\": 3\n  },\n  \"latency_ms\": {\n    \"3584\": 3.724287986755371,\n    \"4096\": 5.823487997055054,\n    \"4608\": 7.4552319049835205\n  },\n  \"speedup\": {\n    \"3584\": 0.9997250460219825,\n    \"4096\": 0.9998241590267278,\n    \"4608\": 0.9993819538388019\n  },\n  \"torch_ms\": {\n    \"3584\": 3.72326397895813,\n    \"4096\": 5.8224639892578125,\n    \"4608\": 7.450624227523804\n  }\n}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"multiple_aten_gemm_and_add_launches\",\n  \"evidence\": {\n    \"aggregate_speedup\": 0.9996617635689264,\n    \"details\": {\n      \"iters\": 10,\n      \"warmup\": 3\n    },\n    \"latency_ms\": {\n      \"3584\": 3.724287986755371,\n      \"4096\": 5.823487997055054,\n      \"4608\": 7.4552319049835205\n    },\n    \"speedup\": {\n      \"3584\": 0.9997250460219825,\n      \"4096\": 0.9998241590267278,\n      \"4608\": 0.9993819538388019\n    },\n    \"torch_ms\": {\n      \"3584\": 3.72326397895813,\n      \"4096\": 5.8224639892578125,\n      \"4608\": 7.450624227523804\n    }\n  },\n  \"suggested_actions\": [\n    \"keep cuBLAS for W @ X\",\n    \"fuse rank-16 update into the output tensor\",\n    \"test scalar and vectorized rank-16 kernels\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "8312508b9190511803c47bbff840c3f5bf4a1f6fc9658d62a1c2585353539930"
+  },
+  "response": {
+    "content_chars": 1199,
+    "content_preview": "{\n  \"bottleneck\": \"multiple_aten_gemm_and_add_launches\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"speedup of 1.0 indicates identical performance to torch reference\",\n    \"correctness passes with zero error for all tested shapes\",\n    \"latency scales with d^3, matching expected GEMM behavior\",\n    \"profile summary consistently attributes bottleneck to multiple separate kernel launches\",\n    \"no compile or static issues\"\n  ],\n  \"recommended_actions\": [\n    \"keep cuBLAS for W @ X since it is already optimal\",\n    \"fuse the rank-16 update (B.T @ X and A @ result) into a single custom kernel to reduce launch overhead\",\n    \"evaluate precomputing Weff = W + A @ B.T and using a single Weff @ X GEMM, weighing extra allocation and outer-product cost against launch savings\",\n    \"test vectorized and unrolled versions of the rank-16 update to improve memory bandwidth and occupancy\"\n  ],\n  \"avoid\": [\n    \"do not rewrite the full GEMM from scratch; cuBLAS is already best-in-class for the large matrix multiply\",\n    \"do not hardcode hidden dimensions or hidden tensors\",\n    \"do not allocate unnecessary intermediate tensors for the rank-16 path\"\n  ],\n  \"promotion_advice\": \"needs_more_data\"\n}",
+    "content_sha256": "703d5ad089a10e7f56806995e85babbf1b9bc8936b2b4bd64549693614a382ad",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T133420Z_pid155",
+  "started_ts": 1778247498.8626745,
+  "status": "success"
+}

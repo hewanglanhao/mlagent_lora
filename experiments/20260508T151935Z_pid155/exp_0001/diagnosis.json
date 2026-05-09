@@ -1,0 +1,35 @@
+{
+  "avoid": [
+    "Do not replace the pure cuBLAS approach with handwritten kernels or ATen mm calls because of a trivial API issue.",
+    "Do not hardcode dimensions or use result caching as a workaround."
+  ],
+  "bottleneck": "compile_error",
+  "confidence": "high",
+  "evidence": [
+    "Compilation failed with error: namespace 'at::cuda' has no member 'getCurrentCUDABlasHandle'",
+    "The candidate never executed; no correctness or performance data available.",
+    "Static review passed with low risk, indicating code logic is sound but API usage is incorrect."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "promoting uncompiled code"
+    ],
+    "bottleneck": "compile_failure",
+    "confidence": "high",
+    "evidence": [
+      "pybind_or_signature_error",
+      "Error building extension 'lora_candidate_ext_1_1778254384990': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_1_1778254384990 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "fall back to a simpler candidate",
+      "preserve current best"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Replace at::cuda::getCurrentCUDABlasHandle() with the correct PyTorch cuBLAS handle retrieval API, such as at::cuda::getCurrentCUDABlasHandle() after ensuring proper includes, or use at::cuda::blas::getCublasHandle() if available.",
+    "Alternatively, include <ATen/cuda/CUDABlas.h> and use at::cuda::getCurrentCUDABlasHandle() if the function exists in the installed PyTorch version; otherwise, fall back to cublasCreate/cublasDestroy with a static cached handle.",
+    "Recompile and re-run correctness and benchmark tests after the fix."
+  ]
+}

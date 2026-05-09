@@ -1,0 +1,17 @@
+{
+  "errors": [
+    "Out-of-bounds read in C tile loading: the condition `global_col < d` does not guarantee that `global_col + 3 < d`, so a float4 load may read up to 3 elements beyond the allocated C tensor when d is not a multiple of 4.",
+    "Misaligned memory access for C: the pointer `C + row * d + global_col` may not be 16-byte aligned when d is not a multiple of 4, causing undefined behavior for the float4 load."
+  ],
+  "pass": false,
+  "risk_level": "high",
+  "suggested_fixes": [
+    "Replace the vectorized float4 load for C with scalar loads or add a boundary check `global_col + 3 < d` and handle partial loads safely.",
+    "Avoid vectorized loads for C entirely if alignment cannot be guaranteed, or use `cudaMallocPitch`-style allocation with padded leading dimension, but that would require changing the tensor layout. A simpler fix is to use scalar loads for C.",
+    "Add `cudaError_t err = cudaGetLastError(); if (err != cudaSuccess) { throw std::runtime_error(cudaGetErrorString(err)); }` after the kernel launch."
+  ],
+  "warnings": [
+    "No CUDA kernel launch error checking after `fused_ac_add_kernel<<<...>>>`; a launch failure could go undetected.",
+    "The kernel uses only 64 of 256 threads for tile loading; the remaining threads are idle, which is inefficient but not incorrect."
+  ]
+}

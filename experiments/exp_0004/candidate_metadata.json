@@ -1,0 +1,9 @@
+{
+  "block_size": 128,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 4,
+  "name": "rank16_vec4_b128",
+  "parent": 0,
+  "use_fast_math": false,
+  "vector_width": 4
+}

@@ -1,0 +1,27 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_wx_fused_rank16_add"
+    ],
+    "priority_order": [
+      "cublas_wx_fused_rank16_add"
+    ],
+    "rationale": "Fusing the rank-16 path (B.T @ X and A @ intermediate) and the addition into a single custom kernel reduces kernel launch overhead and intermediate memory writes, while keeping cuBLAS for the large W @ X GEMM ensures no regression on the dominant computation.",
+    "risk_controls": [
+      "keep_cublas_for_wx",
+      "shape_generic_kernel",
+      "correctness_gate"
+    ],
+    "stop_conditions": [
+      "speedup_above_1.05",
+      "max_candidates_3"
+    ],
+    "strategy": "fuse_rank16_update"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "fuse_rank16_update"
+}

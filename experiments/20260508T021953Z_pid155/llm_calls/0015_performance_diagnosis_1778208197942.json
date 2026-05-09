@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0015_performance_diagnosis_1778208197942",
+  "duration_sec": 13.881425380706787,
+  "finished_ts": 1778208211.8242126,
+  "llm_status": "LLM enabled with model deepseek-reasoner from BASE_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 3,
+      "llm_generated": true,
+      "name": "rank16_scalar_b128",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "deepseek-reasoner",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778208211.8261564
+    }
+  ],
+  "request": {
+    "system_chars": 1215,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, and launch overhead.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "8878a9be0a533cead46299fdae5996c8c11a2ff8a7ca72c4c833e98e4fd49f0e",
+    "user_chars": 1756,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 3,\n  \"llm_generated\": true,\n  \"name\": \"rank16_scalar_b128\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 214.39438605098985,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_3_1778207983374\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.50091552734375,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00028545944951474667\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0005447864532470703,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00010944990208372474\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 4.7734375,\n      \"passed\": false,\n      \"rel_l2_err\": 0.0002918986137956381\n    }\n  },\n  \"failed_shapes\": [\n    3584,\n    4096,\n    4608\n  ],\n  \"max_abs_err\": 4.7734375,\n  \"rel_l2_err\": 0.0002918986137956381\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "52589c462582b190afc12cd37fe10d22ef3ada610040ddf48d091b9ac3a79b40"
+  },
+  "response": {
+    "content_chars": 1007,
+    "content_preview": "{\n  \"bottleneck\": \"correctness_error\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Correctness false for all tested shapes (3584, 4096, 4608)\",\n    \"Max absolute error reaches 4.7734375 at d=4608\",\n    \"Relative L2 error up to 0.0002919, far above expected round-off\",\n    \"No benchmark data available, but correctness failure dominates\"\n  ],\n  \"recommended_actions\": [\n    \"Thoroughly review the custom rank-16 update kernel for indexing errors, uninitialized memory, or incorrect accumulation order\",\n    \"Add bounds checks or assertions for dimension-dependent loops\",\n    \"Test with known small dimensions to isolate the bug\",\n    \"Consider using vectorized loads/stores (float4) to improve memory access pattern and potentially reduce numerical side effects\"\n  ],\n  \"avoid\": [\n    \"Deploying this candidate or promoting it\",\n    \"Using fast math which could exacerbate numerical errors\",\n    \"Ignoring the max absolute error; even small errors are not acceptable\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "8f607f9ff2d50d24ee71021e9a35e3dd58a667cf0a90bb10c447c0d3c3d9b020",
+    "model": "deepseek-reasoner"
+  },
+  "run_id": "20260508T021953Z_pid155",
+  "started_ts": 1778208197.9427872,
+  "status": "success"
+}
