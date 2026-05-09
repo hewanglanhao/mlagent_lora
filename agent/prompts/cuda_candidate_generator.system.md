@@ -37,11 +37,11 @@ Performance guidance:
 - First compute the row-major main term W @ X into Y by using the equivalent column-major cuBLAS multiplication ordering.
 - Then compute a temporary tensor U with row-major shape {d, 16}; from the column-major cuBLAS view, it should represent the low-rank intermediate without explicitly constructing B.T.
 - Finally accumulate the low-rank term into Y using a third SGEMM with beta = 1 so no separate add kernel is needed.
-- Match the qyh-style three-SGEMM mapping unless the requested strategy explicitly says otherwise:
-  - SGEMM 1: use X and W in column-major view to produce Y, with m=d, n=d, k=d, all leading dimensions d, alpha=1, beta=0.
-  - SGEMM 2: allocate U as a PyTorch tensor with shape {d,16}; write U using m=d, n=16, k=d, leading dimension of X/Y-style d for X and U, leading dimension 16 for B, alpha=1, beta=0, and a cuBLAS transpose flag instead of materializing B.T.
-  - SGEMM 3: accumulate the low-rank term into Y using m=d, n=d, k=16, U leading dimension d, A leading dimension 16, alpha=1, beta=1.
-- Do not switch to a competing U interpretation with m=16, n=d, or leading dimension 16 for U. That layout is easy to make shape-dependent and has failed correctness in prior runs.
+- For the preferred strategy, match this qyh-style three-SGEMM mapping exactly:
+  - SGEMM 1 must use opA=N, opB=N, m=d, n=d, k=d, A pointer = X, lda=d, B pointer = W, ldb=d, C pointer = Y, ldc=d, alpha=1, beta=0. This computes row-major W @ X through the column-major view. Do not use opA=T/opB=T here.
+  - SGEMM 2 must allocate U as a PyTorch tensor with shape {d,16}; use opA=N, opB=T, m=d, n=16, k=d, A pointer = X, lda=d, B pointer = B, ldb=16, C pointer = U, ldc=d, alpha=1, beta=0. U's row-major transpose is the logical B.T @ X intermediate. Do not compute row-major X @ B.T.
+  - SGEMM 3 must use opA=N, opB=N, m=d, n=d, k=16, A pointer = U, lda=d, B pointer = A, ldb=16, C pointer = Y, ldc=d, alpha=1, beta=1. This accumulates row-major A @ (B.T @ X) into the existing Y. Do not use opA=T/opB=T here.
+- Do not switch to a competing U interpretation with m=16, n=d, or leading dimension 16 for U. Do not use the generic row-major GEMM recipe with opA=T/opB=T for this operator; it has produced transposed outputs and correctness failures in prior runs.
 - Keep the code compact and robust; include short comments for the three layout conversions, but do not introduce explanatory scaffolding, test code, or extra entrypoints.
 - Avoid explicit transpose-copy materialization such as `B.transpose(...).contiguous()` when cuBLAS operation flags can express the needed transpose.
 - Be meticulous about cuBLAS operation flags, m/n/k dimensions, leading dimensions, alpha/beta, and memory layout comments.

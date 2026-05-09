@@ -21,10 +21,10 @@ Allowed mutation types:
 - Accumulate the low-rank contribution into Y through the final SGEMM with beta = 1 rather than launching a separate add kernel.
 - Adjust cuBLAS operation flags, leading dimensions, alpha/beta values, stream binding, and temporary allocation strategy.
 - For the preferred qyh-style mapping, make the mutation explicitly request:
-  - main SGEMM: row-major W @ X via the column-major view using X and W, with dimensions d,d,d and leading dimensions d;
-  - low-rank intermediate SGEMM: U allocated as {d,16}, written with m=d, n=16, k=d, leading dimension of U equal to d, and no explicit B.T tensor;
-  - final SGEMM: accumulate into Y with m=d, n=d, k=16, U leading dimension d, A leading dimension 16, and beta=1.
-- Avoid proposing the alternative U layout that treats U as column-major [16,d] with leading dimension 16; that layout previously produced shape-dependent correctness failures.
+  - main SGEMM: opA=N, opB=N, m=d, n=d, k=d, A=X, B=W, C=Y, all leading dimensions d, beta=0;
+  - low-rank intermediate SGEMM: U allocated as {d,16}, opA=N, opB=T, m=d, n=16, k=d, A=X, B=B, C=U, lda=d, ldb=16, ldc=d, beta=0;
+  - final SGEMM: opA=N, opB=N, m=d, n=d, k=16, A=U, B=A, C=Y, lda=d, ldb=16, ldc=d, beta=1.
+- Avoid proposing generic row-major SGEMM recipes that use opA=T/opB=T for these calls. Avoid the alternative U layout that treats U as column-major [16,d] with leading dimension 16; these variants previously produced correctness failures.
 - Add broad shape checks and safe fallback only if direct cuBLAS constraints are not met.
 - Request one more benchmark or profile run for a promising candidate.
 
