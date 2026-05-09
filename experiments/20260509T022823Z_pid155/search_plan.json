@@ -1,0 +1,38 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_three_sgemm_no_transpose_materialization"
+    ],
+    "priority_order": [
+      "Implement a direct cuBLAS candidate using three cublasSgemm calls on the current PyTorch CUDA stream: first compute Y = W @ X via column-major reinterpretation, second compute the rank-16 intermediate without materializing B.T, third accumulate A @ intermediate into Y with beta = 1.",
+      "If the first cuBLAS candidate is correct but only noise-level faster, test low-risk cuBLAS parameter/layout variants for the temporary U shape and op flags while preserving the same three-SGEMM structure.",
+      "Only after a correct pure-cuBLAS baseline is benchmarked across all d values, consider shape-aware dispatch among verified cuBLAS variants; do not move to handwritten kernels yet."
+    ],
+    "rationale": "The prior candidate is just an ATen reference with noise-level speedup. The next lowest-risk optimization is the preferred pure cuBLAS three-SGEMM path: keep the dominant dense GEMM in cuBLAS, remove ATen launch overhead, avoid explicit B.T materialization, compute a d-by-16 temporary for the rank-16 path using transpose flags/layout reinterpretation, and accumulate the final low-rank update directly into Y with beta = 1.",
+    "risk_controls": [
+      "Do not promote any candidate unless static review, compilation, correctness, and benchmarks pass.",
+      "Use cuBLAS directly for the main W @ X GEMM; do not route main multiplications through ATen mm or matmul.",
+      "Bind cuBLAS work to at::cuda::getCurrentCUDAStream() and allocate outputs/temporaries with torch CUDA tensors.",
+      "Avoid B.transpose(0, 1).contiguous() or any explicit transpose-copy materialization.",
+      "Use runtime d from tensor sizes and fixed rank 16 only; do not hardcode one benchmark shape.",
+      "Add TORCH_CHECK guards for CUDA, float32, contiguity, shapes W/X dxd and A/B dx16, and consistent device.",
+      "Carefully verify cuBLAS m/n/k/lda/ldb/ldc and transpose flags under row-major memory reinterpreted as column-major.",
+      "Accumulate the low-rank term into Y using the third SGEMM with beta = 1.0f to avoid a separate add kernel.",
+      "Benchmark across d = 3584, 4096, and 4608 and reject shape-specific regressions unless a verified dispatch variant handles them."
+    ],
+    "stop_conditions": [
+      "Stop and reject the candidate if any correctness test fails for any tested d.",
+      "Stop and fix layout/op flags if max_abs_err or rel_l2_err is nonzero beyond tolerance, since likely row-major/column-major mapping is wrong.",
+      "Stop exploring ATen-reference mutations because the current baseline is only noise-level faster.",
+      "Stop promoting if aggregate speedup is noise-level or if any required shape regresses materially.",
+      "Stop this family only after at least one correct pure cuBLAS three-SGEMM implementation has been benchmarked across all target d values."
+    ],
+    "strategy": "pure_cublas_three_sgemm_rowmajor_reinterpret"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_three_sgemm_rowmajor_reinterpret"
+}

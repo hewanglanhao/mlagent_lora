@@ -1,0 +1,46 @@
+{
+  "avoid": [
+    "Do not optimize based on speed because there is no valid benchmark for an incorrect candidate.",
+    "Do not add handwritten full GEMM kernels for W @ X.",
+    "Do not hardcode d=4096 or any hidden dimension-specific assumption.",
+    "Do not materialize B.T as a separate transpose-copy.",
+    "Do not use result caching unless the benchmark explicitly defines repeated identical inputs as the target workload.",
+    "Do not promote based on the single passing 4096 shape while 3584 and 4608 fail."
+  ],
+  "bottleneck": "incorrect_cublas_layout_or_math_mode",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed overall, so performance cannot be evaluated or promoted.",
+    "Shapes 3584 and 4608 fail correctness while 4096 passes; this suggests a shape-dependent cuBLAS layout/leading-dimension/op-flag issue or a numerical-mode mismatch rather than a general speed improvement.",
+    "Outputs are finite and relative L2 error is small, but max absolute error reaches 0.037109375 at d=4608, exceeding the correctness threshold.",
+    "Benchmark result is unavailable because correctness failed.",
+    "The candidate is intended to be a pure cuBLAS three-SGEMM path, which is the right optimization direction, but it must first be repaired and validated for all runtime d values."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00286865234375, \"passed\": false, \"rel_l2_err\": 1.6372429172406555e-06}, \"4096\": {\"finite\": true, \"max_abs_err\": 7.62939453125e-06, \"passed\": true, \"rel_l2_err\": 1.4748595731362002e-06}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.037109375, \"passed\": false, \"rel_l2_err\": 2.2274925868259743e-06}}, \"failed_shapes\": [3584, 4608], \"max_abs_err\": 0.037109375, \"rel_l2_err\": 2.2274925868259743e-06}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Do not promote this candidate until correctness passes for 3584, 4096, and 4608.",
+    "Audit the row-major-to-column-major cuBLAS mapping for all three SGEMMs: op flags, m/n/k, lda/ldb/ldc, and alpha/beta values.",
+    "Use direct cuBLAS SGEMM for the main term W @ X; do not replace the dense d x d GEMM with a custom kernel.",
+    "Keep the low-rank path as cuBLAS SGEMMs rather than handwritten rank-16 kernels.",
+    "Avoid explicit B.T materialization. Compute a temporary U with logical row-major shape d x 16 representing U = X.T @ B, equivalent to U.T = B.T @ X.",
+    "Then accumulate the low-rank term directly into Y with beta = 1 using a final rank-16 SGEMM for Y += A @ (B.T @ X).",
+    "A plausible cuBLAS row-major mapping is: main Y = W @ X via column-major view using A=X, B=W, C=Y with opN/opN and dimensions d,d,d; low-rank U using B with opN and X with opT to produce U storage d x 16; final update using U with opT and A with opN, m=d, n=d, k=16, beta=1.",
+    "Check whether cuBLAS math mode matches the reference. If the reference expects strict FP32, disable TF32 or use a pedantic FP32 compute mode before benchmarking.",
+    "Re-run correctness before collecting benchmark data."
+  ]
+}

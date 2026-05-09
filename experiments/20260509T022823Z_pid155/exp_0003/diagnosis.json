@@ -1,0 +1,45 @@
+{
+  "avoid": [
+    "Do not promote based on the single passing 4096 shape.",
+    "Do not optimize or benchmark further before fixing correctness.",
+    "Do not implement a custom full GEMM for W @ X; use cuBLAS SGEMM for the dominant main multiplication.",
+    "Do not hardcode a single hidden dimension or assume only d = 4096.",
+    "Do not materialize B.T as a separate transpose-copy unless profiling later proves it is unavoidable.",
+    "Do not use result caching as an optimization direction for this operator."
+  ],
+  "bottleneck": "correctness_failure",
+  "confidence": "high",
+  "evidence": [
+    "Candidate is not correct overall; correctness failure dominates performance considerations.",
+    "Shape 3584 failed with max_abs_err 0.00286865234375 and rel_l2_err 1.6372429172406555e-06.",
+    "Shape 4608 failed with max_abs_err 0.037109375 and rel_l2_err 2.2274925868259743e-06.",
+    "Only shape 4096 passed, so the implementation is not reliable across the required runtime-selected d range.",
+    "No benchmark data is available, so there is no validated performance benefit to offset the correctness risk.",
+    "The implementation family uses cuBLAS plus a custom rank-16 update; the failures likely come from the handwritten low-rank path, indexing/layout handling, or accumulation behavior rather than the main W @ X SGEMM."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.00286865234375, \"passed\": false, \"rel_l2_err\": 1.6372429172406555e-06}, \"4096\": {\"finite\": true, \"max_abs_err\": 7.62939453125e-06, \"passed\": true, \"rel_l2_err\": 1.4748595731362002e-06}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.037109375, \"passed\": false, \"rel_l2_err\": 2.2274925868259743e-06}}, \"failed_shapes\": [3584, 4608], \"max_abs_err\": 0.037109375, \"rel_l2_err\": 2.2274925868259743e-06}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this candidate until correctness is fixed for all supported shapes.",
+    "Move toward a pure cuBLAS three-SGEMM implementation: compute the main term with direct cuBLAS SGEMM for W @ X, compute the low-rank intermediate with cuBLAS SGEMM, and accumulate the final low-rank term into Y with cuBLAS SGEMM using beta = 1.",
+    "Avoid explicit B.T materialization; use the correct cuBLAS transpose flag for B in the low-rank SGEMM.",
+    "Use a temporary U with logical shape {d, 16}, corresponding to the low-rank intermediate in a layout compatible with the final accumulation.",
+    "Carefully re-check row-major PyTorch storage versus column-major cuBLAS interpretation: op flags, m/n/k dimensions, lda/ldb/ldc, and alpha/beta settings are the most likely sources of shape-dependent correctness errors.",
+    "Replace the handwritten rank-16 scalar update with cuBLAS SGEMM unless there is later strong evidence that the custom path is both correct and faster for every required d.",
+    "After implementing the pure cuBLAS path, validate correctness separately for d = 3584, 4096, and 4608 before benchmarking."
+  ]
+}

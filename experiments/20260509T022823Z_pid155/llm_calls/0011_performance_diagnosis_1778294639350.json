@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0011_performance_diagnosis_1778294639350",
+  "duration_sec": 22.805013179779053,
+  "finished_ts": 1778294662.1556578,
+  "llm_status": "LLM enabled with model gpt-5.5 from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": true,
+      "name": "rank16_scalar_b128",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "gpt-5.5",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778294662.1576312
+    }
+  ],
+  "request": {
+    "system_chars": 1904,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- Prefer analysis that moves the system toward a pure cuBLAS three-SGEMM implementation when that candidate has not yet been validated.\n- If W @ X dominates time, do not recommend a custom full GEMM; recommend direct cuBLAS SGEMM for the main term.\n- If the rank-16 path is slow or fragile, consider replacing handwritten rank-16 kernels with the cuBLAS low-rank SGEMM sequence.\n- Check whether the candidate avoids explicit B.T materialization, uses a temporary U with shape {d, 16}, and accumulates the low-rank term into Y with beta = 1.\n- If a pure cuBLAS candidate is incorrect, suspect row-major/column-major reasoning, cuBLAS op flags, m/n/k dimensions, leading dimensions, or alpha/beta settings before suggesting unrelated optimizations.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n- Do not recommend result caching as an optimization direction unless the benchmark explicitly evaluates repeated identical tensor inputs as a valid workload.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "e9b03f6335bcee0ede46db714a286153de99fa3328e76050eaec507d8f9ab83b",
+    "user_chars": 2215,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": true,\n  \"name\": \"rank16_scalar_b128\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 220.0517364658881,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_2_1778294419174\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.4866180419921875,\n      \"passed\": false,\n      \"rel_l2_err\": 0.0002940069534815848\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0011763572692871094,\n      \"passed\": false,\n      \"rel_l2_err\": 0.0002929686161223799\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 4.729248046875,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00029413163429126143\n    }\n  },\n  \"failed_shapes\": [\n    3584,\n    4096,\n    4608\n  ],\n  \"max_abs_err\": 4.729248046875,\n  \"rel_l2_err\": 0.00029413163429126143\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nDiagnosis emphasis:\n\n- Prefer recommendations that improve or repair the pure cuBLAS three-SGEMM path: direct cuBLAS for all multiplications, no ATen matrix multiply, no handwritten kernels, no explicit B.T transpose-copy, correct temporary U layout, and beta = 1 accumulation.\n- If the candidate is fast only because of result caching or repeated identical inputs, flag that as benchmark-specific rather than a general LoRA operator improvement.\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "1fdd2ed593d08dcffc141ff260e5045251abc1678baf2c7be7bf36537612b628"
+  },
+  "response": {
+    "content_chars": 2479,
+    "content_preview": "{\n  \"bottleneck\": \"incorrect_rank16_path\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Correctness fails for every tested shape: 3584, 4096, and 4608.\",\n    \"Errors are finite but systematic, with rel_l2_err about 2.94e-4 across all shapes, suggesting a consistent implementation/layout/accumulation issue rather than random instability.\",\n    \"max_abs_err reaches 4.729 at d=4608, so this is not a harmless tolerance-level difference.\",\n    \"No benchmark data is available because the candidate is incorrect; performance should not be considered.\",\n    \"The candidate uses a cuBLAS main path plus a handwritten/custom rank-16 update, making the custom low-rank path the most likely source of the error.\"\n  ],\n  \"recommended_actions\": [\n    \"Reject this candidate until correctness is fixed.\",\n    \"Move toward a pure cuBLAS three-SGEMM implementation: compute Y = W @ X with cuBLAS SGEMM, compute the rank-16 temporary with cuBLAS SGEMM, then accumulate the low-rank term into Y with cuBLAS SGEMM using beta = 1.\",\n    \"Avoid explicit B.T materialization. Instead compute a temporary U with logical shape {d, 16}, e.g. U = X.T @ B, then accumulate Y += A @ U.T.\",\n    \"Audit cuBLAS row-major versus column-major interpretation carefully: op flags, m/n/k dimensions, leading dimensions, and whether tensors are contiguous in PyTorch row-major layout.\",\n    \"Verify alpha and beta values for all SGEMMs, especially beta = 0 for initial Y = W @ X and beta = 1 for the final low-rank accumulation.\",\n    \"Add intermediate checks comparing the custom or cuBLAS rank-16 temporary against a torch reference to isolate whether the error is in B.T @ X / X.T @ B or in the final A multiplication/update.\",\n    \"Once the pure cuBLAS three-SGEMM path is correct across all shapes, benchmark it before considering any handwritten rank-16 kernel.\"\n  ],\n  \"avoid\": [\n    \"Do not promote based on any presumed speed because correctness failed.\",\n    \"Do not optimize or tune the handwritten rank-16 scalar kernel before establishing a correct cuBLAS baseline.\",\n    \"Do not implement a custom full W @ X GEMM; use direct cuBLAS SGEMM for the main term.\",\n    \"Do not hardcode hidden dimensions or assume only one d value.\",\n    \"Do not use explicit B.T transpose-copy unless profiling proves it is necessary after a correct baseline.\",\n    \"Do not use result caching as an optimization unless the benchmark explicitly validates repeated identical inputs.\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "2363d1a86601c1d2e4d4e677f97fb23cefe93472e36fa24846f557ffc3ae6efa",
+    "model": "gpt-5.5"
+  },
+  "run_id": "20260509T022823Z_pid155",
+  "started_ts": 1778294639.3506446,
+  "status": "success"
+}

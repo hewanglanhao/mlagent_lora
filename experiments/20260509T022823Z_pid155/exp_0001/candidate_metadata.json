@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 1,
+  "llm_generated": true,
+  "name": "pure_cublas_three_sgemm",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Removes ATen matmul/add overhead and explicit B.T transpose-copy while keeping the dominant dense GEMM in cuBLAS; final low-rank SGEMM accumulates directly into Y with beta=1, saving a separate add launch. Expected small but real improvement over baseline if cuBLAS row/column-major flags and leading dimensions are correct.",
+  "use_fast_math": false,
+  "vector_width": 1
+}

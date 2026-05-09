@@ -1,0 +1,44 @@
+{
+  "avoid": [
+    "Do not promote based on any presumed speed because correctness failed.",
+    "Do not optimize or tune the handwritten rank-16 scalar kernel before establishing a correct cuBLAS baseline.",
+    "Do not implement a custom full W @ X GEMM; use direct cuBLAS SGEMM for the main term.",
+    "Do not hardcode hidden dimensions or assume only one d value.",
+    "Do not use explicit B.T transpose-copy unless profiling proves it is necessary after a correct baseline.",
+    "Do not use result caching as an optimization unless the benchmark explicitly validates repeated identical inputs."
+  ],
+  "bottleneck": "incorrect_rank16_path",
+  "confidence": "high",
+  "evidence": [
+    "Correctness fails for every tested shape: 3584, 4096, and 4608.",
+    "Errors are finite but systematic, with rel_l2_err about 2.94e-4 across all shapes, suggesting a consistent implementation/layout/accumulation issue rather than random instability.",
+    "max_abs_err reaches 4.729 at d=4608, so this is not a harmless tolerance-level difference.",
+    "No benchmark data is available because the candidate is incorrect; performance should not be considered.",
+    "The candidate uses a cuBLAS main path plus a handwritten/custom rank-16 update, making the custom low-rank path the most likely source of the error."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.4866180419921875, \"passed\": false, \"rel_l2_err\": 0.0002940069534815848}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0011763572692871094, \"passed\": false, \"rel_l2_err\": 0.0002929686161223799}, \"4608\": {\"finite\": true, \"max_abs_err\": 4.729248046875, \"passed\": false, \"rel_l2_err\": 0.00029413163429126143}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 4.729248046875, \"rel_l2_err\": 0.00029413163429126143}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this candidate until correctness is fixed.",
+    "Move toward a pure cuBLAS three-SGEMM implementation: compute Y = W @ X with cuBLAS SGEMM, compute the rank-16 temporary with cuBLAS SGEMM, then accumulate the low-rank term into Y with cuBLAS SGEMM using beta = 1.",
+    "Avoid explicit B.T materialization. Instead compute a temporary U with logical shape {d, 16}, e.g. U = X.T @ B, then accumulate Y += A @ U.T.",
+    "Audit cuBLAS row-major versus column-major interpretation carefully: op flags, m/n/k dimensions, leading dimensions, and whether tensors are contiguous in PyTorch row-major layout.",
+    "Verify alpha and beta values for all SGEMMs, especially beta = 0 for initial Y = W @ X and beta = 1 for the final low-rank accumulation.",
+    "Add intermediate checks comparing the custom or cuBLAS rank-16 temporary against a torch reference to isolate whether the error is in B.T @ X / X.T @ B or in the final A multiplication/update.",
+    "Once the pure cuBLAS three-SGEMM path is correct across all shapes, benchmark it before considering any handwritten rank-16 kernel."
+  ]
+}

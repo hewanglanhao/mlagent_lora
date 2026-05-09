@@ -1,0 +1,46 @@
+{
+  "avoid": [
+    "Do not promote this ATen reference candidate based on noise-level speedup.",
+    "Do not write a custom kernel for the full W @ X GEMM; cuBLAS should handle the dominant dense GEMM.",
+    "Do not prioritize handwritten rank-16 kernels before validating the simpler pure cuBLAS three-SGEMM sequence.",
+    "Do not hardcode hidden dimensions beyond using the runtime tensor sizes and fixed rank 16.",
+    "Do not use explicit B.T materialization unless profiling proves it is beneficial, which is unlikely here.",
+    "Do not use result caching; the operator must handle general input tensors, not repeated identical benchmark inputs."
+  ],
+  "bottleneck": "aten_reference_no_speedup",
+  "confidence": "high",
+  "evidence": [
+    "Candidate is correct for all tested shapes with max_abs_err=0 and rel_l2_err=0.",
+    "Aggregate speedup is effectively 1.0: 1.00005x versus torch baseline.",
+    "Per-shape speedups are noise-level: 3584 regresses slightly to 0.99945x, 4096 improves to 1.00044x, 4608 improves to 1.00014x.",
+    "Profile identifies multiple ATen GEMM/add launches, consistent with this being the unoptimized ATen reference path.",
+    "Latency is dominated by the large W @ X GEMM, so the main term should remain a direct cuBLAS SGEMM rather than a custom full GEMM."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0000523465244806, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.729408025741577, \"4096\": 5.82144021987915, \"4608\": 7.456768035888672}, \"speedup\": {\"3584\": 0.9994508470029704, \"4096\": 1.0004397365921704, \"4608\": 1.0001373259557376}, \"torch_ms\": {\"3584\": 3.7273600101470947, \"4096\": 5.824000120162964, \"4608\": 7.457792043685913}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this candidate as an optimization; use it only as the correctness/reference baseline.",
+    "Next implement and validate a pure cuBLAS three-SGEMM path: compute Y = W @ X with cuBLAS SGEMM, compute the rank-16 intermediate with cuBLAS SGEMM, then accumulate A @ intermediate into Y using cuBLAS SGEMM with beta = 1.",
+    "Avoid ATen matmul/add in the optimized extension to reduce framework overhead and expose direct cuBLAS control.",
+    "Do not explicitly materialize B.T as a transpose copy; use cuBLAS transpose op flags and correct leading dimensions.",
+    "Use a temporary low-rank buffer with the intended layout, e.g. U corresponding to the 16-by-d or row-major equivalent {d,16} representation, and verify op flags, m/n/k, leading dimensions, alpha, and beta carefully.",
+    "Validate the pure cuBLAS implementation across d = 3584, 4096, and 4608 before trying handwritten rank-16 kernels.",
+    "If a later cuBLAS candidate has shape-specific regressions, use shape-aware dispatch or reject promotion."
+  ]
+}
