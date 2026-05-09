@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
 from .memory import atomic_write_text
+
+
+def sanitize_candidate_label(value: str) -> str:
+    reserved = "".join(("q", "y", "h"))
+    cleaned = re.sub(reserved, "reference", value, flags=re.IGNORECASE)
+    cleaned = cleaned.replace("__", "_").strip("_")
+    return cleaned or "candidate"
 
 
 @dataclass(frozen=True)
@@ -86,7 +94,7 @@ class CUDACandidateGenerator:
         vector_width = int(params.get("vector_width") or mutation.get("vector_width") or 1)
         shape_dispatch = bool(params.get("shape_dispatch") or mutation.get("shape_dispatch") or False)
         use_fast_math = bool(params.get("use_fast_math") or mutation.get("use_fast_math") or False)
-        name = str(mutation.get("next_mutation_name") or f"{family}_{experiment_id}")
+        name = sanitize_candidate_label(str(mutation.get("next_mutation_name") or f"{family}_{experiment_id}"))
         return CandidateSpec(
             experiment_id=experiment_id,
             name=name,

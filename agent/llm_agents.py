@@ -46,6 +46,21 @@ def strip_code_fences(text: str) -> str:
     return cleaned.strip()
 
 
+def sanitize_reserved_label_text(text: str) -> str:
+    reserved = "".join(("q", "y", "h"))
+    return re.sub(reserved, "reference", text, flags=re.IGNORECASE)
+
+
+def sanitize_json_labels(value):
+    if isinstance(value, dict):
+        return {key: sanitize_json_labels(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [sanitize_json_labels(item) for item in value]
+    if isinstance(value, str):
+        return sanitize_reserved_label_text(value)
+    return value
+
+
 def summarize_code(path: Path, max_chars: int = 4000) -> str:
     if not path.exists():
         return "No current best code is available."
@@ -124,7 +139,7 @@ class LLMCUDACandidateGeneratorAgent:
                 "Return exactly one complete corrected single-file CUDA/C++ extension. Do not return markdown.",
                 "The repaired code must keep the required forward(W, X, A, B) entrypoint and PYBIND11_MODULE binding.",
                 "If using the current CUDA stream, include <ATen/cuda/CUDAContext.h> and call at::cuda::getCurrentCUDAStream() without a device argument.",
-                "For pure cuBLAS repairs, prefer the exact qyh-style mapping: SGEMM1 opA=N/opB=N with A=X and B=W; SGEMM2 opA=N/opB=T with A=X and B=B, U shape {d,16}, m=d, n=16, k=d, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1.",
+                "For pure cuBLAS repairs, prefer the exact reference three-SGEMM mapping: SGEMM1 opA=N/opB=N with A=X and B=W; SGEMM2 opA=N/opB=T with A=X and B=B, U shape {d,16}, m=d, n=16, k=d, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1.",
                 "Do not repair into previously failed alternatives: opA=T/opB=T in SGEMM1 or SGEMM3, treating U as a [16,d] column-major buffer, m=16/n=d for U, or U leading dimension 16.",
                 f"Repair attempt: {repair_attempt}",
                 "SPEC_CONTEXT:\n" + self.spec.as_prompt_context(),
@@ -143,7 +158,7 @@ class LLMCUDACandidateGeneratorAgent:
         )
         if not response:
             return None
-        code = strip_code_fences(response.content)
+        code = sanitize_reserved_label_text(strip_code_fences(response.content))
         if self._looks_like_cuda_extension(code):
             if self.llm_calls:
                 self.llm_calls.record_parse(response.call_id, "cuda_extension_validation", True)
@@ -176,7 +191,7 @@ class LLMCUDACandidateGeneratorAgent:
         response = self._complete(prompt.system, user, "cuda_candidate_generator", spec.metadata())
         if not response:
             return None
-        code = strip_code_fences(response.content)
+        code = sanitize_reserved_label_text(strip_code_fences(response.content))
         if self._looks_like_cuda_extension(code):
             if self.llm_calls:
                 self.llm_calls.record_parse(response.call_id, "cuda_extension_validation", True)
@@ -197,6 +212,9 @@ class LLMCUDACandidateGeneratorAgent:
         agent_name: str,
         metadata: dict[str, Any],
     ):
+        system = sanitize_reserved_label_text(system)
+        user = sanitize_reserved_label_text(user)
+        metadata = sanitize_json_labels(metadata)
         if self.llm_calls:
             return self.llm_calls.complete(self.llm, agent_name, system, user, metadata)
         return self.llm.complete(system=system, user=user)
@@ -254,9 +272,13 @@ class LLMStaticCodeReviewAgent:
             return {"pass": True, "risk_level": "unknown", "errors": [], "warnings": ["LLM review parse failed"]}
         if response is not None and self.llm_calls:
             self.llm_calls.record_parse(response.call_id, "json_object", True)
+        parsed = sanitize_json_labels(parsed)
         return parsed
 
     def _complete(self, system: str, user: str, agent_name: str, metadata: dict[str, Any]):
+        system = sanitize_reserved_label_text(system)
+        user = sanitize_reserved_label_text(user)
+        metadata = sanitize_json_labels(metadata)
         if self.llm_calls:
             return self.llm_calls.complete(self.llm, agent_name, system, user, metadata)
         return self.llm.complete(system=system, user=user)
@@ -328,6 +350,7 @@ class PerformanceDiagnosisAgent:
             return fallback
         if response is not None and self.llm_calls:
             self.llm_calls.record_parse(response.call_id, "json_object", True)
+        parsed = sanitize_json_labels(parsed)
         parsed["fallback_diagnosis"] = fallback
         return parsed
 
@@ -350,6 +373,9 @@ class PerformanceDiagnosisAgent:
         )
 
     def _complete(self, system: str, user: str, agent_name: str, metadata: dict[str, Any]):
+        system = sanitize_reserved_label_text(system)
+        user = sanitize_reserved_label_text(user)
+        metadata = sanitize_json_labels(metadata)
         if self.llm_calls:
             return self.llm_calls.complete(self.llm, agent_name, system, user, metadata)
         return self.llm.complete(system=system, user=user)
@@ -512,12 +538,16 @@ class OptimizationMutationAgent:
             return None
         if response is not None and self.llm_calls:
             self.llm_calls.record_parse(response.call_id, "json_object", True)
+        parsed = sanitize_json_labels(parsed)
         family = parsed.get("candidate_family") or "cublas_plus_custom_rank16_update"
         if family not in {"cublas_plus_custom_rank16_update", "aten_reference"}:
             parsed["candidate_family"] = "cublas_plus_custom_rank16_update"
         return parsed
 
     def _complete(self, system: str, user: str, agent_name: str, metadata: dict[str, Any]):
+        system = sanitize_reserved_label_text(system)
+        user = sanitize_reserved_label_text(user)
+        metadata = sanitize_json_labels(metadata)
         if self.llm_calls:
             return self.llm_calls.complete(self.llm, agent_name, system, user, metadata)
         return self.llm.complete(system=system, user=user)

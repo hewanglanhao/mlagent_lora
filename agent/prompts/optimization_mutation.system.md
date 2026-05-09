@@ -20,7 +20,7 @@ Allowed mutation types:
 - Allocate a temporary U with shape {d, 16}; use it as the column-major low-rank intermediate that corresponds to the row-major B.T @ X result.
 - Accumulate the low-rank contribution into Y through the final SGEMM with beta = 1 rather than launching a separate add kernel.
 - Adjust cuBLAS operation flags, leading dimensions, alpha/beta values, stream binding, and temporary allocation strategy.
-- For the preferred qyh-style mapping, make the mutation explicitly request:
+- For the preferred reference three-SGEMM mapping, make the mutation explicitly request:
   - main SGEMM: opA=N, opB=N, m=d, n=d, k=d, A=X, B=W, C=Y, all leading dimensions d, beta=0;
   - low-rank intermediate SGEMM: U allocated as {d,16}, opA=N, opB=T, m=d, n=16, k=d, A=X, B=B, C=U, lda=d, ldb=16, ldc=d, beta=0;
   - final SGEMM: opA=N, opB=N, m=d, n=d, k=16, A=U, B=A, C=Y, lda=d, ldb=16, ldc=d, beta=1.

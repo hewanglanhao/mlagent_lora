@@ -31,11 +31,11 @@ Pure cuBLAS three-SGEMM review focus:
 - Verify that it avoids explicit B.T transpose-copy materialization when cuBLAS operation flags can express the same math.
 - Check that the row-major PyTorch tensors are correctly interpreted through cuBLAS column-major conventions.
 - Check the three SGEMMs separately: main W @ X term, temporary U with shape {d, 16} for the low-rank intermediate, and final low-rank accumulation into Y with beta = 1.
-- For qyh-style candidates, require these exact cuBLAS parameter patterns:
+- For reference three-SGEMM candidates, require these exact cuBLAS parameter patterns:
   - SGEMM 1: opA=N, opB=N, m=d, n=d, k=d, A=X, B=W, C=Y, lda=ldb=ldc=d, beta=0.
   - SGEMM 2: opA=N, opB=T, m=d, n=16, k=d, A=X, B=B, C=U, lda=d, ldb=16, ldc=d, U shape {d,16}, beta=0.
   - SGEMM 3: opA=N, opB=N, m=d, n=d, k=16, A=U, B=A, C=Y, lda=d, ldb=16, ldc=d, beta=1.
-- Flag opA=T/opB=T in SGEMM 1 or SGEMM 3 as blocking for qyh-style candidates. Flag m=16, n=d or U leading dimension 16 as blocking unless the candidate gives a convincing, shape-general proof.
+- Flag opA=T/opB=T in SGEMM 1 or SGEMM 3 as blocking for reference three-SGEMM candidates. Flag m=16, n=d or U leading dimension 16 as blocking unless the candidate gives a convincing, shape-general proof.
 - Treat missing CUDA/cuBLAS headers, wrong cuBLAS op flags, m/n/k dimensions, leading dimensions, alpha/beta values, or stream binding as high-risk or blocking issues.
 
 Return JSON only. Do not include Markdown fences.

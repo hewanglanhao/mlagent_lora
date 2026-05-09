@@ -1,0 +1,81 @@
+{
+  "cu_path": "/workspace/mlagent_lora/optimized_lora.cu",
+  "input_dir": null,
+  "results": {
+    "3584": {
+      "correctness": {
+        "atol": 0.002,
+        "finite": true,
+        "max_abs_err": 0.00079345703125,
+        "passed": true,
+        "rel_l2_err": 4.1897757796505175e-07,
+        "rtol": 0.0001
+      },
+      "speedup": 1.0293745127743188,
+      "student": {
+        "iters": 50,
+        "max_ms": 4.058112144470215,
+        "median_ms": 4.043776035308838,
+        "min_ms": 4.037631988525391,
+        "p25_ms": 4.0417280197143555,
+        "p75_ms": 4.04582405090332,
+        "warmup": 10
+      },
+      "torch_reference": {
+        "iters": 50,
+        "max_ms": 4.171775817871094,
+        "median_ms": 4.162559986114502,
+        "min_ms": 4.1605119705200195,
+        "p25_ms": 4.16153621673584,
+        "p75_ms": 4.163584232330322,
+        "warmup": 10
+      }
+    },
+    "4096": {
+      "correctness": {
+        "atol": 0.002,
+        "finite": true,
+        "max_abs_err": 1.0728836059570312e-06,
+        "passed": true,
+        "rel_l2_err": 2.091014295046989e-07,
+        "rtol": 0.0001
+      },
+      "speedup": 1.0352753137176418,
+      "student": {
+        "iters": 50,
+        "max_ms": 6.315008163452148,
+        "median_ms": 6.081535816192627,
+        "min_ms": 6.02726411819458,
+        "p25_ms": 6.032383918762207,
+        "p75_ms": 6.086656093597412,
+        "warmup": 10
+      },
+      "torch_reference": {
+        "iters": 50,
+        "max_ms": 6.5576958656311035,
+        "median_ms": 6.2960638999938965,
+        "min_ms": 6.261760234832764,
+        "p25_ms": 6.26585578918457,
+        "p75_ms": 6.4686079025268555,
+        "warmup": 10
+      }
+    },
+    "4608": {
+      "correctness": {
+        "atol": 0.002,
+        "finite": true,
+        "max_abs_err": 0.00927734375,
+        "passed": false,
+        "rel_l2_err": 5.720455078517261e-07,
+        "rtol": 0.0001
+      },
+      "speedup": 0.0
+    }
+  },
+  "summary": {
+    "aggregate_speedup": 1.0323249132459802,
+    "correct": false,
+    "max_speedup": 1.0352753137176418,
+    "min_speedup": 1.0293745127743188
+  }
+}

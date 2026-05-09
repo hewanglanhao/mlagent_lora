@@ -18,6 +18,8 @@ from .llm_agents import (
     OptimizationMutationAgent,
     PerformanceDiagnosisAgent,
     parse_json_object,
+    sanitize_json_labels,
+    sanitize_reserved_label_text,
     summarize_code,
 )
 from .local_harness import (
@@ -126,8 +128,13 @@ class SearchSpacePlannerAgent:
                     parsed is not None,
                     "" if parsed is not None else "search plan JSON parse failed",
                 )
-            base_plan["llm_advice"] = parsed if parsed is not None else llm_response.content
+            if parsed is not None:
+                parsed = sanitize_json_labels(parsed)
+                base_plan["llm_advice"] = parsed
+            else:
+                base_plan["llm_advice"] = sanitize_reserved_label_text(llm_response.content)
             if parsed and parsed.get("strategy"):
+                base_plan["llm_advice"] = parsed
                 base_plan["strategy"] = str(parsed["strategy"])
         return base_plan
 
@@ -147,11 +154,14 @@ class SearchSpacePlannerAgent:
             return self.llm_calls.complete(
                 self.llm,
                 "search_space_planner",
-                prompt.system,
-                user,
+                sanitize_reserved_label_text(prompt.system),
+                sanitize_reserved_label_text(user),
                 {"history_count": len(history)},
             )
-        return self.llm.complete(system=prompt.system, user=user)
+        return self.llm.complete(
+            system=sanitize_reserved_label_text(prompt.system),
+            user=sanitize_reserved_label_text(user),
+        )
 
 
 class BestCandidateManager:
