@@ -9,13 +9,14 @@ Diagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence
 Important reasoning rules:
 
 - Correctness failure dominates all performance considerations.
-- Prefer analysis that moves the system toward a pure cuBLAS three-SGEMM implementation when that candidate has not yet been validated.
+- Prefer analysis that moves the system toward a pure cuBLAS three-SGEMM implementation modeled after `/workspace/lora/3_sgemm.cu` when that candidate has not yet been validated.
 - If W @ X dominates time, do not recommend a custom full GEMM; recommend direct cuBLAS SGEMM for the main term.
 - If the rank-16 path is slow or fragile, consider replacing handwritten rank-16 kernels with the cuBLAS low-rank SGEMM sequence.
-- Check whether the candidate avoids explicit B.T materialization, uses a temporary U with shape {d, 16}, and accumulates the low-rank term into Y with beta = 1.
+- Check whether the candidate avoids explicit B.T materialization, uses a temporary U with shape {d, 16}, accumulates the low-rank term into Y with beta = 1, requires contiguous inputs instead of copying them, and uses `CUDAGuard` plus `getCurrentCUDABlasHandle`.
 - If a pure cuBLAS candidate is incorrect, suspect row-major/column-major reasoning, cuBLAS op flags, m/n/k dimensions, leading dimensions, or alpha/beta settings before suggesting unrelated optimizations.
-- When repairing a failed pure cuBLAS candidate, steer it back to the exact reference three-SGEMM mapping: SGEMM1 opA=N/opB=N with A=X and B=W; SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, U shape {d,16}, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1.
-- If a candidate uses opA=T/opB=T in SGEMM1 or SGEMM3, treats U as column-major [16,d], uses m=16,n=d for U, or uses U leading dimension 16, call that out as a likely cause of correctness failure and recommend the exact reference three-SGEMM mapping instead.
+- When repairing a failed pure cuBLAS candidate, steer it back to the exact 3_sgemm mapping: SGEMM1 opA=N/opB=N with A=X and B=W; SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, U shape {d,16}, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1.
+- If a candidate uses opA=T/opB=T in SGEMM1 or SGEMM3, treats U as column-major [16,d], uses m=16,n=d for U, or uses U leading dimension 16, call that out as a likely cause of correctness failure and recommend the exact 3_sgemm mapping instead.
+- If a candidate is close but differs from 3_sgemm by adding input copies or explicit stream rebinding, recommend removing those differences before switching to another strategy.
 - If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.
 - Consider compile failures and static-review warnings as useful evidence.
 - Do not recommend hardcoding hidden dimensions or hidden tensors.
