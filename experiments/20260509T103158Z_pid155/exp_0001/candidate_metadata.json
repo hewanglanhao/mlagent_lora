@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 1,
+  "llm_generated": true,
+  "name": "cublas_fused_rank16_tile128x1_vec4",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Removes full dxd A@Z materialization and final add by keeping cuBLAS/ATen for W@X and B.T@X, then fusing the rank-16 update into Y with coalesced vectorized column writes; should improve over neutral ATen baseline without risking the dominant full GEMM.",
+  "use_fast_math": false,
+  "vector_width": 4
+}

@@ -1,0 +1,45 @@
+{
+  "avoid": [
+    "Do not promote or benchmark this candidate until it compiles and passes correctness.",
+    "Do not replace the dominant W @ X term with a custom full GEMM; use direct cuBLAS SGEMM.",
+    "Do not add handwritten rank-16 CUDA kernels before validating the simpler cuBLAS low-rank SGEMM sequence.",
+    "Do not explicitly materialize B.T as a transpose-copy.",
+    "Do not use opA=T/opB=T in SGEMM1 or SGEMM3 unless the row-major/column-major mapping is fully re-derived and tested.",
+    "Do not treat U as column-major [16,d], use m=16,n=d for U, or set U leading dimension to 16.",
+    "Do not hardcode hidden dimensions outside the runtime d handling."
+  ],
+  "bottleneck": "compile_failure_missing_cuda_guard_header",
+  "confidence": "high",
+  "evidence": [
+    "Candidate did not compile, so correctness and benchmark results are unavailable.",
+    "NVCC failed at candidate.cu:4 with fatal error: ATen/cuda/CUDAGuard.h: No such file or directory.",
+    "Static review passed, but compile failure dominates all performance considerations.",
+    "The intended strategy, pure cuBLAS three-SGEMM without explicit B.T materialization and with beta=1 low-rank accumulation, is still the right direction but has not been validated."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "promoting uncompiled code"
+    ],
+    "bottleneck": "compile_failure",
+    "confidence": "high",
+    "evidence": [
+      "pybind_or_signature_error",
+      "Error building extension 'lora_candidate_ext_1_1778325336258': [1/2] /usr/local/cuda/bin/nvcc --generate-dependencies-with-compile --dependency-output candidate.cuda.o.d -DTORCH_EXTENSION_NAME=lora_candidate_ext_1_1778325336258 -DTORCH_API_INCLUDE_EXTENSION_H -DPYBIND11_COMPILER_TYPE=\\\"_gcc\\\" -DPYBIND11_STDLIB=\\\"_libstdcpp\\\" -DPYBIND11_BUILD_ABI=\\\"_cxxabi1016\\\" -isystem /usr/local/lib/python3.10/dist-packages/torch/include -isystem /usr/local/lib/python3.10/dist-packages/torch/include/torch/csrc"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "fall back to a simpler candidate",
+      "preserve current best"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Repair the build first. Replace the unavailable include <ATen/cuda/CUDAGuard.h> with a header available in this environment, commonly <c10/cuda/CUDAGuard.h>, or remove the guard if inputs are guaranteed on the current device.",
+    "If using a device guard, use the c10 CUDA guard API consistently, for example c10::cuda::CUDAGuard guard(W.device()); with the appropriate include.",
+    "Keep the implementation as a pure cuBLAS three-SGEMM path; do not fall back to ATen matmul/transpose/add or handwritten full GEMM kernels.",
+    "After compilation is fixed, validate the exact reference cuBLAS mapping: SGEMM1 opA=N/opB=N with A=X and B=W for the main W @ X term; SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, output U shape {d,16}, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1 to accumulate into Y.",
+    "Ensure the temporary U is laid out with shape {d,16} and leading dimension d, not as {16,d}.",
+    "Ensure the low-rank path avoids explicit B.T materialization and accumulates directly into the existing Y using beta=1 in the third SGEMM.",
+    "Once it compiles, run correctness across all runtime d values in [3584, 4608] before considering benchmark results."
+  ]
+}

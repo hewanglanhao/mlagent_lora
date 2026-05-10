@@ -38,10 +38,7 @@ void check_inputs(const torch::Tensor& W,
 
 }  // namespace
 
-torch::Tensor forward(torch::Tensor W,
-                      torch::Tensor X,
-                      torch::Tensor A,
-                      torch::Tensor B) {
+torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B) {
     check_inputs(W, X, A, B);
 
     c10::cuda::CUDAGuard device_guard(W.device());
@@ -72,7 +69,7 @@ torch::Tensor forward(torch::Tensor W,
     float* Yp = Y.data_ptr<float>();
     float* Up = U.data_ptr<float>();
 
-    // Row-major W @ X via column-major view: Y_col = X_col @ W_col.
+    // Row-major W @ X as column-major Y_col = X_col @ W_col.
     CHECK_CUBLAS(cublasSgemm(handle,
                              CUBLAS_OP_N, CUBLAS_OP_N,
                              d, d, d,
@@ -82,7 +79,7 @@ torch::Tensor forward(torch::Tensor W,
                              &beta0,
                              Yp, d));
 
-    // U row-major {d,16}; column-major view represents logical B.T @ X.
+    // U row-major {d,16}; column-major view encodes logical B.T @ X.
     CHECK_CUBLAS(cublasSgemm(handle,
                              CUBLAS_OP_N, CUBLAS_OP_T,
                              d, r, d,
@@ -92,7 +89,7 @@ torch::Tensor forward(torch::Tensor W,
                              &beta0,
                              Up, d));
 
-    // Accumulate low-rank term: Y_col += U_col @ A_col, beta=1 avoids add kernel.
+    // Accumulate row-major A @ (B.T @ X) with beta=1, no add kernel.
     CHECK_CUBLAS(cublasSgemm(handle,
                              CUBLAS_OP_N, CUBLAS_OP_N,
                              d, d, r,
@@ -106,5 +103,5 @@ torch::Tensor forward(torch::Tensor W,
 }
 
 PYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {
-    m.def("forward", &forward, "LoRA forward");
+    m.def("forward", &forward, "LoRA forward pure cuBLAS three-SGEMM");
 }

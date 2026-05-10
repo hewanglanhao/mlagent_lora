@@ -1,0 +1,43 @@
+{
+  "avoid": [
+    "Do not optimize performance before fixing correctness.",
+    "Do not promote based on the passing 4096 shape alone.",
+    "Do not hardcode d=4096 or any hidden dimension-specific assumptions.",
+    "Do not replace cuBLAS W @ X with a custom full GEMM; W @ X is high risk to reimplement and unlikely to beat cuBLAS.",
+    "Do not rely on benchmark conclusions because benchmark results are unavailable."
+  ],
+  "bottleneck": "correctness_failure",
+  "confidence": "high",
+  "evidence": [
+    "Candidate is not correct overall; correctness failed for d=3584 and d=4608.",
+    "Failures are finite and have very small rel_l2_err, but max_abs_err exceeds tolerance: 0.000366 for d=3584 and 0.00293 for d=4608.",
+    "d=4096 passed, so the issue is shape-dependent rather than a total implementation failure.",
+    "No benchmark data is available, so performance cannot be evaluated.",
+    "Static review passed and compilation succeeded, suggesting the problem is likely numerical/indexing/shape handling rather than build failure."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.0003662109375, \"passed\": false, \"rel_l2_err\": 7.854647066096732e-08}, \"4096\": {\"finite\": true, \"max_abs_err\": 9.5367431640625e-07, \"passed\": true, \"rel_l2_err\": 1.0506985859137785e-07}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0029296875, \"passed\": false, \"rel_l2_err\": 6.787168160826695e-08}}, \"failed_shapes\": [3584, 4608], \"max_abs_err\": 0.0029296875, \"rel_l2_err\": 1.0506985859137785e-07}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Do not promote until correctness passes for all required d values.",
+    "Debug the custom rank-16 update kernel first, especially shape-dependent indexing, grid bounds, leading dimensions, and row/column mapping for non-4096 sizes.",
+    "Compare intermediate tensors separately: verify W @ X, verify Z = B.T @ X, then verify only the fused Y += A @ Z update against a reference.",
+    "Check whether the max_abs_err comes from a small number of outlier elements; if so, inspect boundary tiles and tail handling for d=3584 and d=4608.",
+    "Ensure the kernel uses runtime d everywhere and does not accidentally assume 4096 or power-of-two-friendly tile behavior.",
+    "If the error is purely numerical from accumulation order/FMA differences, consider matching reference accumulation more closely or validate whether the benchmark harness tolerance can accept the observed rel_l2_err; however, current result must be treated as failed.",
+    "After correctness is fixed, rerun benchmarks against the cuBLAS plus fused rank-update target."
+  ]
+}

@@ -1,0 +1,629 @@
+[
+  {
+    "aggregate_speedup": 1.0003691119518616,
+    "benchmark": {
+      "aggregate_speedup": 1.0003691119518616,
+      "details": {
+        "iters": 10,
+        "warmup": 3
+      },
+      "latency_ms": {
+        "3584": 3.726848006248474,
+        "4096": 5.82809591293335,
+        "4608": 7.47161602973938
+      },
+      "speedup": {
+        "3584": 1.000686912771546,
+        "4096": 1.0012299136266412,
+        "4608": 0.998903575565805
+      },
+      "torch_ms": {
+        "3584": 3.729408025741577,
+        "4096": 5.835263967514038,
+        "4608": 7.46342396736145
+      }
+    },
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 221.30251812911592,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_0_1778322733658",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": true,
+    "correctness": {
+      "correct": true,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0,
+          "passed": true,
+          "rel_l2_err": 0.0
+        }
+      },
+      "failed_shapes": [],
+      "max_abs_err": 0.0,
+      "rel_l2_err": 0.0
+    },
+    "decision": "kept_existing_best",
+    "diagnosis": {
+      "avoid": [
+        "Do not promote this as a performance optimization; it is just the ATen baseline with no meaningful speedup.",
+        "Do not write a custom full W @ X GEMM unless profiling shows cuBLAS is not being used efficiently, which is not indicated here.",
+        "Do not hardcode d values or hidden tensor assumptions.",
+        "Do not add extra kernels that materialize A @ Z or perform a separate final add."
+      ],
+      "bottleneck": "aten_reference_no_fusion",
+      "confidence": "high",
+      "evidence": [
+        "Correctness passes exactly for d=3584, 4096, and 4608 with max_abs_err=0 and rel_l2_err=0.",
+        "Aggregate speedup is essentially neutral at 1.00037x, matching the torch/ATen reference rather than improving it.",
+        "Per-shape speedups are within noise: 1.00069x at d=3584, 1.00123x at d=4096, and 0.99890x at d=4608.",
+        "Profile labels the bottleneck as multiple ATen GEMM and add launches, consistent with an unfused reference implementation.",
+        "The latency is dominated by the large W @ X GEMM, so replacing that full GEMM with custom CUDA would be high risk and unlikely to beat cuBLAS.",
+        "The candidate does not appear to avoid materializing intermediate rank-update tensors or fuse the final Y += A @ Z update."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "overfitting one exact d"
+        ],
+        "bottleneck": "multiple_aten_gemm_and_add_launches",
+        "candidate_family": "aten_reference",
+        "confidence": "medium",
+        "evidence": [
+          "{\"aggregate_speedup\": 1.0003691119518616, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.726848006248474, \"4096\": 5.82809591293335, \"4608\": 7.47161602973938}, \"speedup\": {\"3584\": 1.000686912771546, \"4096\": 1.0012299136266412, \"4608\": 0.998903575565805}, \"torch_ms\": {\"3584\": 3.729408025741577, \"4096\": 5.835263967514038, \"4608\": 7.46342396736145}}"
+        ],
+        "promotion_advice": "promote",
+        "recommended_actions": [
+          "keep cuBLAS for W @ X",
+          "fuse rank-16 update into the output tensor",
+          "test scalar and vectorized rank-16 kernels"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Keep W @ X on cuBLAS/ATen; do not attempt a custom d x d full GEMM.",
+        "Use cuBLAS/ATen for the small projection Z = B.T @ X, then launch one custom CUDA kernel to accumulate Y += A @ Z in-place.",
+        "Avoid materializing A @ Z as a full d x d tensor and avoid a separate final add kernel.",
+        "Optimize the rank-16 update kernel for memory bandwidth and launch overhead: coalesced writes to contiguous Y columns, unroll the rank-16 loop, and stage/reuse A and/or Z where beneficial.",
+        "Benchmark tile shapes for the fused update, including a 128-column tile with each thread computing multiple contiguous columns, around 8 columns per thread as a useful starting point.",
+        "Evaluate vectorized loads/stores where alignment permits, but keep a scalar fallback for arbitrary runtime dimensions.",
+        "If future kernels improve only one dimension but regress others, use shape-aware dispatch or reject the variant."
+      ]
+    },
+    "family": "aten_reference",
+    "generation": {
+      "candidate": {
+        "block_size": 256,
+        "family": "aten_reference",
+        "id": 0,
+        "llm_generated": false,
+        "name": "baseline_aten",
+        "parent": null,
+        "shape_dispatch": false,
+        "strategy": "",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "origin": "deterministic_baseline"
+    },
+    "id": 0,
+    "latency_by_d": {
+      "3584": 3.726848006248474,
+      "4096": 5.82809591293335,
+      "4608": 7.47161602973938
+    },
+    "llm_generated": false,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "Add a TORCH_CHECK that d >= 3584 && d <= 4608 if strict operator constraints require rejecting other shapes.",
+        "Add device equality checks, e.g. W.device() == X.device() == A.device() == B.device().",
+        "For better performance, compute y = W @ X and z = B.T @ X with ATen/cuBLAS, then launch a fused CUDA kernel to accumulate y[i,j] += sum_{r=0}^{15} A[i,r] * z[r,j] without materializing the full d x d low-rank update.",
+        "If adding a custom fused kernel, ensure full grid coverage over d x d, bounds checks for tail elements, correct stream usage via at::cuda::getCurrentCUDAStream(), and launch error checking."
+      ],
+      "warnings": [
+        "Does not explicitly validate that d is within the expected runtime range [3584, 4608], though the implementation is shape-generic and should work for that range.",
+        "Does not explicitly check that all tensors are on the same CUDA device; ATen operations will likely fail safely if devices mismatch, but an earlier TORCH_CHECK would give clearer diagnostics.",
+        "Materializes the full A @ (B.T @ X) tensor before adding into y. This is correct but deviates from the preferred design of using cuBLAS for W @ X and B.T @ X, then fusing only the rank-16 update into Y.",
+        "Calls contiguous() on all inputs, which is safe but may introduce extra allocations/copies for non-contiguous inputs."
+      ]
+    },
+    "name": "baseline_aten",
+    "parent": null,
+    "profile": {
+      "bottleneck": "multiple_aten_gemm_and_add_launches",
+      "evidence": {
+        "aggregate_speedup": 1.0003691119518616,
+        "details": {
+          "iters": 10,
+          "warmup": 3
+        },
+        "latency_ms": {
+          "3584": 3.726848006248474,
+          "4096": 5.82809591293335,
+          "4608": 7.47161602973938
+        },
+        "speedup": {
+          "3584": 1.000686912771546,
+          "4096": 1.0012299136266412,
+          "4608": 0.998903575565805
+        },
+        "torch_ms": {
+          "3584": 3.729408025741577,
+          "4096": 5.835263967514038,
+          "4608": 7.46342396736145
+        }
+      },
+      "suggested_actions": [
+        "keep cuBLAS for W @ X",
+        "fuse rank-16 update into the output tensor",
+        "test scalar and vectorized rank-16 kernels"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T103158Z_pid155/exp_0000/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 220.2316714830231,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_1_1778323057344",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0003662109375,
+          "passed": false,
+          "rel_l2_err": 7.854647066096732e-08
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 9.5367431640625e-07,
+          "passed": true,
+          "rel_l2_err": 1.0506985859137785e-07
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0029296875,
+          "passed": false,
+          "rel_l2_err": 6.787168160826695e-08
+        }
+      },
+      "failed_shapes": [
+        3584,
+        4608
+      ],
+      "max_abs_err": 0.0029296875,
+      "rel_l2_err": 1.0506985859137785e-07
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "Do not promote this candidate despite the intended good strategy; correctness failure dominates.",
+        "Do not spend time optimizing tile size, vector width, occupancy, or launch overhead until the failed shapes pass.",
+        "Do not hardcode d=4096 behavior or hidden dimensions.",
+        "Do not replace the dominant W @ X with a custom full GEMM; that is high risk and unlikely to beat cuBLAS.",
+        "Do not accept small relative error if the harness fails on max absolute error."
+      ],
+      "bottleneck": "correctness_failure",
+      "confidence": "high",
+      "evidence": [
+        "Correctness failed for 2 of 3 required shapes: d=3584 and d=4608.",
+        "Failures are finite and have very small relative L2 error, but max absolute error reaches 0.000366 for d=3584 and 0.00293 for d=4608, exceeding the harness tolerance.",
+        "d=4096 passes, so the implementation is not universally broken, but lack of shape dispatch plus shape-dependent failures makes it unsafe.",
+        "Benchmark data is unavailable because correctness failed; performance cannot be considered.",
+        "Static review and compilation passed, so the issue is likely numerical/order/indexing behavior in the fused rank-16 update rather than a build problem."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.0003662109375, \"passed\": false, \"rel_l2_err\": 7.854647066096732e-08}, \"4096\": {\"finite\": true, \"max_abs_err\": 9.5367431640625e-07, \"passed\": true, \"rel_l2_err\": 1.0506985859137785e-07}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0029296875, \"passed\": false, \"rel_l2_err\": 6.787168160826695e-08}}, \"failed_shapes\": [3584, 4608], \"max_abs_err\": 0.0029296875, \"rel_l2_err\": 1.0506985859137785e-07}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Fix correctness before any performance tuning.",
+        "Compare candidate output against a decomposition: first verify Y = W @ X alone matches the baseline, then verify Z = B.T @ X, then verify only the fused Y += A @ Z kernel.",
+        "Check the fused update kernel for row/column indexing mistakes, vectorized float4 store alignment assumptions, and any out-of-bounds or cross-row writes.",
+        "Because all failing/passing dimensions are multiples of 128, do not focus only on tail-column handling; also inspect grid-stride logic, leading dimension usage, and row-major contiguous indexing.",
+        "If the error is purely from accumulation-order differences in the rank-16 update, make the custom kernel numerically closer to the reference: use deterministic FP32 accumulation over k=0..15, avoid fast math, avoid reassociation, and ensure the add is exactly Y[row, col] += sum_k A[row, k] * Z[k, col].",
+        "Add per-shape validation during development for d=3584, 4096, and 4608; do not rely on the single passing 4096 case.",
+        "After correctness is fixed, benchmark against the cuBLAS/ATen W@X and B.T@X plus one fused rank-16 update kernel target."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 5060,
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 1,
+        "llm_generated": true,
+        "name": "cublas_fused_rank16_tile128x1_vec4",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "Removes full dxd A@Z materialization and final add by keeping cuBLAS/ATen for W@X and B.T@X, then fusing the rank-16 update into Y with coalesced vectorized column writes; should improve over neutral ATen baseline without risking the dominant full GEMM.",
+        "use_fast_math": false,
+        "vector_width": 4
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 1,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "If performance tuning further, consider avoiding the explicit contiguous transpose of B when cuBLAS/ATen can handle the transpose view efficiently.",
+        "Document that the output is newly allocated and contiguous, and that non-contiguous inputs incur copies."
+      ],
+      "warnings": [
+        "Non-contiguous inputs are handled by making contiguous copies, which is safe but may add overhead if callers pass non-contiguous tensors.",
+        "B.T is explicitly materialized with contiguous() before the small-rank GEMM; this is safe and likely minor, but it is an extra allocation/copy."
+      ]
+    },
+    "name": "cublas_fused_rank16_tile128x1_vec4",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T103158Z_pid155/exp_0001/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "Removes full dxd A@Z materialization and final add by keeping cuBLAS/ATen for W@X and B.T@X, then fusing the rank-16 update into Y with coalesced vectorized column writes; should improve over neutral ATen baseline without risking the dominant full GEMM.",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 256,
+    "compile": {
+      "compile_time_sec": 218.27626769710332,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_2_1778323403498",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.685821533203125,
+          "passed": false,
+          "rel_l2_err": 0.00028531154384836555
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 0.0008602142333984375,
+          "passed": false,
+          "rel_l2_err": 0.00010920454224105924
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 6.75634765625,
+          "passed": false,
+          "rel_l2_err": 0.00029111397452652454
+        }
+      },
+      "failed_shapes": [
+        3584,
+        4096,
+        4608
+      ],
+      "max_abs_err": 6.75634765625,
+      "rel_l2_err": 0.00029111397452652454
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "Do not promote based on intended performance because correctness failed.",
+        "Do not optimize tile size, vectorization, or occupancy before resolving the numerical mismatch.",
+        "Do not introduce a custom full W @ X GEMM; W @ X likely dominates total work and cuBLAS is the low-risk baseline.",
+        "Do not hardcode hidden dimensions or assume only one of 3584, 4096, or 4608.",
+        "Do not rely on approximate TF32 emulation unless it is proven to match the benchmark reference tolerance across all supported shapes."
+      ],
+      "bottleneck": "incorrect_numerics",
+      "confidence": "high",
+      "evidence": [
+        "Correctness failed for all tested shapes: d=3584, 4096, and 4608.",
+        "Outputs are finite, so this is not an obvious NaN/Inf instability, but numerical error is above tolerance.",
+        "Worst max_abs_err is large at d=4608: 6.7563; d=3584 also has large max_abs_err: 0.6858.",
+        "rel_l2_err is consistently around 1e-4 to 3e-4, suggesting a systematic arithmetic mismatch rather than random memory corruption.",
+        "No benchmark data is available because correctness failed; performance should not be considered for promotion.",
+        "Static review passed and compile succeeded, so the main blocker is runtime numerical correctness."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.685821533203125, \"passed\": false, \"rel_l2_err\": 0.00028531154384836555}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0008602142333984375, \"passed\": false, \"rel_l2_err\": 0.00010920454224105924}, \"4608\": {\"finite\": true, \"max_abs_err\": 6.75634765625, \"passed\": false, \"rel_l2_err\": 0.00029111397452652454}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 6.75634765625, \"rel_l2_err\": 0.00029111397452652454}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Reject this candidate until correctness is fixed.",
+        "Isolate the error source by comparing intermediate results: first verify cuBLAS/ATen W @ X output alone, then verify Z = B.T @ X, then verify the custom fused Y += A @ Z kernel.",
+        "Check whether the custom rank-16 update is matching the reference math mode. If the reference uses PyTorch/cuBLAS TF32 behavior, the fused update must emulate the same operand rounding and accumulation behavior closely enough; if the reference expects FP32, remove TF32-like rounding from the custom update.",
+        "Verify the fused update computes exactly Y[row, col] += sum_{r=0..15} A[row, r] * Z[r, col] with correct row-major/column-major indexing for PyTorch contiguous tensors.",
+        "Check B.T @ X orientation carefully: Z should be shape 16 x d, where Z[r, col] = sum_i B[i, r] * X[i, col].",
+        "Add a debug variant that materializes A @ Z with torch/cuBLAS and compares it against only the custom fused update contribution to determine whether the issue is in Z computation or in the A @ Z accumulation.",
+        "Test with TF32 disabled globally for the reference and candidate to determine whether the remaining error is purely TF32-mode mismatch.",
+        "Once correctness is fixed, benchmark against the preferred target: cuBLAS W @ X, cuBLAS B.T @ X, and one custom kernel for fused Y += A @ Z without materializing A @ Z or launching a separate final add."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 5622,
+      "candidate": {
+        "block_size": 256,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 2,
+        "llm_generated": true,
+        "name": "cublas_fused_rank16_scalar_tf32_tile128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "Fix prior correctness failure by removing float4/vectorized writes and matching cuBLAS/PyTorch TF32-like multiply behavior in the fused rank-16 update, while still avoiding full A@Z materialization and the separate final add kernel.",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 2,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [],
+      "pass": true,
+      "risk_level": "low",
+      "suggested_fixes": [
+        "Optionally call Y = Y.contiguous() before launching the custom kernel to make the row-major indexing assumption explicit.",
+        "Document the intended numerical behavior of the manual TF32 rounding path, or disable the manual TF32 emulation if exact PyTorch/cuBLAS numerical matching is more important than matching TF32-like multiplication behavior.",
+        "If performance matters for non-contiguous inputs, consider rejecting non-contiguous tensors instead of silently copying, or document that contiguous copies are made internally."
+      ],
+      "warnings": [
+        "The fused rank-16 update manually emulates TF32 by rounding A and Z inputs when cuBLAS TF32 is enabled. This is a reasonable strategy, but it may not be bit-identical to cuBLAS tensor-core behavior in edge cases such as subnormals, NaNs, infinities, or exact rounding/flush semantics.",
+        "The kernel assumes the output tensor Y from at::matmul(Wc, Xc) is contiguous and uses row-major indexing via Y.data_ptr<float>(). This is normally true for 2D CUDA matmul outputs, but the code does not explicitly enforce Y = Y.contiguous().",
+        "Non-contiguous inputs are handled by making contiguous copies, which is safe, but may add memory overhead and latency for strided inputs."
+      ]
+    },
+    "name": "cublas_fused_rank16_scalar_tf32_tile128",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T103158Z_pid155/exp_0002/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "Fix prior correctness failure by removing float4/vectorized writes and matching cuBLAS/PyTorch TF32-like multiply behavior in the fused rank-16 update, while still avoiding full A@Z materialization and the separate final add kernel.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  {
+    "aggregate_speedup": null,
+    "benchmark": {},
+    "block_size": 128,
+    "compile": {
+      "compile_time_sec": 226.59845921280794,
+      "compiled": true,
+      "error_summary": null,
+      "error_type": null,
+      "module_name": "lora_candidate_ext_3_1778323722281",
+      "skipped": false
+    },
+    "compiled": true,
+    "correct": false,
+    "correctness": {
+      "correct": false,
+      "details": {
+        "3584": {
+          "finite": true,
+          "max_abs_err": 0.0003662109375,
+          "passed": false,
+          "rel_l2_err": 7.854647066096732e-08
+        },
+        "4096": {
+          "finite": true,
+          "max_abs_err": 9.5367431640625e-07,
+          "passed": true,
+          "rel_l2_err": 1.0506985859137785e-07
+        },
+        "4608": {
+          "finite": true,
+          "max_abs_err": 0.0029296875,
+          "passed": false,
+          "rel_l2_err": 6.787168160826695e-08
+        }
+      },
+      "failed_shapes": [
+        3584,
+        4608
+      ],
+      "max_abs_err": 0.0029296875,
+      "rel_l2_err": 1.0506985859137785e-07
+    },
+    "decision": "rejected_correctness",
+    "diagnosis": {
+      "avoid": [
+        "Do not optimize performance before fixing correctness.",
+        "Do not promote based on the passing 4096 shape alone.",
+        "Do not hardcode d=4096 or any hidden dimension-specific assumptions.",
+        "Do not replace cuBLAS W @ X with a custom full GEMM; W @ X is high risk to reimplement and unlikely to beat cuBLAS.",
+        "Do not rely on benchmark conclusions because benchmark results are unavailable."
+      ],
+      "bottleneck": "correctness_failure",
+      "confidence": "high",
+      "evidence": [
+        "Candidate is not correct overall; correctness failed for d=3584 and d=4608.",
+        "Failures are finite and have very small rel_l2_err, but max_abs_err exceeds tolerance: 0.000366 for d=3584 and 0.00293 for d=4608.",
+        "d=4096 passed, so the issue is shape-dependent rather than a total implementation failure.",
+        "No benchmark data is available, so performance cannot be evaluated.",
+        "Static review passed and compilation succeeded, suggesting the problem is likely numerical/indexing/shape handling rather than build failure."
+      ],
+      "fallback_diagnosis": {
+        "avoid": [
+          "benchmark-only decisions"
+        ],
+        "bottleneck": "correctness_failure",
+        "confidence": "high",
+        "evidence": [
+          "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.0003662109375, \"passed\": false, \"rel_l2_err\": 7.854647066096732e-08}, \"4096\": {\"finite\": true, \"max_abs_err\": 9.5367431640625e-07, \"passed\": true, \"rel_l2_err\": 1.0506985859137785e-07}, \"4608\": {\"finite\": true, \"max_abs_err\": 0.0029296875, \"passed\": false, \"rel_l2_err\": 6.787168160826695e-08}}, \"failed_shapes\": [3584, 4608], \"max_abs_err\": 0.0029296875, \"rel_l2_err\": 1.0506985859137785e-07}"
+        ],
+        "promotion_advice": "reject",
+        "recommended_actions": [
+          "use ATen for risky math",
+          "check rank-16 indexing and vector alignment"
+        ]
+      },
+      "promotion_advice": "reject",
+      "recommended_actions": [
+        "Do not promote until correctness passes for all required d values.",
+        "Debug the custom rank-16 update kernel first, especially shape-dependent indexing, grid bounds, leading dimensions, and row/column mapping for non-4096 sizes.",
+        "Compare intermediate tensors separately: verify W @ X, verify Z = B.T @ X, then verify only the fused Y += A @ Z update against a reference.",
+        "Check whether the max_abs_err comes from a small number of outlier elements; if so, inspect boundary tiles and tail handling for d=3584 and d=4608.",
+        "Ensure the kernel uses runtime d everywhere and does not accidentally assume 4096 or power-of-two-friendly tile behavior.",
+        "If the error is purely numerical from accumulation order/FMA differences, consider matching reference accumulation more closely or validate whether the benchmark harness tolerance can accept the observed rel_l2_err; however, current result must be treated as failed.",
+        "After correctness is fixed, rerun benchmarks against the cuBLAS plus fused rank-update target."
+      ]
+    },
+    "family": "cublas_plus_custom_rank16_update",
+    "generation": {
+      "bytes": 4622,
+      "candidate": {
+        "block_size": 128,
+        "family": "cublas_plus_custom_rank16_update",
+        "id": 3,
+        "llm_generated": true,
+        "name": "rank16_scalar_b128",
+        "parent": 0,
+        "shape_dispatch": false,
+        "strategy": "deterministic_rank16_update",
+        "use_fast_math": false,
+        "vector_width": 1
+      },
+      "enabled": true,
+      "origin": "llm"
+    },
+    "id": 3,
+    "latency_by_d": {},
+    "llm_generated": true,
+    "llm_static_review": {
+      "errors": [
+        "Missing CUDA device guard before CUDA operations and custom kernel launch. Although inputs are checked to be on the same device, the code does not set the current CUDA device to W.device(). If the caller's current device differs from the input tensor device, at::cuda::getCurrentCUDAStream() and the kernel launch may target the wrong device, causing invalid memory access or undefined behavior."
+      ],
+      "pass": false,
+      "risk_level": "high",
+      "suggested_fixes": [
+        "Add a CUDA device guard at the start of forward after input validation, for example: const at::cuda::CUDAGuard device_guard(W.device());",
+        "After adding the device guard, use at::cuda::getCurrentCUDAStream() while the guard is active so the kernel launches on the correct device and stream.",
+        "Optionally avoid unnecessary contiguous copies by checking is_contiguous() first, though Tensor::contiguous() already returns the original tensor when possible."
+      ],
+      "warnings": [
+        "The implementation copies W, X, A, and B to contiguous tensors unconditionally. This is safe, but may add overhead for already-contiguous inputs.",
+        "B.T is materialized as a contiguous 16 x d tensor before matmul. This is safe and acceptable, though it adds an intermediate copy.",
+        "The code uses ATen matmul for W @ X and B.T @ X and fuses only the final rank-16 update, which matches the preferred design.",
+        "The custom kernel assumes row-major contiguous layout for Y, A, and Z, which is satisfied by the explicit contiguous() calls."
+      ]
+    },
+    "name": "rank16_scalar_b128",
+    "parent": 0,
+    "profile": {
+      "bottleneck": "unknown",
+      "evidence": "benchmark unavailable",
+      "suggested_actions": [
+        "keep the last known-good candidate"
+      ]
+    },
+    "shape_dispatch": false,
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T103158Z_pid155/exp_0003/candidate.cu",
+    "static_review": {
+      "errors": [],
+      "passed": true,
+      "risk_level": "low",
+      "warnings": []
+    },
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 1
+  }
+]

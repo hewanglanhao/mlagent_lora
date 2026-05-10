@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 1,
+  "llm_generated": true,
+  "name": "pure_cublas_three_sgemm",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Replace ATen matmul/transpose/add path with three direct cuBLAS SGEMMs, eliminate explicit B.T materialization, and fold the rank-16 add into the final SGEMM via beta=1; expected small but real launch and memory-traffic reduction versus baseline while retaining cuBLAS for the dominant dxd GEMM.",
+  "use_fast_math": false,
+  "vector_width": 1
+}

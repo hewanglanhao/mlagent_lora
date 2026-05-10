@@ -1,0 +1,17 @@
+{
+  "bytes": 5622,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 2,
+    "llm_generated": true,
+    "name": "cublas_fused_rank16_scalar_tf32_tile128",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Fix prior correctness failure by removing float4/vectorized writes and matching cuBLAS/PyTorch TF32-like multiply behavior in the fused rank-16 update, while still avoiding full A@Z materialization and the separate final add kernel.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "enabled": true,
+  "origin": "llm"
+}

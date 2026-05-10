@@ -1,0 +1,45 @@
+{
+  "avoid": [
+    "Do not promote this as a performance optimization; it is just the ATen baseline with no meaningful speedup.",
+    "Do not write a custom full W @ X GEMM unless profiling shows cuBLAS is not being used efficiently, which is not indicated here.",
+    "Do not hardcode d values or hidden tensor assumptions.",
+    "Do not add extra kernels that materialize A @ Z or perform a separate final add."
+  ],
+  "bottleneck": "aten_reference_no_fusion",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes exactly for d=3584, 4096, and 4608 with max_abs_err=0 and rel_l2_err=0.",
+    "Aggregate speedup is essentially neutral at 1.00037x, matching the torch/ATen reference rather than improving it.",
+    "Per-shape speedups are within noise: 1.00069x at d=3584, 1.00123x at d=4096, and 0.99890x at d=4608.",
+    "Profile labels the bottleneck as multiple ATen GEMM and add launches, consistent with an unfused reference implementation.",
+    "The latency is dominated by the large W @ X GEMM, so replacing that full GEMM with custom CUDA would be high risk and unlikely to beat cuBLAS.",
+    "The candidate does not appear to avoid materializing intermediate rank-update tensors or fuse the final Y += A @ Z update."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0003691119518616, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.726848006248474, \"4096\": 5.82809591293335, \"4608\": 7.47161602973938}, \"speedup\": {\"3584\": 1.000686912771546, \"4096\": 1.0012299136266412, \"4608\": 0.998903575565805}, \"torch_ms\": {\"3584\": 3.729408025741577, \"4096\": 5.835263967514038, \"4608\": 7.46342396736145}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Keep W @ X on cuBLAS/ATen; do not attempt a custom d x d full GEMM.",
+    "Use cuBLAS/ATen for the small projection Z = B.T @ X, then launch one custom CUDA kernel to accumulate Y += A @ Z in-place.",
+    "Avoid materializing A @ Z as a full d x d tensor and avoid a separate final add kernel.",
+    "Optimize the rank-16 update kernel for memory bandwidth and launch overhead: coalesced writes to contiguous Y columns, unroll the rank-16 loop, and stage/reuse A and/or Z where beneficial.",
+    "Benchmark tile shapes for the fused update, including a 128-column tile with each thread computing multiple contiguous columns, around 8 columns per thread as a useful starting point.",
+    "Evaluate vectorized loads/stores where alignment permits, but keep a scalar fallback for arbitrary runtime dimensions.",
+    "If future kernels improve only one dimension but regress others, use shape-aware dispatch or reject the variant."
+  ]
+}

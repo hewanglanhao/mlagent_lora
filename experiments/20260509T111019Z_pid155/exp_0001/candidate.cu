@@ -1,15 +1,15 @@
 #include <torch/extension.h>
 #include <ATen/cuda/CUDAContext.h>
 #include <ATen/cuda/CUDAContextLight.h>
-#include <c10/cuda/CUDAGuard.h>
+#include <ATen/cuda/CUDAGuard.h>
 #include <cublas_v2.h>
 
 namespace {
 
-#define CHECK_CUBLAS(expr)                                                        \
-    do {                                                                          \
-        cublasStatus_t _status = (expr);                                          \
-        TORCH_CHECK(_status == CUBLAS_STATUS_SUCCESS,                             \
+#define CHECK_CUBLAS(expr)                                                     \
+    do {                                                                       \
+        cublasStatus_t _status = (expr);                                       \
+        TORCH_CHECK(_status == CUBLAS_STATUS_SUCCESS,                          \
                     "cuBLAS call failed with status ", static_cast<int>(_status)); \
     } while (0)
 
@@ -44,7 +44,7 @@ torch::Tensor forward(torch::Tensor W,
                       torch::Tensor B) {
     check_inputs(W, X, A, B);
 
-    c10::cuda::CUDAGuard device_guard(W.device());
+    at::cuda::CUDAGuard device_guard(W.device());
 
     auto Wc = W.contiguous();
     auto Xc = X.contiguous();
@@ -58,7 +58,7 @@ torch::Tensor forward(torch::Tensor W,
     auto U = torch::empty({d, r}, Wc.options());
 
     cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
-    auto stream = at::cuda::getCurrentCUDAStream();
+    auto stream = at::cuda::getCurrentCUDAStream(Wc.device().index());
     CHECK_CUBLAS(cublasSetStream(handle, stream.stream()));
 
     const float alpha = 1.0f;
@@ -72,7 +72,7 @@ torch::Tensor forward(torch::Tensor W,
     float* Yp = Y.data_ptr<float>();
     float* Up = U.data_ptr<float>();
 
-    // Row-major W @ X via column-major view: Y_col = X_col @ W_col.
+    // Row-major W @ X is column-major X_col @ W_col into Y_col.
     CHECK_CUBLAS(cublasSgemm(handle,
                              CUBLAS_OP_N, CUBLAS_OP_N,
                              d, d, d,
@@ -82,7 +82,7 @@ torch::Tensor forward(torch::Tensor W,
                              &beta0,
                              Yp, d));
 
-    // U row-major {d,16}; column-major view represents logical B.T @ X.
+    // U has row-major shape {d,16}; column-major view computes X_col @ B_col^T.
     CHECK_CUBLAS(cublasSgemm(handle,
                              CUBLAS_OP_N, CUBLAS_OP_T,
                              d, r, d,
@@ -92,7 +92,7 @@ torch::Tensor forward(torch::Tensor W,
                              &beta0,
                              Up, d));
 
-    // Accumulate low-rank term: Y_col += U_col @ A_col, beta=1 avoids add kernel.
+    // Accumulate low-rank term with beta=1: Y_col += U_col @ A_col.
     CHECK_CUBLAS(cublasSgemm(handle,
                              CUBLAS_OP_N, CUBLAS_OP_N,
                              d, d, r,

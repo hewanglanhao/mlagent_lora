@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0006_static_code_review_1778323043252",
+  "duration_sec": 13.969038963317871,
+  "finished_ts": 1778323057.2211468,
+  "llm_status": "LLM enabled with model gpt-5.5 from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 1,
+      "llm_generated": true,
+      "name": "cublas_fused_rank16_tile128x1_vec4",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Removes full dxd A@Z materialization and final add by keeping cuBLAS/ATen for W@X and B.T@X, then fusing the rank-16 update into Y with coalesced vectorized column writes; should improve over neutral ATen baseline without risking the dominant full GEMM.",
+      "use_fast_math": false,
+      "vector_width": 4
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T103158Z_pid155/exp_0001/candidate.cu"
+  },
+  "model": "gpt-5.5",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778323057.2624369
+    }
+  ],
+  "request": {
+    "system_chars": 1918,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nPreferred-design checks:\n\n- Prefer candidates that keep W @ X and B.T @ X on ATen/cuBLAS and fuse only the final Y += A @ Z rank-16 update.\n- Warn if the code materializes the full A @ Z tensor or launches a separate final add kernel without a clear reason.\n- Check that the fused update treats A as d x 16 and Z as 16 x d, covers all rows and columns, and unrolls or cheaply loops over exactly 16 rank elements.\n- Check shared-memory staging and vectorized access assumptions for out-of-bounds or alignment bugs.\n- Do not reject a correct candidate solely for using a different safe strategy, but flag deviations from the preferred cuBLAS + fused rank update path as warnings.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "a97a8e9d80b71c33afb4b801ad02dfade05679f40e6a9799c70e0ac73231082a",
+    "user_chars": 5975,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 1,\n  \"llm_generated\": true,\n  \"name\": \"cublas_fused_rank16_tile128x1_vec4\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Removes full dxd A@Z materialization and final add by keeping cuBLAS/ATen for W@X and B.T@X, then fusing the rank-16 update into Y with coalesced vectorized column writes; should improve over neutral ATen baseline without risking the dominant full GEMM.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <ATen/cuda/CUDAContext.h>\n#include <c10/cuda/CUDAGuard.h>\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int RANK = 16;\nconstexpr int TILE_COLS = 128;\nconstexpr int TILE_ROWS = 8;\nconstexpr int THREADS = 256;\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.device() == X.device() && W.device() == A.device() && W.device() == B.device(),\n                \"all inputs must be on the same CUDA device\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"all inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be rank-2 tensors\");\n\n    const int64_t d = W.size(0);\n    TORCH_CHECK(d >= 3584 && d <= 4608, \"d must be in [3584, 4608]\");\n    TORCH_CHECK(W.size(1) == d, \"W must be d x d\");\n    TORCH_CHECK(X.size(0) == d && X.size(1) == d, \"X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == RANK, \"A must be d x 16\");\n    TORCH_CHECK(B.size(0) == d && B.size(1) == RANK, \"B must be d x 16\");\n}\n\n__global__ __launch_bounds__(THREADS)\nvoid rank16_update_tile128x8_kernel(float* __restrict__ Y,\n                                    const float* __restrict__ A,\n                                    const float* __restrict__ Z,\n                                    int d) {\n    __shared__ float sZ[RANK * TILE_COLS];\n    __shared__ float sA[TILE_ROWS * RANK];\n\n    const int tid = threadIdx.x;\n    const int col_base = blockIdx.x * TILE_COLS;\n    const int row_base = blockIdx.y * TILE_ROWS;\n\n    for (int idx = tid; idx < RANK * TILE_COLS; idx += THREADS) {\n        const int k = idx / TILE_COLS;\n        const int tc = idx - k * TILE_COLS;\n        const int col = col_base + tc;\n        sZ[idx] = (col < d) ? Z[k * d + col] : 0.0f;\n    }\n\n    for (int idx = tid; idx < TILE_ROWS * RANK; idx += THREADS) {\n        const int tr = idx / RANK;\n        const int k = idx - tr * RANK;\n        const int row = row_base + tr;\n        sA[idx] = (row < d) ? A[row * RANK + k] : 0.0f;\n    }\n\n    __syncthreads();\n\n    const int tc = tid & (TILE_COLS - 1);\n    const int row_pair = tid >> 7;\n    const int col = col_base + tc;\n\n    if (col >= d) {\n        return;\n    }\n\n    const int lr0 = row_pair;\n    const int lr1 = row_pair + 2;\n    const int lr2 = row_pair + 4;\n    const int lr3 = row_pair + 6;\n\n    const int row0 = row_base + lr0;\n    const int row1 = row_base + lr1;\n    const int row2 = row_base + lr2;\n    const int row3 = row_base + lr3;\n\n    float acc0 = (row0 < d) ? Y[row0 * d + col] : 0.0f;\n    float acc1 = (row1 < d) ? Y[row1 * d + col] : 0.0f;\n    float acc2 = (row2 < d) ? Y[row2 * d + col] : 0.0f;\n    float acc3 = (row3 < d) ? Y[row3 * d + col] : 0.0f;\n\n#define DO_RANK_K(K)               \n...<trimmed>...",
+    "user_sha256": "e52f4a7508920f6cf6997a27d695f62f9e25ac69c61b3b563a11075f1223aaa0"
+  },
+  "response": {
+    "content_chars": 667,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [\n    \"Non-contiguous inputs are handled by making contiguous copies, which is safe but may add overhead if callers pass non-contiguous tensors.\",\n    \"B.T is explicitly materialized with contiguous() before the small-rank GEMM; this is safe and likely minor, but it is an extra allocation/copy.\"\n  ],\n  \"suggested_fixes\": [\n    \"If performance tuning further, consider avoiding the explicit contiguous transpose of B when cuBLAS/ATen can handle the transpose view efficiently.\",\n    \"Document that the output is newly allocated and contiguous, and that non-contiguous inputs incur copies.\"\n  ]\n}",
+    "content_sha256": "347c32a86c00bcf9c45d3a8a571b96506ff3698d28a14c00e0e99a0158115de3",
+    "model": "gpt-5.5"
+  },
+  "run_id": "20260509T103158Z_pid155",
+  "started_ts": 1778323043.2521079,
+  "status": "success"
+}

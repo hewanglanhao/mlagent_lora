@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0011_performance_diagnosis_1778323621927",
+  "duration_sec": 20.24932050704956,
+  "finished_ts": 1778323642.1768422,
+  "llm_status": "LLM enabled with model gpt-5.5 from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": true,
+      "name": "cublas_fused_rank16_scalar_tf32_tile128",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Fix prior correctness failure by removing float4/vectorized writes and matching cuBLAS/PyTorch TF32-like multiply behavior in the fused rank-16 update, while still avoiding full A@Z materialization and the separate final add kernel.",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "gpt-5.5",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778323642.226371
+    }
+  ],
+  "request": {
+    "system_chars": 1875,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, shared-memory staging, and launch overhead.\n- Prefer diagnosing candidates against the cuBLAS + fused rank update target:\n  Y = W @ X by cuBLAS/ATen, Z = B.T @ X by cuBLAS/ATen, one custom kernel for Y += A @ Z.\n- Reward evidence that the candidate avoided materializing A @ Z and avoided a separate final add kernel.\n- When fused update performance is weak, consider tile width, rows per block, vector width, shared-memory reuse of A/Z, occupancy, register pressure, and whether each thread computes multiple contiguous columns.\n- A 128-column tile with about 8 output columns per thread is a useful reference point, but benchmark data should decide whether to keep or mutate it.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "ab2195d168bccd824d27c5bcebf0dcaed58b37b5f0e8c2fab7ed5448db1f7397",
+    "user_chars": 1993,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": true,\n  \"name\": \"cublas_fused_rank16_scalar_tf32_tile128\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Fix prior correctness failure by removing float4/vectorized writes and matching cuBLAS/PyTorch TF32-like multiply behavior in the fused rank-16 update, while still avoiding full A@Z materialization and the separate final add kernel.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 218.27626769710332,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_2_1778323403498\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.685821533203125,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00028531154384836555\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0008602142333984375,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00010920454224105924\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 6.75634765625,\n      \"passed\": false,\n      \"rel_l2_err\": 0.00029111397452652454\n    }\n  },\n  \"failed_shapes\": [\n    3584,\n    4096,\n    4608\n  ],\n  \"max_abs_err\": 6.75634765625,\n  \"rel_l2_err\": 0.00029111397452652454\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "5b9292ef1fb659ff655685ff3b21064145a7a278f0faf1d5b08b84f1a807bb65"
+  },
+  "response": {
+    "content_chars": 2753,
+    "content_preview": "{\n  \"bottleneck\": \"incorrect_numerics\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Correctness failed for all tested shapes: d=3584, 4096, and 4608.\",\n    \"Outputs are finite, so this is not an obvious NaN/Inf instability, but numerical error is above tolerance.\",\n    \"Worst max_abs_err is large at d=4608: 6.7563; d=3584 also has large max_abs_err: 0.6858.\",\n    \"rel_l2_err is consistently around 1e-4 to 3e-4, suggesting a systematic arithmetic mismatch rather than random memory corruption.\",\n    \"No benchmark data is available because correctness failed; performance should not be considered for promotion.\",\n    \"Static review passed and compile succeeded, so the main blocker is runtime numerical correctness.\"\n  ],\n  \"recommended_actions\": [\n    \"Reject this candidate until correctness is fixed.\",\n    \"Isolate the error source by comparing intermediate results: first verify cuBLAS/ATen W @ X output alone, then verify Z = B.T @ X, then verify the custom fused Y += A @ Z kernel.\",\n    \"Check whether the custom rank-16 update is matching the reference math mode. If the reference uses PyTorch/cuBLAS TF32 behavior, the fused update must emulate the same operand rounding and accumulation behavior closely enough; if the reference expects FP32, remove TF32-like rounding from the custom update.\",\n    \"Verify the fused update computes exactly Y[row, col] += sum_{r=0..15} A[row, r] * Z[r, col] with correct row-major/column-major indexing for PyTorch contiguous tensors.\",\n    \"Check B.T @ X orientation carefully: Z should be shape 16 x d, where Z[r, col] = sum_i B[i, r] * X[i, col].\",\n    \"Add a debug variant that materializes A @ Z with torch/cuBLAS and compares it against only the custom fused update contribution to determine whether the issue is in Z computation or in the A @ Z accumulation.\",\n    \"Test with TF32 disabled globally for the reference and candidate to determine whether the remaining error is purely TF32-mode mismatch.\",\n    \"Once correctness is fixed, benchmark against the preferred target: cuBLAS W @ X, cuBLAS B.T @ X, and one custom kernel for fused Y += A @ Z without materializing A @ Z or launching a separate final add.\"\n  ],\n  \"avoid\": [\n    \"Do not promote based on intended performance because correctness failed.\",\n    \"Do not optimize tile size, vectorization, or occupancy before resolving the numerical mismatch.\",\n    \"Do not introduce a custom full W @ X GEMM; W @ X likely dominates total work and cuBLAS is the low-risk baseline.\",\n    \"Do not hardcode hidden dimensions or assume only one of 3584, 4096, or 4608.\",\n    \"Do not rely on approximate TF32 emulation unless it is proven to match the benchmark reference tolerance across all supported shapes.\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "d96cf1da7a214d107670bbdf487931f24fde8d0752ead46f00fbf8a03c8a3603",
+    "model": "gpt-5.5"
+  },
+  "run_id": "20260509T103158Z_pid155",
+  "started_ts": 1778323621.9275217,
+  "status": "success"
+}

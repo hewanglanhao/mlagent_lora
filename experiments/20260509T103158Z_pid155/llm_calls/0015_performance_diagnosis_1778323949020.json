@@ -1,0 +1,47 @@
+{
+  "agent": "performance_diagnosis",
+  "call_id": "0015_performance_diagnosis_1778323949020",
+  "duration_sec": 15.261892080307007,
+  "finished_ts": 1778323964.2820494,
+  "llm_status": "LLM enabled with model gpt-5.5 from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 3,
+      "llm_generated": true,
+      "name": "rank16_scalar_b128",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 1
+    }
+  },
+  "model": "gpt-5.5",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778323964.3015473
+    }
+  ],
+  "request": {
+    "system_chars": 1875,
+    "system_preview": "You are the Performance Diagnosis Agent for an iterative CUDA optimization system.\n\nYour job is to interpret correctness, benchmark, and profiling results for a LoRA operator:\n\nY = W @ X + A @ (B.T @ X), rank 16, d in [3584, 4608].\n\nDiagnose why a candidate is fast, slow, unstable, or incorrect. Convert evidence into concrete optimization guidance.\n\nImportant reasoning rules:\n\n- Correctness failure dominates all performance considerations.\n- If W @ X dominates time, a custom full GEMM is usually high risk and unlikely to beat cuBLAS.\n- If the rank-16 update dominates, focus on memory bandwidth, coalescing, vectorization, unrolling, shared-memory staging, and launch overhead.\n- Prefer diagnosing candidates against the cuBLAS + fused rank update target:\n  Y = W @ X by cuBLAS/ATen, Z = B.T @ X by cuBLAS/ATen, one custom kernel for Y += A @ Z.\n- Reward evidence that the candidate avoided materializing A @ Z and avoided a separate final add kernel.\n- When fused update performance is weak, consider tile width, rows per block, vector width, shared-memory reuse of A/Z, occupancy, register pressure, and whether each thread computes multiple contiguous columns.\n- A 128-column tile with about 8 output columns per thread is a useful reference point, but benchmark data should decide whether to keep or mutate it.\n- If only one shape improves while another regresses badly, recommend shape-aware dispatch or reject promotion.\n- Consider compile failures and static-review warnings as useful evidence.\n- Do not recommend hardcoding hidden dimensions or hidden tensors.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"bottleneck\": \"short_name\",\n  \"confidence\": \"low|medium|high\",\n  \"evidence\": [\"observation\"],\n  \"recommended_actions\": [\"action\"],\n  \"avoid\": [\"risky_or_bad_direction\"],\n  \"promotion_advice\": \"promote|reject|needs_more_data\"\n}",
+    "system_sha256": "ab2195d168bccd824d27c5bcebf0dcaed58b37b5f0e8c2fab7ed5448db1f7397",
+    "user_chars": 1748,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 3,\n  \"llm_generated\": true,\n  \"name\": \"rank16_scalar_b128\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nStatic review result:\n\n{\n  \"errors\": [],\n  \"passed\": true,\n  \"risk_level\": \"low\",\n  \"warnings\": []\n}\n\nCompile result:\n\n{\n  \"compile_time_sec\": 226.59845921280794,\n  \"compiled\": true,\n  \"error_summary\": null,\n  \"error_type\": null,\n  \"module_name\": \"lora_candidate_ext_3_1778323722281\",\n  \"skipped\": false\n}\n\nCorrectness result:\n\n{\n  \"correct\": false,\n  \"details\": {\n    \"3584\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0003662109375,\n      \"passed\": false,\n      \"rel_l2_err\": 7.854647066096732e-08\n    },\n    \"4096\": {\n      \"finite\": true,\n      \"max_abs_err\": 9.5367431640625e-07,\n      \"passed\": true,\n      \"rel_l2_err\": 1.0506985859137785e-07\n    },\n    \"4608\": {\n      \"finite\": true,\n      \"max_abs_err\": 0.0029296875,\n      \"passed\": false,\n      \"rel_l2_err\": 6.787168160826695e-08\n    }\n  },\n  \"failed_shapes\": [\n    3584,\n    4608\n  ],\n  \"max_abs_err\": 0.0029296875,\n  \"rel_l2_err\": 1.0506985859137785e-07\n}\n\nBenchmark result:\n\n{}\n\nProfile summary:\n\n{\n  \"bottleneck\": \"unknown\",\n  \"evidence\": \"benchmark unavailable\",\n  \"suggested_actions\": [\n    \"keep the last known-good candidate\"\n  ]\n}\n\nDiagnose this experiment and return JSON.",
+    "user_sha256": "c913a3a2f55ee633e53d6eead080a8ebc968e401afc6c7f64b4e1bd832be9a6c"
+  },
+  "response": {
+    "content_chars": 2165,
+    "content_preview": "{\n  \"bottleneck\": \"correctness_failure\",\n  \"confidence\": \"high\",\n  \"evidence\": [\n    \"Candidate is not correct overall; correctness failed for d=3584 and d=4608.\",\n    \"Failures are finite and have very small rel_l2_err, but max_abs_err exceeds tolerance: 0.000366 for d=3584 and 0.00293 for d=4608.\",\n    \"d=4096 passed, so the issue is shape-dependent rather than a total implementation failure.\",\n    \"No benchmark data is available, so performance cannot be evaluated.\",\n    \"Static review passed and compilation succeeded, suggesting the problem is likely numerical/indexing/shape handling rather than build failure.\"\n  ],\n  \"recommended_actions\": [\n    \"Do not promote until correctness passes for all required d values.\",\n    \"Debug the custom rank-16 update kernel first, especially shape-dependent indexing, grid bounds, leading dimensions, and row/column mapping for non-4096 sizes.\",\n    \"Compare intermediate tensors separately: verify W @ X, verify Z = B.T @ X, then verify only the fused Y += A @ Z update against a reference.\",\n    \"Check whether the max_abs_err comes from a small number of outlier elements; if so, inspect boundary tiles and tail handling for d=3584 and d=4608.\",\n    \"Ensure the kernel uses runtime d everywhere and does not accidentally assume 4096 or power-of-two-friendly tile behavior.\",\n    \"If the error is purely numerical from accumulation order/FMA differences, consider matching reference accumulation more closely or validate whether the benchmark harness tolerance can accept the observed rel_l2_err; however, current result must be treated as failed.\",\n    \"After correctness is fixed, rerun benchmarks against the cuBLAS plus fused rank-update target.\"\n  ],\n  \"avoid\": [\n    \"Do not optimize performance before fixing correctness.\",\n    \"Do not promote based on the passing 4096 shape alone.\",\n    \"Do not hardcode d=4096 or any hidden dimension-specific assumptions.\",\n    \"Do not replace cuBLAS W @ X with a custom full GEMM; W @ X is high risk to reimplement and unlikely to beat cuBLAS.\",\n    \"Do not rely on benchmark conclusions because benchmark results are unavailable.\"\n  ],\n  \"promotion_advice\": \"reject\"\n}",
+    "content_sha256": "146e6eba0d9807c68f0add1d6cf780dc706d207b265f8f4ebdc0a4e2e335f137",
+    "model": "gpt-5.5"
+  },
+  "run_id": "20260509T103158Z_pid155",
+  "started_ts": 1778323949.0201573,
+  "status": "success"
+}

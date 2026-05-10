@@ -1,0 +1,45 @@
+{
+  "avoid": [
+    "Do not promote based on intended performance because correctness failed.",
+    "Do not optimize tile size, vectorization, or occupancy before resolving the numerical mismatch.",
+    "Do not introduce a custom full W @ X GEMM; W @ X likely dominates total work and cuBLAS is the low-risk baseline.",
+    "Do not hardcode hidden dimensions or assume only one of 3584, 4096, or 4608.",
+    "Do not rely on approximate TF32 emulation unless it is proven to match the benchmark reference tolerance across all supported shapes."
+  ],
+  "bottleneck": "incorrect_numerics",
+  "confidence": "high",
+  "evidence": [
+    "Correctness failed for all tested shapes: d=3584, 4096, and 4608.",
+    "Outputs are finite, so this is not an obvious NaN/Inf instability, but numerical error is above tolerance.",
+    "Worst max_abs_err is large at d=4608: 6.7563; d=3584 also has large max_abs_err: 0.6858.",
+    "rel_l2_err is consistently around 1e-4 to 3e-4, suggesting a systematic arithmetic mismatch rather than random memory corruption.",
+    "No benchmark data is available because correctness failed; performance should not be considered for promotion.",
+    "Static review passed and compile succeeded, so the main blocker is runtime numerical correctness."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "benchmark-only decisions"
+    ],
+    "bottleneck": "correctness_failure",
+    "confidence": "high",
+    "evidence": [
+      "{\"correct\": false, \"details\": {\"3584\": {\"finite\": true, \"max_abs_err\": 0.685821533203125, \"passed\": false, \"rel_l2_err\": 0.00028531154384836555}, \"4096\": {\"finite\": true, \"max_abs_err\": 0.0008602142333984375, \"passed\": false, \"rel_l2_err\": 0.00010920454224105924}, \"4608\": {\"finite\": true, \"max_abs_err\": 6.75634765625, \"passed\": false, \"rel_l2_err\": 0.00029111397452652454}}, \"failed_shapes\": [3584, 4096, 4608], \"max_abs_err\": 6.75634765625, \"rel_l2_err\": 0.00029111397452652454}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "use ATen for risky math",
+      "check rank-16 indexing and vector alignment"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this candidate until correctness is fixed.",
+    "Isolate the error source by comparing intermediate results: first verify cuBLAS/ATen W @ X output alone, then verify Z = B.T @ X, then verify the custom fused Y += A @ Z kernel.",
+    "Check whether the custom rank-16 update is matching the reference math mode. If the reference uses PyTorch/cuBLAS TF32 behavior, the fused update must emulate the same operand rounding and accumulation behavior closely enough; if the reference expects FP32, remove TF32-like rounding from the custom update.",
+    "Verify the fused update computes exactly Y[row, col] += sum_{r=0..15} A[row, r] * Z[r, col] with correct row-major/column-major indexing for PyTorch contiguous tensors.",
+    "Check B.T @ X orientation carefully: Z should be shape 16 x d, where Z[r, col] = sum_i B[i, r] * X[i, col].",
+    "Add a debug variant that materializes A @ Z with torch/cuBLAS and compares it against only the custom fused update contribution to determine whether the issue is in Z computation or in the A @ Z accumulation.",
+    "Test with TF32 disabled globally for the reference and candidate to determine whether the remaining error is purely TF32-mode mismatch.",
+    "Once correctness is fixed, benchmark against the preferred target: cuBLAS W @ X, cuBLAS B.T @ X, and one custom kernel for fused Y += A @ Z without materializing A @ Z or launching a separate final add."
+  ]
+}

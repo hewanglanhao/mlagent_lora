@@ -1,0 +1,37 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "aten_cublas_wx_btx_fused_rank16_coltile128",
+      "aten_cublas_wx_btx_fused_rank16_vec4",
+      "shape_dispatch_rank16_tile_variants"
+    ],
+    "priority_order": [
+      "Implement Y = torch::matmul(W, X) and Z = torch::matmul(B.transpose(0,1), X), then a single custom CUDA kernel accumulating Y[i,j] += sum_r A[i,r] * Z[r,j] in-place with rank loop fully unrolled; use a 2D grid over rows and 128-column tiles where each thread computes about 8 contiguous columns.",
+      "Benchmark low-risk tile mutations of the fused update kernel: 64/128/256 column tiles, 4/8 columns per thread, 128/256 threads per block, with coalesced accesses to Z/Y and cached per-row A values.",
+      "If one tile shape wins only for part of d range, add simple shape-aware dispatch for d buckets around 3584, 4096, and 4608 while keeping a generic fallback."
+    ],
+    "rationale": "The baseline is correct but only matches ATen because it still uses unfused tensor operations. The safest next optimization is to retain cuBLAS for the dominant W @ X GEMM and B.T @ X projection, then fuse only the fixed-rank-16 update into Y. A 128-column tile kernel with each thread computing multiple contiguous columns is the highest-priority baseline because it exploits rank-16 unrolling, coalesced Y/Z accesses, and avoids materializing A @ Z.",
+    "risk_controls": [
+      "Keep the existing ATen baseline as fallback and never promote a candidate unless correctness passes for all tested d values.",
+      "Do not replace the large W @ X GEMM with custom CUDA; use ATen/cuBLAS for W @ X.",
+      "Do not materialize the full A @ Z tensor and do not add a separate final add kernel.",
+      "Use at::cuda::getCurrentCUDAStream() for the custom kernel and check cudaGetLastError after launch.",
+      "Require bounds checks for tail rows and columns because d is runtime-selected.",
+      "Validate tensor dtype, CUDA device, dimensions, and contiguity handling; call contiguous only when needed and preserve correctness for non-contiguous inputs.",
+      "Keep scalar-safe loads/stores first; only add float4/vectorized variants behind alignment and d-multiple checks."
+    ],
+    "stop_conditions": [
+      "Stop the first fused-rank candidate if it fails correctness, has launch errors, or regresses aggregate speed below the ATen baseline.",
+      "Stop exploring custom rank-update tile variants if the fused kernel contributes negligible improvement across all d values after 3 to 5 low-risk tile mutations.",
+      "Reject any variant that improves one shape but causes a material regression on another unless shape-aware dispatch removes the regression.",
+      "Do not proceed to custom full GEMM unless profiling unexpectedly shows cuBLAS is not used or is pathological."
+    ],
+    "strategy": "cublas_gemm_plus_fused_rank16_update"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "cublas_gemm_plus_fused_rank16_update"
+}

@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0010_static_code_review_1778323377190",
+  "duration_sec": 26.28933358192444,
+  "finished_ts": 1778323403.4794042,
+  "llm_status": "LLM enabled with model gpt-5.5 from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 256,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 2,
+      "llm_generated": true,
+      "name": "cublas_fused_rank16_scalar_tf32_tile128",
+      "parent": 0,
+      "shape_dispatch": false,
+      "strategy": "Fix prior correctness failure by removing float4/vectorized writes and matching cuBLAS/PyTorch TF32-like multiply behavior in the fused rank-16 update, while still avoiding full A@Z materialization and the separate final add kernel.",
+      "use_fast_math": false,
+      "vector_width": 1
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260509T103158Z_pid155/exp_0002/candidate.cu"
+  },
+  "model": "gpt-5.5",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778323403.4959033
+    }
+  ],
+  "request": {
+    "system_chars": 1918,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It supports runtime d in [3584, 4608], not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- Tensor dtype, device, dimensionality, shape, and contiguity handling.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA streams and kernel launch error checking.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nPreferred-design checks:\n\n- Prefer candidates that keep W @ X and B.T @ X on ATen/cuBLAS and fuse only the final Y += A @ Z rank-16 update.\n- Warn if the code materializes the full A @ Z tensor or launches a separate final add kernel without a clear reason.\n- Check that the fused update treats A as d x 16 and Z as 16 x d, covers all rows and columns, and unrolls or cheaply loops over exactly 16 rank elements.\n- Check shared-memory staging and vectorized access assumptions for out-of-bounds or alignment bugs.\n- Do not reject a correct candidate solely for using a different safe strategy, but flag deviations from the preferred cuBLAS + fused rank update path as warnings.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "a97a8e9d80b71c33afb4b801ad02dfade05679f40e6a9799c70e0ac73231082a",
+    "user_chars": 6521,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 256,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 2,\n  \"llm_generated\": true,\n  \"name\": \"cublas_fused_rank16_scalar_tf32_tile128\",\n  \"parent\": 0,\n  \"shape_dispatch\": false,\n  \"strategy\": \"Fix prior correctness failure by removing float4/vectorized writes and matching cuBLAS/PyTorch TF32-like multiply behavior in the fused rank-16 update, while still avoiding full A@Z materialization and the separate final add kernel.\",\n  \"use_fast_math\": false,\n  \"vector_width\": 1\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <ATen/Context.h>\n#include <ATen/cuda/CUDAContext.h>\n#include <c10/cuda/CUDAGuard.h>\n#include <c10/cuda/CUDAException.h>\n#include <cuda_runtime.h>\n\nnamespace {\n\nconstexpr int RANK = 16;\nconstexpr int TILE_COLS = 128;\nconstexpr int TILE_ROWS = 2;\nconstexpr int BLOCK_SIZE = 256;\n\nvoid check_inputs(const torch::Tensor& W,\n                  const torch::Tensor& X,\n                  const torch::Tensor& A,\n                  const torch::Tensor& B) {\n    TORCH_CHECK(W.is_cuda() && X.is_cuda() && A.is_cuda() && B.is_cuda(),\n                \"all inputs must be CUDA tensors\");\n    TORCH_CHECK(W.device() == X.device() && W.device() == A.device() && W.device() == B.device(),\n                \"all inputs must be on the same CUDA device\");\n    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&\n                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,\n                \"all inputs must be float32 tensors\");\n    TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,\n                \"all inputs must be rank-2 tensors\");\n\n    const int64_t d = W.size(0);\n    TORCH_CHECK(d >= 3584 && d <= 4608, \"d must be in [3584, 4608]\");\n    TORCH_CHECK(W.size(1) == d, \"W must be d x d\");\n    TORCH_CHECK(X.size(0) == d && X.size(1) == d, \"X must be d x d\");\n    TORCH_CHECK(A.size(0) == d && A.size(1) == RANK, \"A must be d x 16\");\n    TORCH_CHECK(B.size(0) == d && B.size(1) == RANK, \"B must be d x 16\");\n}\n\n__device__ __forceinline__ float tf32_round_bits(float v) {\n    unsigned int x = __float_as_uint(v);\n    unsigned int exp = x & 0x7f800000u;\n    if (exp == 0x7f800000u) {\n        return v;\n    }\n    unsigned int lsb = (x >> 13) & 1u;\n    x += 0x00000fffu + lsb;\n    x &= 0xffffe000u;\n    return __uint_as_float(x);\n}\n\n__device__ __forceinline__ float maybe_tf32(float v, bool use_tf32) {\n    return use_tf32 ? tf32_round_bits(v) : v;\n}\n\n__global__ __launch_bounds__(BLOCK_SIZE)\nvoid fused_rank16_update_kernel(float* __restrict__ Y,\n                                const float* __restrict__ A,\n                                const float* __restrict__ Z,\n                                int d,\n                                bool use_tf32) {\n    __shared__ float As[TILE_ROWS][RANK];\n    __shared__ float Zs[RANK][TILE_COLS];\n\n    const int tid = threadIdx.x;\n    const int col_base = blockIdx.x * TILE_COLS;\n    const int row_base = blockIdx.y * TILE_ROWS;\n\n    if (tid < TILE_ROWS * RANK) {\n        const int lr = tid / RANK;\n        const int k = tid - lr * RANK;\n        const int row = row_base + lr;\n        As[lr][k] = (row < d) ? maybe_tf32(A[row * RANK + k], use_tf32) : 0.0f;\n    }\n\n    for (int idx = tid; idx < RANK * TILE_COLS; idx += BLOCK_SIZE) {\n        const int k = idx / TILE_COLS;\n        const int lc = idx - k * TILE_COLS;\n        const int col = col_base + lc;\n        Zs[k][lc] = (col < d) ? maybe_tf32(Z[k * d + col], use_tf32) : 0.0f;\n    }\n\n    __syncthreads();\n\n    const int lr = tid / TILE_COLS;\n    const int lc = tid - lr * TILE_COLS;\n    const int row = row_base + lr;\n    const int col = col_base + lc;\n\n    if (lr < \n...<trimmed>...",
+    "user_sha256": "37512c31ba9defb8662cdd9745f5c7b9058ce3e2aa8d474bb7652642c8b9fd77"
+  },
+  "response": {
+    "content_chars": 1331,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [\n    \"The fused rank-16 update manually emulates TF32 by rounding A and Z inputs when cuBLAS TF32 is enabled. This is a reasonable strategy, but it may not be bit-identical to cuBLAS tensor-core behavior in edge cases such as subnormals, NaNs, infinities, or exact rounding/flush semantics.\",\n    \"The kernel assumes the output tensor Y from at::matmul(Wc, Xc) is contiguous and uses row-major indexing via Y.data_ptr<float>(). This is normally true for 2D CUDA matmul outputs, but the code does not explicitly enforce Y = Y.contiguous().\",\n    \"Non-contiguous inputs are handled by making contiguous copies, which is safe, but may add memory overhead and latency for strided inputs.\"\n  ],\n  \"suggested_fixes\": [\n    \"Optionally call Y = Y.contiguous() before launching the custom kernel to make the row-major indexing assumption explicit.\",\n    \"Document the intended numerical behavior of the manual TF32 rounding path, or disable the manual TF32 emulation if exact PyTorch/cuBLAS numerical matching is more important than matching TF32-like multiplication behavior.\",\n    \"If performance matters for non-contiguous inputs, consider rejecting non-contiguous tensors instead of silently copying, or document that contiguous copies are made internally.\"\n  ]\n}",
+    "content_sha256": "588ffa85cfe1b927db88a89c2abbd0b0abc007823b23a9530d8d2086d39a921b",
+    "model": "gpt-5.5"
+  },
+  "run_id": "20260509T103158Z_pid155",
+  "started_ts": 1778323377.1900706,
+  "status": "success"
+}

@@ -1,0 +1,13 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "If performance tuning further, consider avoiding the explicit contiguous transpose of B when cuBLAS/ATen can handle the transpose view efficiently.",
+    "Document that the output is newly allocated and contiguous, and that non-contiguous inputs incur copies."
+  ],
+  "warnings": [
+    "Non-contiguous inputs are handled by making contiguous copies, which is safe but may add overhead if callers pass non-contiguous tensors.",
+    "B.T is explicitly materialized with contiguous() before the small-rank GEMM; this is safe and likely minor, but it is an extra allocation/copy."
+  ]
+}

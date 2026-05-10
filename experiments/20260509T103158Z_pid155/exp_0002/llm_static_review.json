@@ -1,0 +1,15 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Optionally call Y = Y.contiguous() before launching the custom kernel to make the row-major indexing assumption explicit.",
+    "Document the intended numerical behavior of the manual TF32 rounding path, or disable the manual TF32 emulation if exact PyTorch/cuBLAS numerical matching is more important than matching TF32-like multiplication behavior.",
+    "If performance matters for non-contiguous inputs, consider rejecting non-contiguous tensors instead of silently copying, or document that contiguous copies are made internally."
+  ],
+  "warnings": [
+    "The fused rank-16 update manually emulates TF32 by rounding A and Z inputs when cuBLAS TF32 is enabled. This is a reasonable strategy, but it may not be bit-identical to cuBLAS tensor-core behavior in edge cases such as subnormals, NaNs, infinities, or exact rounding/flush semantics.",
+    "The kernel assumes the output tensor Y from at::matmul(Wc, Xc) is contiguous and uses row-major indexing via Y.data_ptr<float>(). This is normally true for 2D CUDA matmul outputs, but the code does not explicitly enforce Y = Y.contiguous().",
+    "Non-contiguous inputs are handled by making contiguous copies, which is safe, but may add memory overhead and latency for strided inputs."
+  ]
+}

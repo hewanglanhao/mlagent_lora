@@ -1,0 +1,36 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_three_sgemm_reference"
+    ],
+    "priority_order": [
+      "Implement a single optimized_lora.cu using raw cuBLAS SGEMM calls on the current PyTorch CUDA stream, with no ATen mm/matmul/addmm for the main computation.",
+      "Use the exact row-major to column-major reference mapping: SGEMM1 opA=N/opB=N A=X B=W m=d n=d k=d writes Y; SGEMM2 opA=N/opB=T A=X B=B m=d n=16 k=d writes U shaped {d,16} with ldc=d; SGEMM3 opA=N/opB=N A=U B=A m=d n=d k=16 accumulates into Y with beta=1.",
+      "Add robust runtime checks for CUDA float32 contiguous tensors, expected shapes W/X dxd and A/B dx16, same device, and d in [3584,4608]; allocate Y as {d,d} and U as {d,16} on the same device."
+    ],
+    "rationale": "The only prior candidate was an ATen reference path with exact correctness but no speedup and explicit transpose materialization. The next lowest-risk optimization is the mandated pure cuBLAS three-SGEMM implementation, eliminating ATen launch overhead and avoiding B.T materialization while preserving the main dxd GEMM in cuBLAS. The specified SGEMM mapping directly matches PyTorch row-major storage through cuBLAS column-major reinterpretation and should be validated across the full runtime d range before considering any more aggressive variants.",
+    "risk_controls": [
+      "Do not promote unless correctness passes for all tested d values, especially 3584, 4096, and 4608.",
+      "Bind cuBLAS to at::cuda::getCurrentCUDAStream() before issuing SGEMMs.",
+      "Avoid B.transpose(...).contiguous(), ATen mm/matmul/addmm, and any custom CUDA kernel in this candidate.",
+      "Use U allocation with row-major torch shape {d,16}, but pass ldc=d for its column-major interpretation.",
+      "Use alpha=1.0 for all SGEMMs; use beta=0.0 for SGEMM1 and SGEMM2; use beta=1.0 for SGEMM3.",
+      "Check cuBLAS status after handle creation, stream setup, and every SGEMM call.",
+      "Keep the existing ATen baseline as fallback if compile, static review, correctness, or benchmark fails.",
+      "Do not hardcode a single d or branch on hidden benchmark-only shapes."
+    ],
+    "stop_conditions": [
+      "Stop and keep baseline if the cuBLAS candidate fails static review, compilation, or correctness on any required d.",
+      "Stop investigating alternative layouts if the reference U shape {d,16} mapping is correct and gives measurable speedup.",
+      "If speedup remains approximately 1.0x after a correct pure cuBLAS implementation, benchmark evidence should guide only low-risk cuBLAS-level mutations, not custom full GEMM kernels.",
+      "Do not explore handwritten CUDA low-rank kernels until the pure three-SGEMM cuBLAS reference candidate has been validated."
+    ],
+    "strategy": "pure_cublas_three_sgemm_reference_mapping"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_three_sgemm_reference_mapping"
+}
