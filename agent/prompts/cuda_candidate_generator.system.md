@@ -14,16 +14,17 @@ Hard constraints:
 - Export exactly this callable function:
   torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)
 - Expose it through PYBIND11_MODULE(TORCH_EXTENSION_NAME, m).
-- Use runtime shape checks; do not hardcode one d value.
-- d is in [3584, 4608], rank r is exactly 16, and all tensors are CUDA float32.
+- Do not hardcode one d value; derive `d` from `W.size(0)`.
+- d will be tested in [3584, 4608], rank r is exactly 16, and all tensors are CUDA float32.
+- Inputs are guaranteed legal: CUDA float32, contiguous, same device, rank-2, W/X are d x d, A/B are d x 16, and d fits cuBLAS int dimensions.
+- Do not generate any input validation code: no `check_inputs`, no `TORCH_CHECK`, no dtype/device/rank/shape/contiguity checks, no d range checks, and no fallback branches for invalid inputs.
 - Do not depend on any extra .h, .cuh, .cu, or .cpp file.
 - Do not use hidden inputs or shape-specific shortcuts.
 
 Correctness requirements:
 
 - Compute W @ X + A @ (B.T @ X) within the configured local correctness tolerance, normally torch.allclose rtol=1e-4, atol=2e-3.
-- Validate CUDA tensor placement, dtype, rank, and compatible shapes.
-- For the preferred 3_sgemm-style candidate, require input tensors to be contiguous with `TORCH_CHECK` instead of creating `.contiguous()` copies. The local harness provides contiguous tensors, and avoiding copies is part of the intended optimization.
+- Do not validate CUDA tensor placement, dtype, rank, shapes, or contiguity in the generated source. Trust the inputs and keep the hot path minimal.
 - If any CUDA kernel is used outside the preferred strategy, protect it against out-of-bounds indexing.
 
 Performance guidance:
@@ -35,6 +36,7 @@ Performance guidance:
 - Use `c10::cuda::CUDAGuard` for the input device and get the current cuBLAS handle with `at::cuda::getCurrentCUDABlasHandle()`.
 - For the first 3_sgemm-style attempt, do not call `at::cuda::getCurrentCUDAStream()` and do not call `cublasSetStream`; rely on PyTorch's current cuBLAS handle behavior.
 - Allocate `Y` as `torch::empty_like(W)` and allocate `U` as `torch::empty({d, 16}, W.options())`.
+- In each `cublasSgemm` call, pass tensor pointers directly as arguments, such as `X.data_ptr<float>()`, `W.data_ptr<float>()`, `B.data_ptr<float>()`, `A.data_ptr<float>()`, `Y.data_ptr<float>()`, and `U.data_ptr<float>()`. Do not pre-store them in local pointer variables like `Xp`, `Wp`, `Yp`, or `Up` for the preferred 3_sgemm-style code.
 - Exploit row-major/column-major equivalence: PyTorch tensors are row-major, while cuBLAS treats the same memory as column-major.
 - First compute the row-major main term W @ X into Y by using the equivalent column-major cuBLAS multiplication ordering.
 - Then compute a temporary tensor U with row-major shape {d, 16}; from the column-major cuBLAS view, it should represent the low-rank intermediate without explicitly constructing B.T.

@@ -21,8 +21,10 @@ Optimization guidance:
 - Prioritize a pure cuBLAS three-SGEMM strategy modeled after `/workspace/lora/3_sgemm.cu`; this should be the first LLM-generated family unless it has already been compiled, correctness-tested, and rejected for a clear reason.
 - Do not route the main matrix multiplications through ATen `mm` for this strategy.
 - Do not propose hand-written CUDA kernels as the primary implementation for this strategy.
-- Prefer a simple PyTorch CUDA extension structure: include `torch/extension.h`, `ATen/cuda/CUDAContext.h`, `c10/cuda/CUDAGuard.h`, and `cublas_v2.h`; validate inputs; require contiguous tensors with `TORCH_CHECK`; create `Y = empty_like(W)` and `U = empty({d,16}, W.options())`; get the handle with `at::cuda::getCurrentCUDABlasHandle()`.
-- For the 3_sgemm-style first candidate, do not plan explicit `cublasSetStream`, `getCurrentCUDAStream`, `CUDAContextLight`, `.contiguous()` input copies, ATen fallback math, or custom kernels. The benchmark harness supplies contiguous tensors, so failing fast on non-contiguous input is acceptable.
+- Prefer a simple PyTorch CUDA extension structure: include `torch/extension.h`, `ATen/cuda/CUDAContext.h`, `c10/cuda/CUDAGuard.h`, and `cublas_v2.h`; create `Y = empty_like(W)` and `U = empty({d,16}, W.options())`; get the handle with `at::cuda::getCurrentCUDABlasHandle()`.
+- Assume all inputs are legal: CUDA float32, contiguous, same device, rank-2, W/X are square d x d, and A/B are d x 16. Do not plan or generate input validation code, `check_inputs`, `TORCH_CHECK` shape/dtype/device/contiguity checks, or d range checks.
+- For the 3_sgemm-style first candidate, do not plan explicit `cublasSetStream`, `getCurrentCUDAStream`, `CUDAContextLight`, `.contiguous()` input copies, ATen fallback math, custom kernels, or any input legality checks.
+- Prefer passing tensor pointers directly inside `cublasSgemm`, e.g. `X.data_ptr<float>()`, `W.data_ptr<float>()`, `Y.data_ptr<float>()`, rather than pre-binding `Wp`, `Xp`, `Yp`, or similar local pointer aliases.
 - Use the fact that PyTorch tensors are row-major while cuBLAS interprets memory as column-major.
 - Express the row-major LoRA formula as three equivalent column-major cuBLAS SGEMMs:
   1. compute the main term W @ X into Y by issuing the column-major equivalent multiplication with X and W;
