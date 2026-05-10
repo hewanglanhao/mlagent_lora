@@ -8,7 +8,7 @@ torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::
 
     const int d = static_cast<int>(W.size(0));
     auto Y = torch::empty_like(W);
-    auto U = torch::empty({static_cast<int64_t>(d), 16}, W.options());
+    auto U = torch::empty({static_cast<int64_t>(d), static_cast<int64_t>(16)}, W.options());
 
     cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
 

@@ -1,0 +1,21 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "medium",
+  "suggested_fixes": [
+    "For the preferred implementation, replace ATen matmul calls with three cublasSgemm calls using the required row-major-through-column-major parameter patterns.",
+    "Include <ATen/cuda/CUDAContext.h>, <c10/cuda/CUDAGuard.h>, and <cublas_v2.h> if using cuBLAS/PyTorch CUDA helpers.",
+    "Use c10::cuda::CUDAGuard and at::cuda::getCurrentCUDABlasHandle().",
+    "Allocate Y with torch::empty_like(W) and U with shape {d, 16}.",
+    "Avoid .contiguous() input copies and avoid explicit B.T materialization; express B.T with cuBLAS op flags.",
+    "Use SGEMM1: opA=N, opB=N, m=d, n=d, k=d, A=X, B=W, C=Y, lda=ldb=ldc=d, beta=0.",
+    "Use SGEMM2: opA=N, opB=T, m=d, n=16, k=d, A=X, B=B, C=U, lda=d, ldb=16, ldc=d, beta=0.",
+    "Use SGEMM3: opA=N, opB=N, m=d, n=d, k=16, A=U, B=A, C=Y, lda=d, ldb=16, ldc=d, beta=1."
+  ],
+  "warnings": [
+    "Candidate is an ATen reference implementation, not a pure cuBLAS three-SGEMM implementation.",
+    "Core computation calls at::matmul and add_ rather than cublasSgemm, so it does not satisfy the preferred 3_sgemm-style structure.",
+    "It explicitly materializes B.T via Bc.transpose(0, 1).contiguous(), which a cuBLAS implementation should avoid by using transpose operation flags.",
+    "It creates contiguous copies of all inputs, which is unnecessary for the preferred 3_sgemm-style hot path and may add overhead."
+  ]
+}
