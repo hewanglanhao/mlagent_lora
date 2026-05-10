@@ -6,9 +6,8 @@
 
 namespace {
 
-inline void check_cublas(cublasStatus_t status, const char* name) {
-    TORCH_CHECK(status == CUBLAS_STATUS_SUCCESS,
-                name, " failed with cuBLAS status ", static_cast<int>(status));
+void check_cublas(cublasStatus_t status, const char* msg) {
+    TORCH_CHECK(status == CUBLAS_STATUS_SUCCESS, msg, " failed with cuBLAS status ", static_cast<int>(status));
 }
 
 void check_inputs(const torch::Tensor& W,
@@ -19,10 +18,8 @@ void check_inputs(const torch::Tensor& W,
                 "all inputs must be CUDA tensors");
     TORCH_CHECK(W.device() == X.device() && W.device() == A.device() && W.device() == B.device(),
                 "all inputs must be on the same CUDA device");
-    TORCH_CHECK(W.scalar_type() == at::kFloat &&
-                X.scalar_type() == at::kFloat &&
-                A.scalar_type() == at::kFloat &&
-                B.scalar_type() == at::kFloat,
+    TORCH_CHECK(W.scalar_type() == at::kFloat && X.scalar_type() == at::kFloat &&
+                A.scalar_type() == at::kFloat && B.scalar_type() == at::kFloat,
                 "all inputs must be float32 tensors");
     TORCH_CHECK(W.dim() == 2 && X.dim() == 2 && A.dim() == 2 && B.dim() == 2,
                 "all inputs must be rank-2 tensors");
@@ -55,7 +52,6 @@ torch::Tensor forward(torch::Tensor W,
     auto U = torch::empty({static_cast<int64_t>(d), static_cast<int64_t>(r)}, W.options());
 
     cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
-
     const float alpha = 1.0f;
     const float beta0 = 0.0f;
     const float beta1 = 1.0f;

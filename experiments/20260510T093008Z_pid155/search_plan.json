@@ -1,0 +1,40 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_3_sgemm"
+    ],
+    "priority_order": [
+      "Implement the first LLM-generated candidate as a pure cuBLAS three-SGEMM optimized_lora.cu modeled after /workspace/lora/3_sgemm.cu, not ATen mm and not custom kernels.",
+      "Use the exact required row-major/column-major SGEMM mapping: gemm(N,N,d,d,d, X,W -> Y), gemm(N,T,d,16,d, X,B -> U), gemm(N,N,d,d,16, U,A -> Y, beta=1).",
+      "After correctness passes for d=3584, 4096, and 4608, benchmark against the current ATen baseline and promote only if aggregate speedup improves."
+    ],
+    "rationale": "The only tested candidate is an ATen reference path: it is correct but slower overall and still performs baseline-style GEMM/add decomposition with explicit transpose/copy overhead. The next required search step is the low-risk pure cuBLAS three-SGEMM family. It preserves cuBLAS for the dominant W @ X GEMM, avoids B.T materialization, computes U as d x 16 via transpose flags, and accumulates the rank-16 update directly into Y with beta=1, reducing launch and ATen overhead while maintaining correctness across all runtime d values.",
+    "risk_controls": [
+      "Require W, X, A, and B to be CUDA float32 tensors on the same device.",
+      "Require all inputs to be contiguous with TORCH_CHECK; do not call .contiguous() in the hot path.",
+      "Validate shapes: W and X are d x d, A and B are d x 16, and d is in [3584, 4608].",
+      "Use at::cuda::CUDAGuard for W.device() and at::cuda::getCurrentCUDABlasHandle() for the current PyTorch CUDA stream.",
+      "Allocate Y = torch::empty_like(W) and U = torch::empty({d, 16}, W.options()).",
+      "Do not use ATen matmul/mm/add for the main computation.",
+      "Do not explicitly materialize B.T or perform transpose-copy operations.",
+      "Do not add custom CUDA kernels or explicit cublasSetStream/getCurrentCUDAStream plumbing for this candidate.",
+      "Check every cublasSgemm return status with TORCH_CHECK before returning Y.",
+      "Treat correctness as a hard gate; never promote this candidate unless all tested d values pass numerical validation."
+    ],
+    "stop_conditions": [
+      "Stop and reject if static review finds ATen mm/matmul/add used for the core computation.",
+      "Stop and reject if the candidate materializes B.T with transpose().contiguous() or any equivalent explicit copy.",
+      "Stop and reject if any cuBLAS SGEMM dimensions, transpose flags, or leading dimensions differ from the required three-SGEMM mapping without strong correctness evidence.",
+      "Stop and reject if compilation fails.",
+      "Stop and reject if correctness fails for any tested d in the runtime range.",
+      "If correct but aggregate speedup is not better than the current best, keep the existing baseline and only then consider low-risk follow-up mutations."
+    ],
+    "strategy": "pure_cublas_3_sgemm_rowmajor_mapping"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_3_sgemm_rowmajor_mapping"
+}

@@ -1,0 +1,48 @@
+{
+  "avoid": [
+    "Do not promote this ATen reference candidate based on correctness alone.",
+    "Do not implement a custom full d x d GEMM for W @ X; cuBLAS should handle the dominant GEMM.",
+    "Do not add explicit B.T transpose-copy or other input copies unless correctness absolutely requires it.",
+    "Do not switch first to handwritten rank-16 kernels before validating the simpler pure cuBLAS three-SGEMM implementation.",
+    "Do not hardcode a single hidden dimension because d is runtime-selected in [3584, 4608].",
+    "Do not use result caching as an optimization direction unless repeated identical input tensors are explicitly part of the benchmark contract."
+  ],
+  "bottleneck": "aten_reference_overhead_no_real_optimization",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested dimensions with zero numerical error, so the implementation is functionally valid.",
+    "Aggregate speedup is 0.969x, which is slower than the PyTorch reference overall.",
+    "Performance is essentially identical at d=3584 and d=4608 but regresses at d=4096 with only 0.918x speedup.",
+    "Profile identifies multiple ATen GEMM/add launches, indicating this candidate is still the baseline-style decomposition rather than a lower-overhead cuBLAS implementation.",
+    "The main W @ X term is a large d x d SGEMM and should remain a direct cuBLAS SGEMM rather than being replaced by a custom kernel.",
+    "There is no evidence this candidate implements the preferred pure cuBLAS three-SGEMM path or accumulates the low-rank term into Y using beta=1."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "custom full GEMM without evidence"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 0.9685529920030573, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.1252479553222656, \"4096\": 4.86297607421875, \"4608\": 5.716480016708374}, \"speedup\": {\"3584\": 0.9996723435030179, \"4096\": 0.9184038672732978, \"4608\": 1.0042991401427763}, \"torch_ms\": {\"3584\": 3.1242239475250244, \"4096\": 4.4661760330200195, \"4608\": 5.741055965423584}}"
+    ],
+    "promotion_advice": "reject",
+    "recommended_actions": [
+      "try vector width 4",
+      "vary block size",
+      "keep W @ X in cuBLAS"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Reject this baseline as an optimization candidate because it is correct but not faster overall.",
+    "Move to a pure cuBLAS three-SGEMM implementation modeled after /workspace/lora/3_sgemm.cu instead of ATen matmul/add composition.",
+    "Use direct cuBLAS SGEMM for the main term W @ X.",
+    "Avoid explicit B.T materialization; compute the low-rank intermediate directly with cuBLAS.",
+    "Use temporary U with shape {d, 16}.",
+    "Use the exact SGEMM mapping: SGEMM1 opA=N/opB=N with A=X and B=W to produce Y; SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, U shape {d,16}, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1 to accumulate into Y.",
+    "Require or check contiguous CUDA float32 inputs rather than adding input copies in the hot path.",
+    "Use at::cuda::CUDAGuard and at::cuda::getCurrentCUDABlasHandle so cuBLAS runs on the correct device and current PyTorch stream.",
+    "After validating the pure three-SGEMM path for correctness on all d values, benchmark it against this baseline before considering handwritten rank-16 kernels."
+  ]
+}

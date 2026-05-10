@@ -1,0 +1,47 @@
+{
+  "avoid": [
+    "Do not promote this candidate globally based on the near-1.0 aggregate speedup.",
+    "Do not pursue a custom full d x d GEMM for W @ X; direct cuBLAS SGEMM is the right primitive for the dominant term.",
+    "Do not switch back to handwritten rank-16 kernels unless there is strong evidence they are correct and faster across all shapes.",
+    "Do not add explicit B.T transpose/copy or input-contiguity copies, as these can erase the small savings from the pure cuBLAS path.",
+    "Do not tune block size or float4 stores for this pure cuBLAS implementation; those suggestions apply to custom kernels and are not the likely bottleneck here.",
+    "Do not use result caching or hardcoded dimensions as an optimization direction."
+  ],
+  "bottleneck": "main_sgemm_dominates_neutral_gain",
+  "confidence": "high",
+  "evidence": [
+    "Correctness is validated for all tested d values: 3584, 4096, and 4608.",
+    "The candidate appears to implement the preferred pure cuBLAS three-SGEMM strategy and avoids the most fragile handwritten rank-16 path.",
+    "Aggregate speedup is only 1.0024x, effectively noise-level improvement over torch baseline.",
+    "Performance is shape-dependent: d=3584 improves by 1.0436x and d=4608 improves by 1.0358x, but d=4096 regresses to 0.9464x.",
+    "Latency is dominated by the full W @ X SGEMM; the rank-16 path and launch/ATen-overhead savings are too small to consistently move aggregate time.",
+    "Static review passed with low risk and no warnings, and compile succeeded, so the issue is not correctness or build stability."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0024027031701062, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.9951999187469482, \"4096\": 4.692992210388184, \"4608\": 5.556735992431641}, \"speedup\": {\"3584\": 1.0435897582851692, \"4096\": 0.946432443350981, \"4608\": 1.0358426611472096}, \"torch_ms\": {\"3584\": 3.1257599592208862, \"4096\": 4.44160008430481, \"4608\": 5.755904197692871}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Keep this as the validated pure cuBLAS three-SGEMM reference path, but do not promote unconditionally because the d=4096 regression is significant.",
+    "Verify the implementation exactly matches the /workspace/lora/3_sgemm.cu mapping: SGEMM1 opA=N/opB=N with A=X and B=W; SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, U shape {d,16}, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1.",
+    "Check that the candidate does not add hidden overhead relative to the reference path: no input copies, no explicit B.T materialization, no ATen matmul/add calls, no unnecessary stream rebinding, and only contiguous input validation or clear contiguous requirements.",
+    "Ensure the code uses CUDAGuard for the input device and at::cuda::getCurrentCUDABlasHandle so it integrates with PyTorch stream/device state correctly.",
+    "If shape dispatch is allowed, consider using this path only for d=3584 and d=4608 while falling back to the baseline or another validated path for d=4096.",
+    "Run a more stable benchmark with more iterations and, if possible, per-kernel profiling to confirm whether the d=4096 regression is persistent or timing noise.",
+    "Focus future optimization effort on reducing overhead in the low-rank SGEMM sequence only if profiling shows it is material; do not replace the main W @ X term with a custom GEMM."
+  ]
+}

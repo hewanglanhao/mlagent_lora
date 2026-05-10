@@ -1,0 +1,51 @@
+{
+  "avoid": [
+    "Do not pursue a custom full GEMM for W @ X; cuBLAS should handle the dominant dense multiplication.",
+    "Do not hardcode hidden dimensions beyond using runtime d and fixed rank 16.",
+    "Do not materialize B.T into a temporary transpose copy.",
+    "Do not add unconditional contiguous copies of W, X, A, or B.",
+    "Do not use result caching; it would only help repeated identical inputs and is not a valid general LoRA optimization.",
+    "Do not promote a handwritten rank-16 update path solely on a 1-4% gain without comparing against the exact pure cuBLAS three-SGEMM mapping.",
+    "Avoid SGEMM mappings that treat U as column-major [16,d], use m=16,n=d for U, or set U leading dimension to 16; the safer contract is U shape {d,16} with ldc=d."
+  ],
+  "bottleneck": "rank16_update_memory_bound",
+  "confidence": "medium",
+  "evidence": [
+    "Correctness passes for all tested d values: 3584, 4096, and 4608.",
+    "Numerical error is small: max_abs_err=0.00146484375 and rel_l2_err=7.9e-7, within tolerance.",
+    "Speedup is consistent but marginal: aggregate 1.029x, with per-shape speedups of 1.044x, 1.012x, and 1.036x.",
+    "No severe shape regression is visible, but the 4096 case is nearly tied with the torch baseline.",
+    "Profile labels the likely bottleneck as rank16_update_or_memory_bandwidth, consistent with a cuBLAS main GEMM plus handwritten low-rank update strategy.",
+    "Static review passed and compilation succeeded, but compile time is high at 223 seconds.",
+    "Because this candidate uses a custom rank-16 update path, it is potentially more fragile than a pure cuBLAS three-SGEMM implementation."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.028796993843132, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.9946879148483276, \"4096\": 4.697088003158569, \"4608\": 5.555199861526489}, \"speedup\": {\"3584\": 1.0435972108567948, \"4096\": 1.0119903974490654, \"4608\": 1.0364055720215584}, \"torch_ms\": {\"3584\": 3.1252479553222656, \"4096\": 4.753407955169678, \"4608\": 5.757440090179443}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Benchmark and validate the pure cuBLAS three-SGEMM implementation modeled exactly after /workspace/lora/3_sgemm.cu before investing further in handwritten rank-16 kernels.",
+    "Use direct cuBLAS SGEMM for the dominant W @ X term; do not replace the full d x d GEMM with a custom kernel.",
+    "Implement the low-rank path as cuBLAS SGEMM2 plus SGEMM3: first compute U = B.T @ X using SGEMM with opA=N, opB=T, A=X, B=B, m=d, n=16, k=d, U shape {d,16}, and ldc=d.",
+    "Accumulate A @ U into Y using SGEMM3 with opA=N, opB=N, A=U, B=A, m=d, n=d, k=16, and beta=1 so the low-rank term is added directly into the existing W @ X output.",
+    "Avoid explicit B.T materialization; use cuBLAS transpose flags instead.",
+    "Use CUDAGuard and at::cuda::getCurrentCUDABlasHandle for stream-correct execution.",
+    "Require contiguous CUDA float32 inputs with checks, or handle strides correctly; avoid inserting input copies because they can erase the small observed gain.",
+    "If retaining the custom rank-16 update as an experimental branch, compare it directly against the pure cuBLAS low-rank SGEMM sequence on all three d values and only keep it if it gives a clear, stable gain.",
+    "Because current speedup is only about 3%, increase benchmark iterations or collect kernel-level profiling to ensure the improvement is not measurement noise."
+  ]
+}
