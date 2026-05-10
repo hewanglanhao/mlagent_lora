@@ -1,0 +1,47 @@
+{
+  "avoid": [
+    "Do not replace the main W @ X multiplication with a custom GEMM.",
+    "Do not add TORCH_CHECK validation, dtype checks, contiguity copies, or explicit d range checks on the trusted benchmark path.",
+    "Do not materialize B.T as a separate transpose/copy.",
+    "Do not switch to ATen matmul fallback unless needed for debugging; it is not the desired optimized path.",
+    "Do not promote based on result caching or repeated identical input assumptions; no evidence indicates that is a valid workload here.",
+    "Do not overfit block size or vector-width tuning before comparing against the minimal pure cuBLAS three-SGEMM baseline."
+  ],
+  "bottleneck": "main_sgemm_dominates_with_minor_rank16_overhead",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested d values: 3584, 4096, and 4608, with max_abs_err 0.00146484375 and rel_l2_err 7.9e-7.",
+    "Speedup is consistent but small across shapes: 1.043x at d=3584, 1.036x at d=4096, and 1.028x at d=4608.",
+    "Latency remains close to the torch baseline, indicating the dominant cost is still the large W @ X SGEMM rather than the rank-16 update.",
+    "The candidate uses a custom deterministic rank16 update; profile labels the remaining bottleneck as rank16_update_or_memory_bandwidth.",
+    "Static review passed and the absence of validation, dtype checks, and contiguity copies is acceptable under trusted-input constraints, but the custom kernel increases implementation risk and compile time.",
+    "Compile succeeded but took 222 seconds, which is high for a candidate whose runtime gain is only about 3.6% aggregate."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0357993350299495, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.9951999187469482, \"4096\": 4.693504095077515, \"4608\": 5.601792097091675}, \"speedup\": {\"3584\": 1.043418816807969, \"4096\": 1.0358895463843487, \"4608\": 1.028059571446064}, \"torch_ms\": {\"3584\": 3.1252479553222656, \"4096\": 4.86195182800293, \"4608\": 5.758975982666016}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Do not attempt a custom full GEMM for W @ X; keep the main term as direct cuBLAS SGEMM because it dominates runtime.",
+    "Before promoting this custom rank-16 path, validate a minimal trusted-input pure cuBLAS three-SGEMM implementation based on /workspace/lora/3_sgemm.cu.",
+    "Use the exact three-SGEMM mapping: SGEMM1 computes Y = W @ X via row-major-compatible cuBLAS call with opA=N/opB=N using A=X and B=W; SGEMM2 computes U = B.T @ X with U shape {d,16}, opA=N/opB=T, A=X, B=B, m=d, n=16, k=d, ldc=d; SGEMM3 accumulates A @ U into Y with opA=N/opB=N, A=U, B=A, m=d, n=d, k=16, beta=1.",
+    "Keep the pure cuBLAS version minimal: use CUDAGuard, getCurrentCUDABlasHandle, direct tensor.data_ptr<float>() arguments inside cublasSgemm, no ATen matmul, no explicit B.T materialization, no input copies, no explicit d range checks, and no validation checks.",
+    "Compare this candidate against the minimal three-SGEMM implementation. If the cuBLAS-only path matches or beats it, prefer cuBLAS-only because it is simpler, less fragile, and avoids long custom-kernel compile time.",
+    "If continuing with the custom rank-16 update, profile only that update kernel separately to confirm it is actually faster than the cuBLAS low-rank SGEMM sequence; otherwise replace the handwritten update with cuBLAS SGEMM2 plus SGEMM3.",
+    "Because gains shrink as d increases, consider shape-aware dispatch only if future results show the custom update wins meaningfully for some d values and loses or breaks for others."
+  ]
+}

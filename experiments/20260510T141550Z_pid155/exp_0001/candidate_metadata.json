@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 1,
+  "llm_generated": true,
+  "name": "pure_cublas_three_sgemm_3sgemm_style",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Replace ATen mm/add path with a minimal /workspace/lora/3_sgemm.cu-style direct cuBLAS sequence, avoid B.T materialization and input copies, and accumulate the rank-16 term into Y via SGEMM beta=1; should reduce launch/framework overhead while preserving cuBLAS performance for W @ X.",
+  "use_fast_math": false,
+  "vector_width": 1
+}

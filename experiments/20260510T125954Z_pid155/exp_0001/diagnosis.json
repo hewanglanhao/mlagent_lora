@@ -1,0 +1,49 @@
+{
+  "avoid": [
+    "Do not pursue a custom full d x d GEMM for W @ X.",
+    "Do not materialize B.T explicitly.",
+    "Do not switch to handwritten rank-16 update kernels unless profiling shows the cuBLAS rank-16 sequence is the bottleneck and the replacement is validated across all d values.",
+    "Do not add input validation, dtype checks, contiguity conversions, tensor copies, or explicit d range checks in the hot path under trusted-input assumptions.",
+    "Do not optimize around block_size, float4 stores, or custom memory-store kernels for this pure cuBLAS candidate; those suggestions are not relevant unless a custom kernel is introduced.",
+    "Do not use result caching; there is no evidence that repeated identical tensor inputs are a valid benchmark workload.",
+    "Do not promote a future variant that improves only one shape while regressing another badly; use shape-aware dispatch only if per-shape results justify it."
+  ],
+  "bottleneck": "main_sgemm_dominates_low_rank_overhead",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passed for all tested d values: 3584, 4096, and 4608.",
+    "Numerical error is within tolerance: max_abs_err=0.00146484375 only at d=3584, rel_l2_err=7.91e-07; d=4096 and d=4608 were bitwise identical to reference in this run.",
+    "Candidate improves every tested shape versus the torch baseline: 1.044x at d=3584, 1.036x at d=4096, and 1.009x at d=4608.",
+    "Aggregate speedup is modest but positive at 1.030x, consistent with replacing framework-level matmul/add overhead and explicit transpose/add work with direct cuBLAS SGEMMs.",
+    "The gain shrinks as d grows, especially d=4608, which indicates the full W @ X SGEMM dominates runtime and the rank-16 path/framework overhead is a smaller fraction of total latency.",
+    "Static warnings about missing dtype/contiguity/TORCH_CHECK validation are acceptable for the trusted-input optimization target and should not be treated as defects under the stated constraints.",
+    "The selected strategy matches the preferred direction: direct cuBLAS for W @ X, no custom full GEMM, no explicit B.T materialization, temporary rank-16 product, and beta=1 accumulation into Y."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0303618604102218, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.9951999187469482, \"4096\": 4.7027199268341064, \"4608\": 5.711359977722168}, \"speedup\": {\"3584\": 1.0441025827167698, \"4096\": 1.0360370636985614, \"4608\": 1.0090542003858873}, \"torch_ms\": {\"3584\": 3.127295970916748, \"4096\": 4.872192144393921, \"4608\": 5.763071775436401}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "promote",
+  "recommended_actions": [
+    "Promote this as a validated pure-cuBLAS three-SGEMM baseline if code inspection confirms it follows the exact 3_sgemm mapping.",
+    "Keep the main W @ X term as a direct cuBLAS SGEMM; do not replace it with a custom full GEMM because it is the dominant cost and cuBLAS is the right backend.",
+    "Verify the exact trusted-input 3-SGEMM contract: SGEMM1 computes Y = W @ X using the known row-major/column-major mapping from /workspace/lora/3_sgemm.cu; SGEMM2 uses opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, temporary U shape {d,16}, ldc=d; SGEMM3 uses opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1 to accumulate into Y.",
+    "Ensure the implementation uses CUDAGuard and at::cuda::getCurrentCUDABlasHandle, and passes tensor.data_ptr<float>() directly into cublasSgemm.",
+    "If the code contains any remaining nonessential trusted-input overhead, remove it before trying a different strategy: no TORCH_CHECK validation, no dtype checks, no explicit d range checks, no contiguous copies, no explicit B.T copy, no ATen matmul, and no separate add kernel.",
+    "Use this candidate as the reference for future experiments; any custom rank-16 kernel should be compared against this three-cuBLAS-SGEMM version and rejected unless it improves all relevant d values without correctness fragility.",
+    "Because d=4608 only improves by about 0.9%, collect more timing samples if making fine-grained decisions, but the current all-shape positive result is enough for baseline promotion."
+  ]
+}

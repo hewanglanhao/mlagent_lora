@@ -1,0 +1,38 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_3_sgemm_reference_mapping"
+    ],
+    "priority_order": [
+      "Implement the minimal pure cuBLAS three-SGEMM candidate modeled after /workspace/lora/3_sgemm.cu, replacing the rejected ATen reference path.",
+      "Use the exact required SGEMM mapping: gemm(N,N,d,d,d, X,W -> Y), gemm(N,T,d,16,d, X,B -> U), gemm(N,N,d,d,16, U,A -> Y, beta=1).",
+      "Compile, static-review, correctness-test across d=3584,4096,4608, then benchmark only if correctness passes."
+    ],
+    "rationale": "The only tested implementation is an ATen reference baseline that is correct but slower overall, with overhead from multiple ATen GEMM/add operations and explicit transpose/copy behavior. The next lowest-risk and preferred optimization is the minimal trusted-input pure cuBLAS three-SGEMM implementation. It preserves cuBLAS for the dominant W @ X term, computes the rank-16 intermediate without materializing B.T, and accumulates the low-rank update into Y with beta=1, minimizing launches and ATen overhead while using the required row-major/column-major equivalent mapping across all runtime d values.",
+    "risk_controls": [
+      "Do not promote unless correctness passes for all tested d values.",
+      "Do not use ATen mm/matmul/add for the main computation.",
+      "Do not add handwritten CUDA kernels in this candidate family.",
+      "Do not materialize B.T or any transpose-copy.",
+      "Do not add input validation, TORCH_CHECK checks, d range checks, .contiguous() copies, or ATen fallback math.",
+      "Use torch::empty_like(W) for Y and torch::empty({d,16}, W.options()) for U.",
+      "Use c10::cuda::CUDAGuard and at::cuda::getCurrentCUDABlasHandle().",
+      "Do not explicitly call cublasSetStream or getCurrentCUDAStream.",
+      "Pass tensor.data_ptr<float>() directly inside cublasSgemm calls.",
+      "Keep U as row-major tensor shape {d,16} with column-major leading dimension ldc=d for the second SGEMM.",
+      "Use beta=0 for SGEMM1 and SGEMM2, and beta=1 for SGEMM3 to accumulate the low-rank term directly into Y."
+    ],
+    "stop_conditions": [
+      "Stop and reject the candidate if it fails static review, compilation, or correctness on any required d.",
+      "If correct but not faster than the ATen baseline aggregate, keep the existing best and consider only low-risk cuBLAS variants next.",
+      "If correct and faster aggregate, promote it as the new best before exploring any handwritten rank-16 update kernels."
+    ],
+    "strategy": "pure_cublas_three_sgemm_trusted_inputs"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_three_sgemm_trusted_inputs"
+}

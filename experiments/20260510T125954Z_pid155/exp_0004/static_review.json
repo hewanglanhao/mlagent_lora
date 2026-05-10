@@ -1,0 +1,10 @@
+{
+  "errors": [],
+  "passed": true,
+  "risk_level": "medium",
+  "warnings": [
+    "uses data_ptr<float>() without an explicit float32 check",
+    "no TORCH_CHECK validation",
+    "does not make tensors contiguous before pointer/matmul use"
+  ]
+}

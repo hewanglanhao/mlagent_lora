@@ -6,10 +6,11 @@
 torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B) {
     c10::cuda::CUDAGuard device_guard(W.device());
 
-    const int d = static_cast<int>(W.size(0));
+    const int64_t d64 = W.size(0);
+    const int d = static_cast<int>(d64);
 
     auto Y = torch::empty_like(W);
-    auto U = torch::empty({d, 16}, W.options());
+    auto U = torch::empty({d64, 16}, W.options());
 
     cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
 

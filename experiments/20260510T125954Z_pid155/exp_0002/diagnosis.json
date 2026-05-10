@@ -1,0 +1,48 @@
+{
+  "avoid": [
+    "Do not optimize by writing a custom full W @ X GEMM; cuBLAS should handle the dominant dense GEMM.",
+    "Do not promote a candidate that improves two shapes slightly but regresses d=4096.",
+    "Do not add ATen fallback or tensor validation/copy overhead unless required by the benchmark contract.",
+    "Do not explicitly materialize B.T.",
+    "Do not hardcode hidden dimensions beyond using runtime d and rank 16.",
+    "Do not use result caching as an optimization unless the benchmark explicitly validates repeated identical inputs.",
+    "Do not switch to opA=T/opB=T mappings or a U layout with shape [16,d] / leading dimension 16; that is a common source of pure-cuBLAS correctness failures."
+  ],
+  "bottleneck": "marginal_custom_rank16_update_with_shape_regression",
+  "confidence": "high",
+  "evidence": [
+    "Candidate is correct for d=3584, 4096, and 4608 with max_abs_err=0.00146484375 and rel_l2_err=7.91e-7.",
+    "Aggregate speedup is only 1.024x, which is within the range where launch overhead, benchmark noise, or small low-rank update differences can dominate.",
+    "Performance is not consistently better: d=4096 regresses to 0.988x versus torch baseline while d=3584 and d=4608 improve only modestly at 1.044x and 1.052x.",
+    "The implementation family uses cuBLAS plus a handwritten rank-16 scalar update, so the likely variable component is the custom low-rank path rather than the main W @ X term.",
+    "For these large d x d GEMMs, W @ X should remain on direct cuBLAS SGEMM; replacing it with a custom full GEMM would be high risk and unlikely to help.",
+    "Static review warnings about no dtype checks, no TORCH_CHECK validation, and no contiguous copies are acceptable for the desired trusted-input minimal path, assuming the benchmark provides valid CUDA float32 contiguous tensors."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.023891587463573, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.9951999187469482, \"4096\": 4.479488134384155, \"4608\": 5.475840091705322}, \"speedup\": {\"3584\": 1.0442735241939702, \"4096\": 0.9878842909709669, \"4608\": 1.0515193793899842}, \"torch_ms\": {\"3584\": 3.1278079748153687, \"4096\": 4.42521595954895, \"4608\": 5.757951974868774}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Do not promote this candidate as-is because it has only marginal aggregate gain and a clear d=4096 regression.",
+    "Validate or repair the minimal pure cuBLAS three-SGEMM implementation based on /workspace/lora/3_sgemm.cu before further tuning handwritten rank-16 kernels.",
+    "Use direct cuBLAS SGEMM for W @ X and avoid custom full-GEMM work.",
+    "Replace the handwritten rank-16 update with the trusted cuBLAS low-rank sequence: compute Y = W @ X, compute temporary U with shape {d,16}, then accumulate A @ U.T or equivalent into Y with beta=1 according to the exact 3_sgemm mapping.",
+    "For the desired 3-SGEMM mapping, use SGEMM1 opA=N/opB=N with A=X and B=W; SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, U shape {d,16}, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1.",
+    "Keep the implementation minimal and trusted-input oriented: CUDAGuard, getCurrentCUDABlasHandle, direct tensor.data_ptr<float>() inside cublasSgemm calls, no explicit B.T materialization, no ATen matmul, no input validation, no input copies, and no explicit d range checks.",
+    "If keeping this custom-rank candidate for exploration, use shape-aware dispatch only after more measurements confirm that d=3584 and d=4608 consistently benefit while d=4096 should fall back to the pure cuBLAS path."
+  ]
+}

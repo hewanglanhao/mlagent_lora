@@ -1,0 +1,52 @@
+{
+  "avoid": [
+    "Do not write a custom full GEMM for W @ X.",
+    "Do not promote a shape-unstable kernel with a 0.952x regression at d=4096.",
+    "Do not add input validation, dtype checks, d range checks, or contiguous copies to the fast path under trusted-input constraints.",
+    "Do not explicitly transpose or materialize B.T.",
+    "Do not hardcode hidden dimensions beyond using runtime d and fixed rank 16.",
+    "Do not pursue result caching unless the benchmark explicitly validates repeated identical input tensors.",
+    "Do not spend effort on float4 stores or block-size tuning before comparing against the minimal pure cuBLAS three-SGEMM path."
+  ],
+  "bottleneck": "fragile_custom_rank16_update",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested d values, so performance is the deciding issue.",
+    "Aggregate speedup is only 1.007x, effectively noise-level improvement over torch baseline.",
+    "Performance is shape-unstable: d=3584 improves 1.044x and d=4608 improves 1.044x, but d=4096 regresses to 0.952x.",
+    "The profile labels the likely bottleneck as rank16_update_or_memory_bandwidth, consistent with a handwritten rank-16 update adding overhead or inefficient memory traffic around the dominant W @ X SGEMM.",
+    "The main W @ X term is a large d x d GEMM and should remain direct cuBLAS SGEMM rather than a custom kernel.",
+    "Compile time is very high at 214.9 seconds, which is another cost of the custom-kernel path for negligible runtime gain.",
+    "Static warnings about no validation, no dtype checks, and no contiguity copies are acceptable for the trusted-input benchmark and should not be fixed with extra checks or copies."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.007064474481659, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.9987839460372925, \"4096\": 4.694528102874756, \"4608\": 5.474816083908081}, \"speedup\": {\"3584\": 1.0438791358894193, \"4096\": 0.9515759503243174, \"4608\": 1.0442345119503542}, \"torch_ms\": {\"3584\": 3.1303679943084717, \"4096\": 4.467200040817261, \"4608\": 5.716991901397705}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Do not promote this candidate as-is because the aggregate gain is negligible and d=4096 regresses badly.",
+    "Validate or switch to the minimal pure cuBLAS three-SGEMM implementation based on /workspace/lora/3_sgemm.cu before further tuning handwritten rank-16 kernels.",
+    "Use direct cuBLAS SGEMM for the main term W @ X.",
+    "Use the exact three-SGEMM mapping: SGEMM1 computes Y = W @ X with opA=N/opB=N using A=X and B=W in the row-major-as-column-major mapping.",
+    "Compute the low-rank intermediate U with shape {d, 16}: SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, ldc=d.",
+    "Accumulate the low-rank output into Y using SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1.",
+    "Avoid explicit B.T materialization; let cuBLAS opB=T handle B.T.",
+    "Use CUDAGuard and getCurrentCUDABlasHandle, and pass tensor.data_ptr<float>() directly inside cublasSgemm calls.",
+    "Keep the trusted-input assumptions: no TORCH_CHECK validation, no dtype checks, no explicit d range checks, and no contiguity copies if the harness guarantees valid CUDA float32 contiguous tensors.",
+    "If this custom rank16 path is kept for experimentation, use shape-aware dispatch only after more data, because the current path helps d=3584 and d=4608 slightly but hurts d=4096."
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "avoid": [
+    "Do not invest in a custom full GEMM for W @ X.",
+    "Do not hardcode hidden dimensions or assume only one d value.",
+    "Do not materialize B.T explicitly.",
+    "Do not switch to result caching; the benchmark does not establish repeated identical inputs as a valid workload.",
+    "Do not prioritize block-size or float4-store tuning before validating the minimal pure cuBLAS three-SGEMM baseline.",
+    "Do not use an SGEMM mapping that treats U as column-major [16, d], uses m=16,n=d for U, or sets U leading dimension to 16.",
+    "Do not use opA=T/opB=T in SGEMM1 or SGEMM3 unless the full row-major/column-major mapping has been re-derived and verified."
+  ],
+  "bottleneck": "custom_rank16_update_vs_minimal_cublas",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested d values: 3584, 4096, and 4608, with max_abs_err 0.00146484375 and rel_l2_err 7.91e-7.",
+    "Speedup is positive but modest and uniform: 1.042x at d=3584, 1.035x at d=4096, 1.036x at d=4608, aggregate 1.038x.",
+    "The candidate uses a cuBLAS plus custom rank-16 update strategy, so the main W @ X term is likely still dominated by cuBLAS SGEMM while the remaining opportunity is in the low-rank path and memory traffic.",
+    "Profile labels the bottleneck as rank16_update_or_memory_bandwidth, consistent with the small gain from replacing part of the low-rank computation with a custom deterministic scalar kernel.",
+    "Static review warnings are acceptable under trusted-input assumptions, but the custom handwritten rank-16 path is more fragile than the preferred pure cuBLAS three-SGEMM implementation.",
+    "Compile time is very high at about 210 seconds, which is a practical downside for an LLM-generated custom CUDA kernel with only about 3.8% aggregate speedup."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.037531426371232, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.0003199577331543, \"4096\": 4.6975998878479, \"4608\": 5.516287803649902}, \"speedup\": {\"3584\": 1.041979524570944, \"4096\": 1.034986364117597, \"4608\": 1.0364767445097003}, \"torch_ms\": {\"3584\": 3.126271963119507, \"4096\": 4.86195182800293, \"4608\": 5.717504024505615}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Before promoting this custom-rank16 version, validate a minimal trusted-input pure cuBLAS three-SGEMM implementation based on /workspace/lora/3_sgemm.cu.",
+    "Use direct cuBLAS SGEMM for the main W @ X term; do not attempt a custom full d x d GEMM because W @ X dominates and cuBLAS is the right implementation.",
+    "Implement the exact three-SGEMM mapping: SGEMM1 computes Y = W @ X using row-major-as-column-major mapping with opA=N/opB=N, A=X, B=W.",
+    "Compute the low-rank temporary U with shape {d, 16}: SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, ldc=d.",
+    "Accumulate the low-rank output into Y with beta=1: SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16.",
+    "Avoid explicit B.T materialization; use the cuBLAS transpose flag in SGEMM2.",
+    "Use CUDAGuard and at::cuda::getCurrentCUDABlasHandle, then pass tensor.data_ptr<float>() directly inside cublasSgemm calls.",
+    "Keep the trusted-input path minimal: no ATen matmul, no input validation checks, no explicit d range checks, no contiguity copies, and no extra tensor copies beyond allocating Y and U.",
+    "If the pure cuBLAS three-SGEMM version matches or beats this candidate, prefer it because it is simpler, less fragile, and avoids the custom rank-16 kernel.",
+    "If the pure cuBLAS path is slower, then use this candidate as a reference point and profile only the rank-16 update kernel, since the observed improvement is small and likely memory-bandwidth limited."
+  ]
+}

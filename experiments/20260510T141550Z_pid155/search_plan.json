@@ -1,0 +1,44 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_3_sgemm"
+    ],
+    "priority_order": [
+      "Implement the minimal trusted-input pure cuBLAS three-SGEMM candidate modeled after /workspace/lora/3_sgemm.cu.",
+      "If and only if it compiles and passes correctness for d=3584, 4096, and 4608, benchmark it against the current ATen baseline and torch reference.",
+      "Only after the pure cuBLAS three-SGEMM family is correctness-tested and rejected or found insufficient, consider low-risk follow-up mutations such as minor allocation/handle-usage cleanup; do not move to custom kernels yet."
+    ],
+    "rationale": "The only completed experiment is an ATen-reference implementation that is correct but below 1.0 aggregate speedup and regresses at d=3584. The deterministic fallback and static review both identify launch overhead, ATen matmul usage, explicit B.T materialization, and input copies as avoidable. The next highest-priority search step is therefore the minimal pure cuBLAS three-SGEMM implementation using the trusted row-major/column-major equivalence: compute W @ X into Y, compute the rank-16 intermediate U without materializing B.T, then accumulate A @ U_row_equivalent into Y with beta=1. This is low risk, matches the required operator for all runtime d in [3584, 4608], and directly addresses the measured bottleneck before considering more complex custom-kernel approaches.",
+    "risk_controls": [
+      "Do not promote any candidate that has not passed correctness for all tested d values.",
+      "Use a single self-contained optimized_lora.cu exporting torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B) through PYBIND11_MODULE.",
+      "Include torch/extension.h, ATen/cuda/CUDAContext.h, c10/cuda/CUDAGuard.h, and cublas_v2.h.",
+      "Assume legal inputs; do not add TORCH_CHECK, check_inputs, dtype/device/shape/range validation, or contiguity checks.",
+      "Do not use ATen mm/matmul for the main computations and do not use handwritten CUDA kernels as the primary implementation.",
+      "Do not call .contiguous(), do not materialize B.transpose(0, 1).contiguous(), and do not explicitly copy inputs.",
+      "Use c10::cuda::CUDAGuard on W.device() and at::cuda::getCurrentCUDABlasHandle(); do not explicitly call cublasSetStream or getCurrentCUDAStream.",
+      "Allocate Y = torch::empty_like(W) and U = torch::empty({d, 16}, W.options()).",
+      "Pass tensor.data_ptr<float>() directly inside cublasSgemm calls rather than introducing unnecessary pointer aliases.",
+      "Use the required row-major-as-column-major mapping exactly: gemm(N,N,d,d,d, X,W -> Y), gemm(N,T,d,16,d, X,B -> U), gemm(N,N,d,d,16, U,A -> Y, beta=1).",
+      "For SGEMM1 use opA=N/opB=N with A=X, B=W, C=Y, m=d, n=d, k=d, beta=0.",
+      "For SGEMM2 use opA=N/opB=T with A=X, B=B, C=U, m=d, n=16, k=d, lda=d, ldb=16, ldc=d, beta=0.",
+      "For SGEMM3 use opA=N/opB=N with A=U, B=A, C=Y, m=d, n=d, k=16, lda=d, ldb=16, ldc=d, beta=1.",
+      "Avoid generic row-major transpose recipes such as opA=T/opB=T and avoid alternative U layouts unless later correctness evidence supports them across all required d values.",
+      "Reason and test across d=3584, 4096, and 4608; do not hardcode one hidden dimension."
+    ],
+    "stop_conditions": [
+      "Stop and reject the candidate if static review finds ATen matmul/mm, explicit transpose-copy materialization, input validation hot-path checks, custom full GEMM kernels, hidden shape hardcoding, or an incorrect SGEMM mapping.",
+      "Stop and reject the candidate if compilation fails.",
+      "Stop and reject the candidate if correctness fails for any tested d or produces non-finite output.",
+      "Do not promote if aggregate speedup is not above the existing best valid candidate or if performance gains are limited to one d while causing a significant regression on another d.",
+      "If the exact pure cuBLAS three-SGEMM candidate is correct but not faster, keep it only as evidence and then plan the next low-risk family; do not promote it as final without benchmark advantage."
+    ],
+    "strategy": "pure_cublas_3_sgemm_minimal"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_3_sgemm_minimal"
+}

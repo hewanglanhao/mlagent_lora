@@ -1,0 +1,17 @@
+{
+  "bytes": 1578,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": true,
+    "name": "pure_cublas_three_sgemm_3sgemm_style",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Replace ATen matmul/add path with three direct cuBLAS SGEMMs, eliminate explicit B.T materialization and separate add launch, and accumulate the rank-16 contribution into Y with beta=1. Expected to reduce framework overhead and improve the 4096 regression while preserving the cuBLAS full GEMM for W @ X.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "enabled": true,
+  "origin": "llm"
+}
