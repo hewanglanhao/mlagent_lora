@@ -15,6 +15,14 @@ if [ ! -d "$PROJECT_DIR/agent" ]; then
     fi
 fi
 
+ENV_FILE="$PROJECT_DIR/doc/环境变量.txt"
+if [ -f "$ENV_FILE" ]; then
+    set +u
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set -u
+fi
+
 sync_final_file() {
     if [ -s "$PROJECT_DIR/$FINAL_FILE" ]; then
         mkdir -p "$OUTPUT_DIR" || return 1
@@ -27,6 +35,36 @@ sync_final_file() {
         fi
     fi
 }
+
+# 测试模式：默认开启；设为 0 后才运行完整 agent 流程。
+if [ "${MLAGENT_TEST_USE_3_SGEMM:-1}" = "1" ]; then
+    TEST_SOURCE_WRITER="${MLAGENT_TEST_3_SGEMM_WRITER:-$PROJECT_DIR/scripts/write_test_3_sgemm.py}"
+    OUTPUT_REPORT="${MLAGENT_OUTPUT_REPORT:-$OUTPUT_DIR/output.md}"
+    if [ ! -s "$TEST_SOURCE_WRITER" ]; then
+        echo "test source writer was not found or is empty: $TEST_SOURCE_WRITER" >&2
+        exit 1
+    fi
+    mkdir -p "$OUTPUT_DIR" "$(dirname "$OUTPUT_REPORT")"
+    tmp_final="$(mktemp "$OUTPUT_DIR/.${FINAL_FILE}.tmp.XXXXXX")" || exit 1
+    if python3 "$TEST_SOURCE_WRITER" "$tmp_final"; then
+        mv -f "$tmp_final" "$OUTPUT_DIR/$FINAL_FILE"
+    else
+        rm -f "$tmp_final"
+        exit 1
+    fi
+    {
+        echo "# Test Run"
+        echo
+        echo "This is a test output report."
+        echo
+        echo "- Mode: MLAGENT_TEST_USE_3_SGEMM=1"
+        echo "- Embedded source writer: $TEST_SOURCE_WRITER"
+        echo "- Final artifact: $OUTPUT_DIR/$FINAL_FILE"
+    } > "$OUTPUT_REPORT"
+    echo "test mode enabled; wrote embedded 3-SGEMM source to $OUTPUT_DIR/$FINAL_FILE"
+    echo "wrote $OUTPUT_REPORT"
+    exit 0
+fi
 
 SYNC_PID=""
 cleanup() {
@@ -57,14 +95,6 @@ done &
 SYNC_PID=$!
 
 cd "$PROJECT_DIR" || exit 1
-
-ENV_FILE="$PROJECT_DIR/doc/环境变量.txt"
-if [ -f "$ENV_FILE" ]; then
-    set +u
-    # shellcheck disable=SC1090
-    source "$ENV_FILE"
-    set -u
-fi
 
 # 让 Python 日志实时输出，便于 tail -f 查看运行进度。
 export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
