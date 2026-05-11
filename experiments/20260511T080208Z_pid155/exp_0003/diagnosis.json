@@ -1,0 +1,50 @@
+{
+  "avoid": [
+    "Do not add input validation, dtype checks, contiguity conversions, or explicit d range checks; these would move away from the desired minimal trusted-input implementation.",
+    "Do not optimize W @ X with a custom GEMM; direct cuBLAS SGEMM is the correct path for the dominant full-rank term.",
+    "Do not materialize B.T as a separate tensor.",
+    "Do not rely on a handwritten scalar rank-16 update if cuBLAS SGEMM for the low-rank sequence is faster or more stable.",
+    "Do not promote based only on aggregate speedup when one required shape regresses.",
+    "Do not use result caching or any assumption of repeated identical inputs unless the benchmark explicitly validates that workload."
+  ],
+  "bottleneck": "custom_rank16_update_shape_instability",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested d values with max_abs_err 0.00146484375 and rel_l2_err 7.9e-7, so performance diagnosis is valid.",
+    "Aggregate speedup is only 1.015x, which is within a marginal range for promotion.",
+    "Performance is shape-inconsistent: d=3584 improves by 1.044x and d=4608 improves by 1.074x, but d=4096 regresses to 0.949x versus torch.",
+    "The profile labels the bottleneck as rank16_update_or_memory_bandwidth, consistent with the custom scalar rank-16 update not reliably beating library GEMM behavior.",
+    "The candidate uses a cublas_plus_custom_rank16_update strategy; since W @ X dominates total work, the main term should remain direct cuBLAS SGEMM, and the fragile rank-16 path should be compared against a pure cuBLAS low-rank sequence.",
+    "Static review warnings about missing dtype checks, TORCH_CHECK validation, and contiguity copies are acceptable under trusted-input constraints and should not be 'fixed' by adding validation or copies.",
+    "Compile time is very high at about 225 seconds, which is another practical cost for a candidate with only marginal runtime gain."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.015299084678715, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.992639899253845, \"4096\": 4.701695919036865, \"4608\": 5.354496002197266}, \"speedup\": {\"3584\": 1.044311397472674, \"4096\": 0.949362997862816, \"4608\": 1.0742015543059553}, \"torch_ms\": {\"3584\": 3.1252479553222656, \"4096\": 4.463616132736206, \"4608\": 5.751807928085327}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Do not promote this candidate as a general replacement because it regresses significantly at d=4096.",
+    "Implement or validate the minimal trusted-input pure cuBLAS three-SGEMM path based on /workspace/lora/3_sgemm.cu before further custom rank-16 kernel tuning.",
+    "Use direct cuBLAS SGEMM for W @ X; do not attempt a custom full GEMM.",
+    "For the low-rank path, prefer the exact 3-SGEMM mapping: SGEMM1 computes Y = W @ X, SGEMM2 computes U = B.T @ X using the row-major/cuBLAS mapping with opA=N/opB=T, m=d, n=16, k=d, U shape {d,16}, ldc=d, and SGEMM3 accumulates A @ U into Y with opA=N/opB=N, m=d, n=d, k=16, beta=1.",
+    "Avoid explicit B.T materialization; use cuBLAS transpose flags instead.",
+    "Use CUDAGuard and at::cuda::getCurrentCUDABlasHandle, and pass tensor.data_ptr<float>() directly inside cublasSgemm calls.",
+    "Keep the trusted-input assumptions: no TORCH_CHECK validation, no dtype checks, no explicit d range checks, no contiguity copies, and no ATen matmul calls.",
+    "If retaining this custom rank-16 update, add shape-aware dispatch only after confirming it consistently wins for d=3584 and d=4608 and falls back to the pure cuBLAS or baseline path for d=4096.",
+    "Benchmark the pure three-SGEMM implementation against this candidate to determine whether the handwritten scalar rank-16 update is actually beneficial."
+  ]
+}

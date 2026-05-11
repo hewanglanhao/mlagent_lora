@@ -1,0 +1,51 @@
+{
+  "avoid": [
+    "Do not add TORCH_CHECK validation, dtype checks, contiguity conversions, or explicit input copies for this trusted-input benchmark.",
+    "Do not materialize B.T as a separate tensor.",
+    "Do not implement a custom full d x d GEMM for W @ X.",
+    "Do not hardcode a single hidden dimension; d is runtime-selected in [3584, 4608].",
+    "Do not use result caching unless the benchmark explicitly validates repeated identical tensor inputs as the target workload.",
+    "Do not promote based only on the small 4% speedup if the simpler pure cuBLAS 3-SGEMM path has not yet been validated.",
+    "Do not switch to shape-aware dispatch unless later measurements show one shape improves while another regresses badly."
+  ],
+  "bottleneck": "rank16_update_overhead",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested d values: 3584, 4096, and 4608, with max_abs_err 0.00146484375 and rel_l2_err 7.9e-7.",
+    "Speedup is consistent but small across all shapes: 1.043x at d=3584, 1.038x at d=4096, and 1.045x at d=4608.",
+    "Profile labels the bottleneck as rank16_update_or_memory_bandwidth, which is consistent with a custom scalar rank-16 update reading/writing the full d x d output.",
+    "The main W @ X term is d x d SGEMM and likely dominates total runtime; replacing that with custom code is not recommended.",
+    "The candidate uses a handwritten rank-16 update path with scalar vector_width=1 and block_size=128, which may be fragile and only marginally better than the baseline.",
+    "Static warnings about missing dtype checks, TORCH_CHECK validation, and contiguous copies are acceptable under the trusted-input benchmark model and should not be fixed by adding validation or copies.",
+    "Compile time is high at 223.8 seconds, which is another practical downside for a modest 4.1% aggregate speedup."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0412345501778817, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.998271942138672, \"4096\": 4.691967964172363, \"4608\": 5.47430419921875}, \"speedup\": {\"3584\": 1.042691264652109, \"4096\": 1.0375382249788359, \"4608\": 1.0447062693023825}, \"torch_ms\": {\"3584\": 3.126271963119507, \"4096\": 4.868096113204956, \"4608\": 5.7190399169921875}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Validate a minimal trusted-input pure cuBLAS three-SGEMM implementation based on /workspace/lora/3_sgemm.cu before further tuning handwritten rank-16 kernels.",
+    "Use direct cuBLAS SGEMM for the dominant W @ X term; do not attempt a custom full GEMM.",
+    "Replace the handwritten rank-16 update with the cuBLAS low-rank sequence if the pure 3-SGEMM path is correct and comparable or faster.",
+    "Use the exact 3-SGEMM mapping: SGEMM1 computes Y = W @ X using row-major-as-column-major mapping with opA=N/opB=N, A=X, B=W.",
+    "Use SGEMM2 for U = B.T @ X with opA=N/opB=T, A=X, B=B, m=d, n=16, k=d, U shape {d,16}, and ldc=d.",
+    "Use SGEMM3 to accumulate Y += A @ U.T with opA=N/opB=N, A=U, B=A, m=d, n=d, k=16, and beta=1.",
+    "Keep the implementation minimal: CUDAGuard, getCurrentCUDABlasHandle, direct tensor.data_ptr<float>() inside cublasSgemm, no ATen matmul, no explicit B.T materialization, no input validation checks, no explicit d range checks, and no input copies.",
+    "If retaining the custom rank-16 path for comparison, test vectorized stores or float4 only as a secondary experiment, because the current scalar rank16 update appears memory-bandwidth limited.",
+    "Benchmark the pure cuBLAS 3-SGEMM candidate against this candidate on all three shapes before promotion."
+  ]
+}

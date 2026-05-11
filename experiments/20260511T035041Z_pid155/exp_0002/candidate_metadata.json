@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 2,
+  "llm_generated": true,
+  "name": "pure_cublas_three_sgemm_3sgemm_style",
+  "parent": 1,
+  "shape_dispatch": false,
+  "strategy": "Validate the minimal /workspace/lora/3_sgemm.cu-style pure cuBLAS baseline: eliminate ATen matmul/add overhead and explicit B.T materialization while accumulating the rank-16 contribution into Y with beta=1. It may match or beat the current modest custom-kernel speedup with simpler, less fragile code and lower iteration risk.",
+  "use_fast_math": false,
+  "vector_width": 1
+}

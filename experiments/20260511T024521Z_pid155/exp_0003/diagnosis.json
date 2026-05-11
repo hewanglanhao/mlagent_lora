@@ -1,0 +1,48 @@
+{
+  "avoid": [
+    "Do not pursue a custom full GEMM for W @ X; the d x d GEMM dominates and should remain cuBLAS.",
+    "Do not add TORCH_CHECK validation, dtype checks, explicit d range checks, or contiguity copies for the trusted-input benchmark path.",
+    "Do not explicitly materialize B.T as a separate tensor.",
+    "Do not fall back to ATen unless correctness fails; this candidate is already correct.",
+    "Do not rely on result caching or repeated identical inputs as an optimization direction.",
+    "Do not prioritize float4 stores or block-size sweeps before validating the minimal pure cuBLAS three-SGEMM path.",
+    "Do not hardcode hidden dimensions beyond the rank-16 contract."
+  ],
+  "bottleneck": "custom_rank16_update_memory_bandwidth",
+  "confidence": "medium",
+  "evidence": [
+    "Correctness passes for all tested d values: 3584, 4096, and 4608, with max_abs_err 0.00146484375 and rel_l2_err 7.9e-7.",
+    "Performance improves consistently but modestly across all shapes: 1.044x at d=3584, 1.058x at d=4096, and 1.053x at d=4608.",
+    "Aggregate speedup is only 1.052x, suggesting the dominant W @ X term is already handled reasonably and remaining opportunity is in overhead or the rank-16 update path.",
+    "Profile labels the bottleneck as rank16_update_or_memory_bandwidth, consistent with a handwritten low-rank update kernel that may be bandwidth-limited.",
+    "The candidate uses a cuBLAS plus custom rank-16 update strategy rather than the preferred minimal trusted-input three-SGEMM cuBLAS implementation.",
+    "Static warnings about missing dtype checks, missing TORCH_CHECK validation, and no contiguity copies are acceptable under the trusted-input benchmark constraints and should not be 'fixed' by adding validation or copies."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.052148799582595, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.9951999187469482, \"4096\": 4.144128084182739, \"4608\": 5.474815845489502}, \"speedup\": {\"3584\": 1.0435897582851692, \"4096\": 1.0581912056755216, \"4608\": 1.0526512994227855}, \"torch_ms\": {\"3584\": 3.1257599592208862, \"4096\": 4.385279893875122, \"4608\": 5.7630720138549805}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Benchmark a minimal pure cuBLAS three-SGEMM implementation before further tuning the handwritten rank-16 kernel.",
+    "Use direct cuBLAS SGEMM for W @ X; do not replace the main d x d GEMM with a custom kernel.",
+    "Replace the handwritten rank-16 update with the exact low-rank cuBLAS sequence if it has not already been validated: SGEMM1 computes Y = W @ X, SGEMM2 computes U = B.T @ X using U shape {d,16}, and SGEMM3 accumulates Y += A @ U with beta = 1.",
+    "For the pure cuBLAS mapping, follow the known 3_sgemm contract exactly: SGEMM1 opA=N/opB=N with A=X and B=W; SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, U shape {d,16}, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1.",
+    "Keep the trusted-input fast path minimal: no ATen matmul, no explicit B.T materialization, no input validation checks, no explicit d range checks, no contiguity copies, no local pointer-copy abstractions unless needed, and pass tensor.data_ptr<float>() directly inside cublasSgemm.",
+    "Use CUDAGuard and at::cuda::getCurrentCUDABlasHandle for stream-correct cuBLAS execution.",
+    "If retaining this custom-rank16 candidate, it is a viable baseline because it is correct and improves all tested shapes, but additional tuning should be compared against the pure three-SGEMM version rather than only against torch."
+  ]
+}

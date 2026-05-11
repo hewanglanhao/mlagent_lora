@@ -1,0 +1,52 @@
+{
+  "avoid": [
+    "Do not pursue custom full GEMM for W @ X; cuBLAS is the right implementation for the dominant term.",
+    "Do not switch to handwritten rank-16 update kernels unless the pure cuBLAS low-rank path is shown to be the bottleneck and remains correct across all d values.",
+    "Do not follow profile suggestions such as varying block size or float4 stores for this candidate unless introducing a custom kernel, which would increase fragility and is not currently justified.",
+    "Do not add input validation, input copies, explicit contiguity conversions, or explicit dimension-range checks to the trusted-input optimized path.",
+    "Do not materialize B.T explicitly.",
+    "Do not change U to a column-major [16, d] contract or use leading dimension 16.",
+    "Do not use opA=T/opB=T for SGEMM1 or SGEMM3; that is a common source of row-major/column-major correctness failures.",
+    "Do not use result caching as an optimization direction."
+  ],
+  "bottleneck": "main_sgemm_dominates_with_small_rank16_overhead",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested d values: 3584, 4096, and 4608.",
+    "Numerical error is small: max_abs_err 0.00146484375 and rel_l2_err 7.9e-7, within tolerance.",
+    "Latency improves consistently across all shapes: 1.0427x at d=3584, 1.0388x at d=4096, and 1.0406x at d=4608.",
+    "Aggregate speedup is modest but stable at 1.0405x, consistent with removing ATen overhead and avoiding explicit B.T materialization while still being dominated by the large W @ X SGEMM.",
+    "The candidate matches the preferred low-risk direction: pure cuBLAS three-SGEMM style, no handwritten rank-16 kernel, no explicit transpose materialization, and rank-16 contribution accumulated into Y.",
+    "Static warnings about missing dtype/contiguity/TORCH_CHECK validation are acceptable under the trusted-input benchmark constraints and should not be treated as performance or correctness issues here.",
+    "Profile label suggesting rank16_update_or_memory_bandwidth should not motivate custom full GEMM work; the d x d W @ X multiply is still the dominant computation."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0404813861332047, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.9998079538345337, \"4096\": 4.304896116256714, \"4608\": 5.53932785987854}, \"speedup\": {\"3584\": 1.0426694051588261, \"4096\": 1.038768848744988, \"4608\": 1.0405767502918721}, \"torch_ms\": {\"3584\": 3.1278079748153687, \"4096\": 4.471791982650757, \"4608\": 5.764095783233643}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "promote",
+  "recommended_actions": [
+    "Promote this as a validated minimal pure-cuBLAS baseline if inspection confirms it follows the exact three-SGEMM contract.",
+    "Keep using direct cuBLAS SGEMM for W @ X; do not replace the main term with a custom GEMM.",
+    "Ensure the implementation remains aligned with the /workspace/lora/3_sgemm.cu mapping: SGEMM1 computes Y = W @ X through the row-major/column-major equivalent using opA=N/opB=N with A=X and B=W.",
+    "Ensure the low-rank temporary U has shape {d, 16}, not {16, d}.",
+    "Ensure SGEMM2 uses opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, and ldc=d.",
+    "Ensure SGEMM3 uses opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, and beta=1 to accumulate into Y.",
+    "Keep the trusted-input fast path minimal: use CUDAGuard, getCurrentCUDABlasHandle, and pass tensor.data_ptr<float>() directly to cublasSgemm.",
+    "Avoid adding TORCH_CHECK validation, dtype checks, explicit d range checks, contiguity copies, B.T materialization, or ATen matmul/add calls in this benchmark path.",
+    "Run a slightly longer benchmark if deciding between close variants, because the current benchmark uses only 10 measured iterations, but the current speedup is consistent enough across shapes to be credible."
+  ]
+}

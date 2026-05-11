@@ -1,0 +1,48 @@
+{
+  "agent": "static_code_review",
+  "call_id": "0018_static_code_review_1778468749262",
+  "duration_sec": 29.127118825912476,
+  "finished_ts": 1778468778.389556,
+  "llm_status": "LLM enabled with model gpt-5.5 from LLM_MODEL via OpenAI SDK.",
+  "metadata": {
+    "candidate": {
+      "block_size": 128,
+      "family": "cublas_plus_custom_rank16_update",
+      "id": 4,
+      "llm_generated": true,
+      "name": "rank16_vec4_b128",
+      "parent": 3,
+      "shape_dispatch": false,
+      "strategy": "deterministic_rank16_update",
+      "use_fast_math": false,
+      "vector_width": 4
+    },
+    "source_path": "/workspace/mlagent_lora/experiments/20260511T024521Z_pid155/exp_0004/candidate.cu"
+  },
+  "model": "gpt-5.5",
+  "parse_results": [
+    {
+      "detail": "",
+      "ok": true,
+      "parser": "json_object",
+      "ts": 1778468778.3997056
+    }
+  ],
+  "request": {
+    "system_chars": 3801,
+    "system_preview": "You are the Static Code Review Agent for a PyTorch CUDA extension candidate.\n\nReview the candidate before compilation. Your goal is to reject unsafe or non-compliant code early.\n\nHard constraints to verify:\n\n- The candidate is a single self-contained source file.\n- It includes #include <torch/extension.h>.\n- If it calls cuBLAS or PyTorch CUDA handle/device helpers, it includes the required CUDA/cuBLAS headers, for example <ATen/cuda/CUDAContext.h>, <c10/cuda/CUDAGuard.h>, and <cublas_v2.h>.\n- It defines:\n  torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B)\n- It exposes forward through PYBIND11_MODULE.\n- It computes Y = W @ X + A @ (B.T @ X).\n- It derives runtime d from the input tensor, not one hardcoded shape.\n- A and B have rank dimension 16.\n- It uses CUDA float32 tensors.\n- It does not depend on submission-side external files.\n\nSafety checks:\n\n- For the preferred 3_sgemm-style candidate, assume inputs are legal. Do not require dtype, device, dimensionality, shape, or contiguity checks, and do not warn merely because `check_inputs` or `TORCH_CHECK` is absent.\n- CUDA grid coverage and out-of-bounds protection.\n- Alignment assumptions for vectorized loads/stores.\n- Correct use of CUDA device guards, cuBLAS handles, and kernel launch error checking when kernels exist.\n- No undefined behavior that could corrupt optimized_lora.cu results.\n\nPure cuBLAS three-SGEMM review focus:\n\n- If the candidate claims a pure cuBLAS three-SGEMM strategy, verify that the core computation does not call ATen `mm`, `matmul`, or `addmm`.\n- Verify that the preferred strategy does not use handwritten CUDA kernels for the LoRA computation.\n- Verify that it avoids explicit B.T transpose-copy materialization when cuBLAS operation flags can express the same math.\n- Check that the row-major PyTorch tensors are correctly interpreted through cuBLAS column-major conventions.\n- Check the three SGEMMs separately: main W @ X term, temporary U with shape {d, 16} for the low-rank intermediate, and final low-rank accumulation into Y with beta = 1.\n- For 3_sgemm-style candidates, prefer this structure: no input validation code, no `check_inputs`, no `TORCH_CHECK`, `c10::cuda::CUDAGuard`, `at::cuda::getCurrentCUDABlasHandle()`, `Y=empty_like(W)`, `U={d,16}`, no `.contiguous()` input copies, no explicit `cublasSetStream` unless justified by a compile/runtime failure, no `d >= 3584 && d <= 4608` range check, and direct `tensor.data_ptr<float>()` arguments inside `cublasSgemm`.\n- For 3_sgemm-style candidates, warn if the source pre-binds tensor pointers into local aliases such as `Xp`, `Wp`, `Yp`, or `Up`; prefer direct `X.data_ptr<float>()` style arguments to match `/workspace/lora/3_sgemm.cu`.\n- For 3_sgemm-style candidates, require these exact cuBLAS parameter patterns:\n  - SGEMM 1: opA=N, opB=N, m=d, n=d, k=d, A=X, B=W, C=Y, lda=ldb=ldc=d, beta=0.\n  - SGEMM 2: opA=N, opB=T, m=d, n=16, k=d, A=X, B=B, C=U, lda=d, ldb=16, ldc=d, U shape {d,16}, beta=0.\n  - SGEMM 3: opA=N, opB=N, m=d, n=d, k=16, A=U, B=A, C=Y, lda=d, ldb=16, ldc=d, beta=1.\n- Flag opA=T/opB=T in SGEMM 1 or SGEMM 3 as blocking for 3_sgemm-style candidates. Flag m=16, n=d or U leading dimension 16 as blocking unless the candidate gives a convincing, shape-general proof.\n- Treat missing CUDA/cuBLAS headers, wrong cuBLAS op flags, m/n/k dimensions, leading dimensions, alpha/beta values, unnecessary input checks, unnecessary input copies, explicit d range checks in the 3_sgemm-style hot path, or unjustified stream rebinding as high-risk or blocking issues.\n\nReturn JSON only. Do not include Markdown fences.\n\nExpected schema:\n\n{\n  \"pass\": true,\n  \"risk_level\": \"low|medium|high\",\n  \"errors\": [\"blocking issue\"],\n  \"warnings\": [\"non-blocking issue\"],\n  \"suggested_fixes\": [\"fix\"]\n}",
+    "system_sha256": "1830d24ce697ad58e90177242d293c2a47dd516c2883b64c74d28df6c8288228",
+    "user_chars": 2976,
+    "user_preview": "Operator and submission constraints:\n\nOptimize Y = W @ X + A @ (B.T @ X). W and X are d x d, A and B are d x 16, d is runtime-selected in [3584, 4608], all tensors are CUDA float32, and the exported function is torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B).\n\nCandidate metadata:\n\n{\n  \"block_size\": 128,\n  \"family\": \"cublas_plus_custom_rank16_update\",\n  \"id\": 4,\n  \"llm_generated\": true,\n  \"name\": \"rank16_vec4_b128\",\n  \"parent\": 3,\n  \"shape_dispatch\": false,\n  \"strategy\": \"deterministic_rank16_update\",\n  \"use_fast_math\": false,\n  \"vector_width\": 4\n}\n\nCandidate source code:\n\n#include <torch/extension.h>\n#include <ATen/cuda/CUDAContext.h>\n#include <c10/cuda/CUDAGuard.h>\n#include <cublas_v2.h>\n#include <limits>\n\ntorch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B) {\n    c10::cuda::CUDAGuard device_guard(W.device());\n\n    const int d = static_cast<int>(W.size(0));\n    constexpr int r = 16;\n\n    auto Y = torch::empty_like(W);\n    auto U = torch::empty({static_cast<int64_t>(d), static_cast<int64_t>(r)}, W.options());\n\n    cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();\n\n    const float one = 1.0f;\n    const float zero = 0.0f;\n\n    // Y_col = X_col * W_col\n    (void)cublasSgemm(\n        handle,\n        CUBLAS_OP_N, CUBLAS_OP_N,\n        d, d, d,\n        &one,\n        X.data_ptr<float>(), d,\n        W.data_ptr<float>(), d,\n        &zero,\n        Y.data_ptr<float>(), d\n    );\n\n    // U_col[d,16] = X_col * B_col^T\n    (void)cublasSgemm(\n        handle,\n        CUBLAS_OP_N, CUBLAS_OP_T,\n        d, r, d,\n        &one,\n        X.data_ptr<float>(), d,\n        B.data_ptr<float>(), r,\n        &zero,\n        U.data_ptr<float>(), d\n    );\n\n    // Y_col += U_col * A_col\n    (void)cublasSgemm(\n        handle,\n        CUBLAS_OP_N, CUBLAS_OP_N,\n        d, d, r,\n        &one,\n        U.data_ptr<float>(), d,\n        A.data_ptr<float>(), r,\n        &one,\n        Y.data_ptr<float>(), d\n    );\n\n    return Y;\n}\n\nPYBIND11_MODULE(TORCH_EXTENSION_NAME, m) {\n    m.def(\"forward\", &forward, \"LoRA forward\");\n}\n\nAdditional review emphasis:\n\n- For a pure cuBLAS three-SGEMM candidate, focus on cuBLAS layout equivalence, operation flags, leading dimensions, beta = 1 accumulation, `CUDAGuard`/cuBLAS handle usage, and absence of ATen matrix multiply or handwritten kernels in the core computation.\n- For a 3_sgemm-style candidate, specifically verify SGEMM1 opA=N/opB=N with A=X/B=W; SGEMM2 opA=N/opB=T with U shape {d,16}, m=d/n=16/k=d/ldc=d; and SGEMM3 opA=N/opB=N with m=d/n=d/k=16/beta=1.\n- Prefer a minimal 3_sgemm-style hot path: no input checks, no `check_inputs`, no `TORCH_CHECK`, no input `.contiguous()` copies, `Y=empty_like(W)`, `U={d,16}`, current cuBLAS handle, no explicit `d >= 3584 && d <= 4608` check, direct `tensor.data_ptr<float>()` arguments inside `cublasSgemm`, and no explicit stream rebinding unless justified.\n\nReview the candidate and return the JSON result.",
+    "user_sha256": "6d3aee351cd9f336ef17c47bebf9db6c8c790bb6fe24eee5b6c0b3969c0d47d3"
+  },
+  "response": {
+    "content_chars": 100,
+    "content_preview": "{\n  \"pass\": true,\n  \"risk_level\": \"low\",\n  \"errors\": [],\n  \"warnings\": [],\n  \"suggested_fixes\": []\n}",
+    "content_sha256": "78abb00ef1011be7ac705662e87a227fea81e9821845a0ca907f3c7df2b0a4eb",
+    "model": "gpt-5.5"
+  },
+  "run_id": "20260511T024521Z_pid155",
+  "started_ts": 1778468749.262437,
+  "status": "success"
+}

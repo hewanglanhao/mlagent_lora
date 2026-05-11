@@ -1,0 +1,17 @@
+{
+  "bytes": 1479,
+  "candidate": {
+    "block_size": 128,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 4,
+    "llm_generated": true,
+    "name": "rank16_vec4_b128",
+    "parent": 3,
+    "shape_dispatch": false,
+    "strategy": "deterministic_rank16_update",
+    "use_fast_math": false,
+    "vector_width": 4
+  },
+  "enabled": true,
+  "origin": "llm"
+}

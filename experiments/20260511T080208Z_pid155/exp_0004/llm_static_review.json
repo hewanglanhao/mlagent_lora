@@ -1,0 +1,11 @@
+{
+  "errors": [],
+  "pass": true,
+  "risk_level": "low",
+  "suggested_fixes": [
+    "Optionally remove the unused <limits> include."
+  ],
+  "warnings": [
+    "Includes <limits> but does not use it; harmless but unnecessary."
+  ]
+}

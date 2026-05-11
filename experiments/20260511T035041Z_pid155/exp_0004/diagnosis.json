@@ -1,0 +1,52 @@
+{
+  "avoid": [
+    "Do not replace the main W @ X computation with a handwritten full GEMM.",
+    "Do not materialize B.T as a separate tensor.",
+    "Do not add input validation, contiguity conversions, or defensive copies in the optimized trusted-input path.",
+    "Do not switch to ATen matmul as a fallback unless correctness failures appear.",
+    "Do not hardcode one hidden dimension; d is runtime-selected in the tested range.",
+    "Do not use result caching as an optimization direction unless the benchmark explicitly validates repeated identical tensor inputs.",
+    "Do not promote a complex custom rank-16 kernel solely on a roughly 4% speedup without comparing against the minimal pure cuBLAS three-SGEMM baseline."
+  ],
+  "bottleneck": "custom_rank16_update_memory_bandwidth",
+  "confidence": "medium",
+  "evidence": [
+    "Correctness passes for all tested d values: 3584, 4096, and 4608.",
+    "Numerical error is acceptable: max_abs_err 0.00146484375 and rel_l2_err 7.9e-7.",
+    "Speedup is small but consistent across shapes: 1.043x at d=3584, 1.032x at d=4096, 1.045x at d=4608, aggregate 1.039x.",
+    "Profile labels the likely bottleneck as rank16_update_or_memory_bandwidth, not the main W @ X GEMM.",
+    "The candidate uses a custom rank-16 update path; this can be fragile and may be memory-bandwidth limited compared with a simple cuBLAS low-rank SGEMM sequence.",
+    "Compile time is very high at 225.8 seconds, which suggests the custom kernel path adds build complexity for only about 4% runtime gain.",
+    "Static review warnings about missing dtype/contiguity validation are acceptable under trusted-input constraints, but the implementation should not add validation or copies to address them."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0392010306298605, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.9987839460372925, \"4096\": 4.314624071121216, \"4608\": 5.5162880420684814}, \"speedup\": {\"3584\": 1.0431961871904345, \"4096\": 1.0315651706139937, \"4608\": 1.045387020757109}, \"torch_ms\": {\"3584\": 3.1283199787139893, \"4096\": 4.450815916061401, \"4608\": 5.766655921936035}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Before promoting this custom rank16 kernel, validate a minimal trusted-input pure cuBLAS three-SGEMM implementation based on /workspace/lora/3_sgemm.cu.",
+    "Keep the main W @ X term as direct cuBLAS SGEMM; do not attempt a custom full d x d GEMM because that term dominates total work.",
+    "Use the exact three-SGEMM mapping: SGEMM1 opA=N/opB=N with A=X and B=W to compute Y; SGEMM2 opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, output temporary U shape {d,16}, ldc=d; SGEMM3 opA=N/opB=N with A=U and B=A, m=d, n=d, k=16, beta=1 to accumulate into Y.",
+    "Ensure the low-rank path avoids explicit B.T materialization and instead uses the transpose flag in cuBLAS for B.",
+    "Use a temporary U laid out with shape {d,16}; do not treat it as {16,d}.",
+    "Accumulate the low-rank term into Y with beta=1 in the third SGEMM.",
+    "For the minimal cuBLAS candidate, use CUDAGuard plus at::cuda::getCurrentCUDABlasHandle and pass tensor.data_ptr<float>() directly inside cublasSgemm calls.",
+    "Do not add TORCH_CHECK validation, dtype checks, explicit d range checks, input copies, contiguous conversions, ATen matmul calls, or explicit stream rebinding in the trusted-input benchmark path.",
+    "If the pure cuBLAS three-SGEMM variant matches or exceeds this candidate, prefer it because it is simpler, more robust, and avoids the custom rank-16 kernel maintenance cost.",
+    "If continuing with this custom kernel, gather profiler kernel-level timing to confirm whether the speedup comes from reducing rank-16 overhead rather than from benchmark noise."
+  ]
+}

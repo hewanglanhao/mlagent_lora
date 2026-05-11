@@ -1,0 +1,52 @@
+{
+  "avoid": [
+    "Do not implement a custom full W @ X GEMM; cuBLAS should handle the dominant d x d multiplication.",
+    "Do not tune scalar rank-16 block sizes before validating the pure cuBLAS three-SGEMM baseline.",
+    "Do not materialize B.T as a separate tensor or copy inputs to make them contiguous in the optimized trusted-input path.",
+    "Do not add explicit dtype/device/dimension checks or d range checks unless the harness requires defensive behavior.",
+    "Do not use result caching; the benchmark does not establish repeated identical tensor inputs as a valid workload.",
+    "Do not hardcode a specific hidden dimension because d is runtime-selected in [3584, 4608].",
+    "Do not fall back to ATen merely for numerical safety here; correctness is already passing."
+  ],
+  "bottleneck": "custom_rank16_update_marginal_gain",
+  "confidence": "medium",
+  "evidence": [
+    "Correctness passes for all tested d values: 3584, 4096, and 4608, with max_abs_err 0.00146 and rel_l2_err 7.9e-7.",
+    "Runtime improves over torch for every tested shape, but only modestly: aggregate speedup 1.047x.",
+    "Per-shape speedups are consistent but small: 1.043x at d=3584, 1.035x at d=4096, and 1.067x at d=4608.",
+    "Candidate uses a cuBLAS plus handwritten rank-16 update strategy; this is likely saving some overhead versus torch but may be limited by memory bandwidth or scalar update inefficiency.",
+    "The dominant cost is still the full W @ X GEMM, so replacing the main term with a custom GEMM is not justified.",
+    "Static warnings about no dtype checks, no TORCH_CHECK validation, and no contiguity copies are acceptable for the desired trusted-input minimal path, assuming benchmark inputs are valid CUDA float32 contiguous tensors.",
+    "Compile succeeds but compile time is high at 221.8 seconds, which is not a runtime bottleneck but suggests the custom kernel path may add complexity without large payoff."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.046848391649243, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 2.9951999187469482, \"4096\": 4.205567836761475, \"4608\": 5.356544017791748}, \"speedup\": {\"3584\": 1.0432478753307688, \"4096\": 1.0345751535055272, \"4608\": 1.066813225492672}, \"torch_ms\": {\"3584\": 3.124735951423645, \"4096\": 4.35097599029541, \"4608\": 5.714432001113892}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Validate a minimal pure cuBLAS three-SGEMM implementation before further tuning the handwritten rank-16 update.",
+    "Use direct cuBLAS SGEMM for the main W @ X term; do not attempt a custom full d x d GEMM.",
+    "Replace the handwritten rank-16 update with the cuBLAS low-rank sequence if the pure cuBLAS version is competitive or faster.",
+    "Use the exact trusted-input 3-SGEMM mapping: SGEMM1 opA=N/opB=N with A=X and B=W, m=d, n=d, k=d to produce Y.",
+    "For the low-rank inner term, allocate U with shape {d, 16}; SGEMM2 should use opA=N/opB=T with A=X and B=B, m=d, n=16, k=d, ldc=d.",
+    "Accumulate the low-rank output into Y with SGEMM3 opA=N/opB=N using A=U and B=A, m=d, n=d, k=16, beta=1.",
+    "Avoid explicit B.T materialization; rely on the cuBLAS transpose flag for B in SGEMM2.",
+    "Keep the implementation minimal: use CUDAGuard, getCurrentCUDABlasHandle, and pass tensor.data_ptr<float>() directly inside cublasSgemm calls.",
+    "Do not add input validation, explicit d range checks, contiguity copies, or ATen matmul fallbacks in the trusted benchmark path.",
+    "If keeping the custom rank-16 path, compare it directly against the minimal 3-SGEMM version over more iterations because the current 1.03x to 1.07x gain may be within sensitivity to launch overhead and rank-update implementation details."
+  ]
+}

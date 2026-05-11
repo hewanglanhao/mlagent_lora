@@ -2,16 +2,13 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <cublas_v2.h>
-#include <limits>
 
 torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::Tensor B) {
-    c10::cuda::CUDAGuard device_guard(W.device());
-
+    const c10::cuda::CUDAGuard device_guard(W.device());
     const int d = static_cast<int>(W.size(0));
-    constexpr int r = 16;
 
     auto Y = torch::empty_like(W);
-    auto U = torch::empty({static_cast<int64_t>(d), static_cast<int64_t>(r)}, W.options());
+    auto U = torch::empty({d, 16}, W.options());
 
     cublasHandle_t handle = at::cuda::getCurrentCUDABlasHandle();
 
@@ -32,20 +29,20 @@ torch::Tensor forward(torch::Tensor W, torch::Tensor X, torch::Tensor A, torch::
     // U_col[d,16] = X_col * B_col^T
     cublasSgemm(handle,
                 CUBLAS_OP_N, CUBLAS_OP_T,
-                d, r, d,
+                d, 16, d,
                 &alpha,
                 X.data_ptr<float>(), d,
-                B.data_ptr<float>(), r,
+                B.data_ptr<float>(), 16,
                 &beta0,
                 U.data_ptr<float>(), d);
 
     // Y_col += U_col * A_col
     cublasSgemm(handle,
                 CUBLAS_OP_N, CUBLAS_OP_N,
-                d, d, r,
+                d, d, 16,
                 &alpha,
                 U.data_ptr<float>(), d,
-                A.data_ptr<float>(), r,
+                A.data_ptr<float>(), 16,
                 &beta1,
                 Y.data_ptr<float>(), d);
 

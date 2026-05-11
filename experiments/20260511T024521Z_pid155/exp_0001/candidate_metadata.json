@@ -1,0 +1,12 @@
+{
+  "block_size": 256,
+  "family": "cublas_plus_custom_rank16_update",
+  "id": 1,
+  "llm_generated": true,
+  "name": "pure_cublas_three_sgemm_3sgemm_style",
+  "parent": 0,
+  "shape_dispatch": false,
+  "strategy": "Replaces ATen matmul/transpose/add overhead with three direct cuBLAS SGEMMs, avoids B.T copy, writes W@X directly to Y, and accumulates the rank-16 update with beta=1; should preserve correctness while reducing launch/framework overhead versus the current ATen reference.",
+  "use_fast_math": false,
+  "vector_width": 1
+}

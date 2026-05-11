@@ -1,0 +1,36 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_3_sgemm_reference_mapping"
+    ],
+    "priority_order": [
+      "Implement the minimal pure cuBLAS three-SGEMM candidate modeled after /workspace/lora/3_sgemm.cu: include torch/extension.h, ATen/cuda/CUDAContext.h, c10/cuda/CUDAGuard.h, and cublas_v2.h; use CUDAGuard, at::cuda::getCurrentCUDABlasHandle(), Y = torch::empty_like(W), and U = torch::empty({d, 16}, W.options()).",
+      "Use the exact required cuBLAS row-major-as-column-major mapping: SGEMM1 gemm(N,N,d,d,d, X,W -> Y, beta=0); SGEMM2 gemm(N,T,d,16,d, X,B -> U, ldc=d, beta=0); SGEMM3 gemm(N,N,d,d,16, U,A -> Y, beta=1).",
+      "After static review and compile, correctness-test across d = 3584, 4096, and 4608 before benchmarking or considering promotion."
+    ],
+    "rationale": "Only the ATen reference has been tested so far and it is effectively baseline speed. The next candidate should be the required first LLM-generated family: a minimal trusted-input direct cuBLAS implementation using three SGEMMs. This removes ATen dispatch, avoids explicit transpose/copy and add launches, keeps cuBLAS for the dominant W @ X GEMM, and uses the validated row-major/column-major equivalence with U shaped {d,16} across the runtime d range.",
+    "risk_controls": [
+      "Do not promote unless correctness passes for all tested d values.",
+      "Do not use ATen mm, matmul, add, transpose materialization, or fallback math in the main path.",
+      "Do not add input validation, shape checks, dtype/device checks, contiguity checks, d range checks, or .contiguous() copies.",
+      "Do not add custom CUDA kernels for this candidate family.",
+      "Do not call cublasSetStream or explicitly fetch/rebind the CUDA stream.",
+      "Do not use opA=T/opB=T row-major recipes or alternative U layouts such as column-major [16,d] with leading dimension 16.",
+      "Pass tensor.data_ptr<float>() directly in cublasSgemm calls where practical.",
+      "Keep beta=1 only on SGEMM3 so the low-rank term accumulates directly into Y without a separate add kernel."
+    ],
+    "stop_conditions": [
+      "If the pure cuBLAS three-SGEMM candidate fails correctness on any required d, reject it and inspect only the SGEMM dimension/op/leading-dimension mapping.",
+      "If it compiles and is correct but does not improve over the ATen baseline, keep the existing correct baseline and then consider only low-risk variants of the same cuBLAS mapping.",
+      "If static review finds ATen matmul/mm/add, explicit B.T materialization, input copies, custom kernels, or forbidden checks in the hot path, revise before compile/benchmark.",
+      "If aggregate speedup is positive and correctness passes, mark it as the new best candidate."
+    ],
+    "strategy": "pure_cublas_3_sgemm_trusted_inputs"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_3_sgemm_trusted_inputs"
+}

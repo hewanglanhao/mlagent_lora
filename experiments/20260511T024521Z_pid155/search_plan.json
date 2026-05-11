@@ -1,0 +1,38 @@
+{
+  "llm_advice": {
+    "next_candidate_families": [
+      "cublas_3_sgemm"
+    ],
+    "priority_order": [
+      "Implement the minimal pure cuBLAS three-SGEMM candidate modeled after /workspace/lora/3_sgemm.cu with no ATen mm/matmul and no custom CUDA kernels.",
+      "Use the exact row-major/column-major equivalent mapping: gemm(N,N,d,d,d, X,W -> Y), gemm(N,T,d,16,d, X,B -> U), gemm(N,N,d,d,16, U,A -> Y, beta=1).",
+      "Only after this candidate compiles and passes correctness across all tested d values, benchmark against the ATen baseline and promote only if speedup is real and correctness remains clean."
+    ],
+    "rationale": "The only tested candidate is an ATen reference with negligible speedup, while the deterministic guidance and static review both identify the minimal pure cuBLAS three-SGEMM path as the next low-risk optimization. This preserves cuBLAS for the dominant W @ X GEMM, avoids ATen launch/copy overhead and explicit B.T materialization, computes the rank-16 intermediate into a small U tensor, and accumulates the low-rank term directly into Y with beta=1.",
+    "risk_controls": [
+      "Do not promote any candidate that has not passed correctness for d=3584, d=4096, and d=4608.",
+      "Do not add input validation, TORCH_CHECK checks, dtype/device/shape/range checks, or .contiguous() input copies; assume legal contiguous CUDA float32 inputs.",
+      "Do not materialize B.T or allocate a transposed copy; use cuBLAS transpose flags.",
+      "Do not route W @ X, B.T @ X, or the final low-rank accumulation through ATen mm/matmul.",
+      "Do not use handwritten CUDA kernels as the primary implementation for this candidate.",
+      "Use c10::cuda::CUDAGuard, at::cuda::getCurrentCUDABlasHandle(), Y=torch::empty_like(W), and U=torch::empty({d,16}, W.options()).",
+      "Avoid explicit cublasSetStream, getCurrentCUDAStream, CUDAContextLight, fallback ATen math, result caching, or hidden shape hardcoding.",
+      "Pass tensor.data_ptr<float>() directly inside cublasSgemm calls where practical.",
+      "Use U with row-major tensor shape {d,16} and cuBLAS ldc=d; do not switch to an alternative U layout unless this exact mapping fails with clear evidence."
+    ],
+    "stop_conditions": [
+      "Stop and reject the candidate if it fails static review for using ATen matmul/mm, explicit transpose materialization, input copies, validation checks, custom kernels, or the wrong SGEMM mapping.",
+      "Stop and reject the candidate if compilation fails.",
+      "Stop and reject the candidate if any correctness test fails or produces non-finite output.",
+      "Keep the current ATen baseline if the pure cuBLAS three-SGEMM candidate is correct but does not improve aggregate benchmark performance.",
+      "Do not explore lower-level custom rank-16 kernels until the preferred pure cuBLAS three-SGEMM family has been compiled, correctness-tested, benchmarked, and rejected for a clear reason."
+    ],
+    "strategy": "pure_cublas_3_sgemm_trusted_inputs"
+  },
+  "notes": [
+    "Use ATen/cuBLAS for the d x d GEMM.",
+    "Explore kernels that fuse Y += A @ T for rank 16.",
+    "Validate every candidate before promotion."
+  ],
+  "strategy": "pure_cublas_3_sgemm_trusted_inputs"
+}

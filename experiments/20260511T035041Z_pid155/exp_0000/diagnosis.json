@@ -1,0 +1,50 @@
+{
+  "avoid": [
+    "Do not promote this as an optimized candidate; it is effectively the baseline.",
+    "Do not write a custom full GEMM for W @ X, since the full GEMM dominates and cuBLAS is the right backend.",
+    "Do not materialize B.T as a separate tensor or perform extra copies.",
+    "Do not use handwritten rank-16 kernels before first validating the simpler pure cuBLAS three-SGEMM path.",
+    "Do not add shape-specific hardcoding for hidden dimensions.",
+    "Do not use result caching; there is no evidence the benchmark validates repeated identical inputs as the intended workload.",
+    "Avoid SGEMM mappings that use opA=T/opB=T for SGEMM1 or SGEMM3, treat U as column-major [16,d], use m=16,n=d for U, or use U leading dimension 16."
+  ],
+  "bottleneck": "aten_reference_no_optimization",
+  "confidence": "high",
+  "evidence": [
+    "Candidate is the ATen reference baseline and is correct for all tested d values: 3584, 4096, and 4608 with zero reported error.",
+    "Aggregate speedup is essentially 1.0, with per-shape speedups 1.0, 1.001, and 1.0, so this does not materially improve over torch baseline.",
+    "Profile identifies multiple ATen GEMM/add launches, consistent with using high-level torch/ATen operations rather than a minimal direct cuBLAS implementation.",
+    "Latency scales with d as expected for a dominant full W @ X GEMM: 3.13 ms at d=3584, 4.44 ms at d=4096, and 5.77 ms at d=4608.",
+    "No compile or static-review issues were found, so the limitation is performance strategy rather than correctness or build stability."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "multiple_aten_gemm_and_add_launches",
+    "candidate_family": "aten_reference",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.000461630746349, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.12883198261261, \"4096\": 4.4364800453186035, \"4608\": 5.766655921936035}, \"speedup\": {\"3584\": 1.0, \"4096\": 1.0011540768658722, \"4608\": 1.0}, \"torch_ms\": {\"3584\": 3.12883198261261, \"4096\": 4.44160008430481, \"4608\": 5.766655921936035}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "keep cuBLAS for W @ X",
+      "fuse rank-16 update into the output tensor",
+      "test scalar and vectorized rank-16 kernels"
+    ]
+  },
+  "promotion_advice": "reject",
+  "recommended_actions": [
+    "Move from the ATen reference to a minimal trusted-input pure cuBLAS three-SGEMM implementation based on /workspace/lora/3_sgemm.cu.",
+    "Keep the main W @ X term as a direct cuBLAS SGEMM; do not attempt a custom full d x d GEMM.",
+    "Use CUDAGuard and at::cuda::getCurrentCUDABlasHandle, then call cublasSgemm directly with tensor.data_ptr<float>() arguments.",
+    "Implement SGEMM1 for Y = W @ X using the exact row-major-as-column-major mapping from 3_sgemm: opA=N, opB=N with A=X and B=W.",
+    "Allocate a temporary U with shape {d, 16}, not {16, d}.",
+    "Implement SGEMM2 for U = B.T @ X using opA=N, opB=T with A=X and B=B, m=d, n=16, k=d, and ldc=d.",
+    "Implement SGEMM3 to accumulate the low-rank term into Y using opA=N, opB=N with A=U and B=A, m=d, n=d, k=16, and beta=1.",
+    "Avoid explicit B.T materialization; let the cuBLAS transpose flag handle B.T.",
+    "Remove overhead not needed for trusted benchmark inputs: no input validation checks, no explicit d range checks, no tensor copies, and no ATen matmul/add calls.",
+    "After implementing the pure cuBLAS path, validate correctness on all three d values before evaluating performance changes."
+  ]
+}

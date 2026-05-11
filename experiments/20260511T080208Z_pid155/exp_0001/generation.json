@@ -1,0 +1,17 @@
+{
+  "bytes": 1630,
+  "candidate": {
+    "block_size": 256,
+    "family": "cublas_plus_custom_rank16_update",
+    "id": 1,
+    "llm_generated": true,
+    "name": "pure_cublas_three_sgemm_3sgemm_style",
+    "parent": 0,
+    "shape_dispatch": false,
+    "strategy": "Replaces ATen matmul/add and explicit transpose overhead with three direct cuBLAS SGEMMs; accumulates the rank-16 term into Y via beta=1 and should improve launch/framework overhead while keeping the dominant dense GEMM on cuBLAS.",
+    "use_fast_math": false,
+    "vector_width": 1
+  },
+  "enabled": true,
+  "origin": "llm"
+}

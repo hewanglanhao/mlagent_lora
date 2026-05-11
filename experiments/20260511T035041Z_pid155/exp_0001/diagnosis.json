@@ -1,0 +1,51 @@
+{
+  "avoid": [
+    "Do not replace the main W @ X with a custom full GEMM.",
+    "Do not add TORCH_CHECK validation, dtype checks, contiguity copies, or explicit d range checks to the trusted-input benchmark path.",
+    "Do not materialize B.T as a separate transpose/copy.",
+    "Do not treat U as column-major [16,d], do not use m=16,n=d for U, and do not use leading dimension 16 for U.",
+    "Do not use opA=T/opB=T in SGEMM1 or SGEMM3 unless the full row-major/column-major mapping has been re-derived and validated.",
+    "Do not pursue result caching unless the benchmark explicitly uses repeated identical tensor inputs as a valid workload.",
+    "Do not hardcode hidden dimensions beyond using the runtime d and fixed rank 16."
+  ],
+  "bottleneck": "main_sgemm_dominates_with_fragile_rank16_update",
+  "confidence": "high",
+  "evidence": [
+    "Correctness passes for all tested d values: 3584, 4096, and 4608, with max_abs_err 0.00146484375 and rel_l2_err 7.9e-7.",
+    "Speedup is consistent but modest across shapes: 1.042x at d=3584, 1.046x at d=4096, and 1.059x at d=4608.",
+    "Absolute latency scales like a large d x d SGEMM: 3.00 ms, 4.21 ms, 5.45 ms, indicating W @ X is still the dominant cost.",
+    "Candidate uses a custom rank-16 update path; profile labels the residual bottleneck as rank16_update_or_memory_bandwidth.",
+    "Static warnings about no TORCH_CHECK, direct data_ptr<float>(), and no contiguous copies are acceptable for the intended trusted-input benchmark model, not a reason to reject.",
+    "No shape-specific regression is observed, so shape dispatch is not required based on current benchmark data.",
+    "Compile succeeded but took 233.9 seconds, which is high and suggests the custom-kernel path may add maintenance/iteration cost compared with a minimal cuBLAS-only implementation."
+  ],
+  "fallback_diagnosis": {
+    "avoid": [
+      "overfitting one exact d"
+    ],
+    "bottleneck": "rank16_update_or_memory_bandwidth",
+    "candidate_family": "cublas_plus_custom_rank16_update",
+    "confidence": "medium",
+    "evidence": [
+      "{\"aggregate_speedup\": 1.0487504360021436, \"details\": {\"iters\": 10, \"warmup\": 3}, \"latency_ms\": {\"3584\": 3.0013439655303955, \"4096\": 4.214784145355225, \"4608\": 5.4476799964904785}, \"speedup\": {\"3584\": 1.0423063849535001, \"4096\": 1.0461613321713674, \"4608\": 1.0586466254918219}, \"torch_ms\": {\"3584\": 3.1283199787139893, \"4096\": 4.40934419631958, \"4608\": 5.767168045043945}}"
+    ],
+    "promotion_advice": "promote",
+    "recommended_actions": [
+      "vary block size",
+      "try float4 stores when d is divisible by 4",
+      "fall back to ATen if numerical error appears"
+    ]
+  },
+  "promotion_advice": "needs_more_data",
+  "recommended_actions": [
+    "Before further tuning this handwritten rank-16 kernel, validate the minimal trusted-input pure cuBLAS three-SGEMM implementation based on /workspace/lora/3_sgemm.cu.",
+    "Use direct cuBLAS SGEMM for the main W @ X term; do not attempt a custom full d x d GEMM because W @ X dominates and cuBLAS is the right implementation.",
+    "For the pure cuBLAS path, use the exact three-SGEMM mapping: SGEMM1 computes Y = W @ X via row-major-as-column-major mapping with opA=N, opB=N, A=X, B=W.",
+    "For the low-rank intermediate, allocate U with logical shape {d, 16} and compute SGEMM2 with opA=N, opB=T, A=X, B=B, m=d, n=16, k=d, ldc=d.",
+    "Accumulate the final low-rank term into Y using SGEMM3 with opA=N, opB=N, A=U, B=A, m=d, n=d, k=16, beta=1.",
+    "Avoid explicit B.T materialization; let cuBLAS opB=T handle B.T.",
+    "Keep the trusted-input fast path minimal: CUDAGuard, getCurrentCUDABlasHandle, direct tensor.data_ptr<float>() arguments inside cublasSgemm, no ATen matmul, no input validation checks, no explicit d range checks, and no input copies.",
+    "Benchmark the pure cuBLAS three-SGEMM version against this candidate. If the cuBLAS-only version matches or beats this modest 4-6% speedup, prefer it because it is simpler and less fragile.",
+    "Only revisit custom rank-16 update tuning, such as block-size or vectorized stores, if the validated pure cuBLAS three-SGEMM baseline is clearly slower."
+  ]
+}
