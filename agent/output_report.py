@@ -35,6 +35,8 @@ def write_output_report(
             best=best,
         ),
         _constraints_section(constraints),
+        _architecture_section(pipeline),
+        _candidate_lifecycle_section(history, best),
         _search_process_section(history),
         _candidate_table(history),
         _best_section(best),
@@ -93,6 +95,48 @@ def _constraints_section(constraints: dict[str, Any]) -> str:
             f"- Final filename: `{constraints.get('final_file', 'optimized_lora.cu')}`",
         ]
     )
+
+
+def _architecture_section(pipeline: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "## System Architecture",
+            "This optimizer is organized as a supervisor-driven multi-agent system. The Supervisor owns the run budget, experiment memory, best-candidate state, and final artifact synchronization. Specialized agents then handle the optimization loop around the LoRA CUDA operator.",
+            "",
+            "- SearchSpacePlannerAgent proposes the next optimization family or strategy from prior evidence.",
+            "- OptimizationMutationAgent turns benchmark, correctness, and diagnosis feedback into a concrete mutation request.",
+            "- LLMCUDACandidateGeneratorAgent or the deterministic CUDACandidateGenerator writes a self-contained `candidate.cu` implementation for `forward(W, X, A, B)`.",
+            "- StaticCodeReviewAgent and LLMStaticCodeReviewAgent inspect the generated CUDA/C++ before expensive execution; LLM warnings are recorded in the promotion evidence.",
+            "- BuildCompileAgent compiles each candidate as a PyTorch CUDA extension with `torch.utils.cpp_extension.load` and `-O3`, matching the expected official harness style.",
+            "- CorrectnessTestAgent executes `module.forward` and compares against the PyTorch reference `W @ X + A @ (B.T.contiguous() @ X)` before any benchmark-based promotion.",
+            "- BenchmarkAgent times the candidate and the PyTorch reference with CUDA events, then computes per-shape speedup as `torch_ms / candidate_ms`.",
+            "- ProfilingAgent and PerformanceDiagnosisAgent summarize bottlenecks and feed the next LLM mutation, closing the generate -> compile -> test -> benchmark -> diagnose -> regenerate loop.",
+            "- BestCandidateManager promotes only validated candidates and writes the final `optimized_lora.cu` used by external evaluation.",
+            "",
+            f"Pipeline settings for this run: `{json.dumps(pipeline, sort_keys=True)}`",
+        ]
+    )
+
+
+def _candidate_lifecycle_section(history: list[dict[str, Any]], best: dict[str, Any] | None) -> str:
+    candidate = _representative_candidate(history, best)
+    lines = [
+        "## Candidate Lifecycle",
+        "A CUDA candidate flows through the system as follows:",
+        "",
+        "1. Strategy selection: the planner or mutation agent chooses an optimization direction using the current best record, failed candidates, benchmark evidence, and diagnosis feedback.",
+        "2. CUDA generation: the generator writes a complete `candidate.cu` file under the current experiment directory.",
+        "3. Static review: local rule checks and optional LLM review flag unsafe APIs, signature mismatches, layout risks, and likely correctness problems.",
+        "4. Compilation: the candidate is compiled into a PyTorch CUDA extension. Compilation failures are classified and can trigger LLM repair attempts.",
+        "5. Correctness execution: the compiled `forward(W, X, A, B)` is run on CUDA tensors and compared to the PyTorch reference before any timing result is trusted.",
+        "6. Benchmarking: only correct candidates are benchmarked against the same PyTorch reference implementation. Speedup is computed as reference median latency divided by candidate median latency.",
+        "7. Profiling and diagnosis: timing data, correctness errors, and optional profiler evidence are converted into bottleneck explanations and next-step recommendations.",
+        "8. Promotion: a candidate replaces the current best only when it compiles, passes correctness, and improves the promotion metric. The chosen source is copied to `optimized_lora.cu`.",
+    ]
+    if candidate:
+        lines.extend(["", "Representative candidate from this run:"])
+        lines.extend(_candidate_flow_lines(candidate))
+    return "\n".join(lines)
 
 
 def _search_process_section(history: list[dict[str, Any]]) -> str:
@@ -242,6 +286,60 @@ def _artifacts_section(experiments_dir: Path, final_path: Path) -> str:
             f"- Final CUDA source: `{final_path}`",
         ]
     )
+
+
+def _representative_candidate(
+    history: list[dict[str, Any]],
+    best: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if best:
+        best_id = best.get("id")
+        for item in history:
+            if item.get("id") == best_id:
+                return item
+        return best
+    promoted = [item for item in history if item.get("decision") == "promoted_to_best"]
+    if promoted:
+        return promoted[-1]
+    compiled = [item for item in history if item.get("compiled")]
+    if compiled:
+        return compiled[-1]
+    return history[-1] if history else None
+
+
+def _candidate_flow_lines(candidate: dict[str, Any]) -> list[str]:
+    generation = candidate.get("generation") or {}
+    compile_result = candidate.get("compile") or {}
+    correctness = candidate.get("correctness") or {}
+    benchmark = candidate.get("benchmark") or {}
+    profile = candidate.get("profile") or {}
+    diagnosis = candidate.get("diagnosis") or {}
+    static_review = candidate.get("static_review") or {}
+    llm_review = candidate.get("llm_static_review")
+    lines = [
+        f"- Candidate: `{candidate.get('name')}` (`id={candidate.get('id')}`, family=`{candidate.get('family')}`)",
+        f"- Generation: origin=`{generation.get('origin', 'unknown')}`, llm_generated=`{candidate.get('llm_generated')}`, parent=`{candidate.get('parent')}`",
+        f"- Source path: `{candidate.get('source_path', 'unknown')}`",
+        f"- Static review: passed=`{static_review.get('passed', 'unknown')}`, risk=`{static_review.get('risk_level', 'unknown')}`",
+    ]
+    if isinstance(llm_review, dict):
+        lines.append(
+            f"- LLM static review: pass=`{llm_review.get('pass', 'unknown')}`, risk=`{llm_review.get('risk_level', 'unknown')}`"
+        )
+    else:
+        lines.append("- LLM static review: not recorded for this candidate")
+    lines.extend(
+        [
+            f"- Compile: compiled=`{compile_result.get('compiled', candidate.get('compiled'))}`, time=`{_fmt(compile_result.get('compile_time_sec'))}s`, error=`{compile_result.get('error_type')}`",
+            f"- Correctness: correct=`{correctness.get('correct', candidate.get('correct'))}`, max_abs=`{_fmt(correctness.get('max_abs_err'))}`, rel_l2=`{_fmt(correctness.get('rel_l2_err'))}`, failed_shapes=`{correctness.get('failed_shapes', [])}`",
+            f"- Benchmark latency: `{_shape_map(benchmark.get('latency_ms') or candidate.get('latency_by_d') or {})}`",
+            f"- Benchmark speedup: `{_shape_map(benchmark.get('speedup') or {})}`, aggregate=`{_fmt(candidate.get('aggregate_speedup') or benchmark.get('aggregate_speedup'))}`",
+            f"- Profile bottleneck: `{profile.get('bottleneck', 'unknown')}`",
+            f"- Diagnosis: bottleneck=`{diagnosis.get('bottleneck', 'unknown')}`, promotion_advice=`{diagnosis.get('promotion_advice', 'unknown')}`",
+            f"- Final decision: `{candidate.get('decision', 'unknown')}`",
+        ]
+    )
+    return lines
 
 
 def _sha256_file(path: Path) -> str:
